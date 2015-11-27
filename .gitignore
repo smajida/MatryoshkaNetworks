@@ -1,0 +1,11 @@
+*.txt
+*.pkl
+*.png
+*.pyc
+*.ndjson
+*.jl
+*.npy
+*.gz
+*.idx1-ubyte
+*.idx3-ubyte
+data/
