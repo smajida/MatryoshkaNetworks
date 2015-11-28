@@ -34,7 +34,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'gen_updates_2x_disc_mix'
+desc = 'gen_updates_1x_shallow'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -50,7 +50,7 @@ tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
 te_file = "{}/data/svhn_test.pkl".format(EXP_DIR)
 ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
-data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=150000)
+data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=250000)
 
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
@@ -64,14 +64,15 @@ k = 1             # # of discrim updates for each gen update
 l2 = 2.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
+nl = 1            # # of layers in each convolutional module
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 8           # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
-ngf = 32          # # of gen filters in first conv layer
-ndf = 32          # # of discrim filters in first conv layer
+ngf = 64          # # of gen filters in first conv layer
+ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
@@ -107,21 +108,24 @@ difn = inits.Normal(scale=0.02)
 # Define some modules to use in the generator
 #
 gen_module_1 = \
-GenUniModule(
+GenFCModule(
     rand_dim=nz0,
-    out_dim=(ngf*8*2*2),
-    apply_bn=True,
+    out_dim=(ngf*4*2*2),
+    num_layers=2,
+    apply_bn_1=True,
+    apply_bn_2=True,
     init_func=gifn,
     rand_type='normal',
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8*2*2)
+) # output is (batch, ngf*4*2*2)
 
 gen_module_2 = \
 GenConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
     rand_chans=nz1,
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     us_stride=2,
@@ -135,9 +139,10 @@ GenConvModule(
 gen_module_3 = \
 GenConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*8),
+    in_chans=(ngf*4),
     out_chans=(ngf*4),
     rand_chans=nz1,
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     us_stride=2,
@@ -154,6 +159,7 @@ GenConvModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     rand_chans=nz1,
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     us_stride=2,
@@ -168,8 +174,9 @@ gen_module_5 = \
 GenConvModule(
     filt_shape=(5,5),
     in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     rand_chans=nz1,
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     us_stride=2,
@@ -181,7 +188,7 @@ GenConvModule(
 )  # output is (batch, ngf*1, 32, 32)
 
 # weights for final convolutional "aggregation layer"
-gwx = gifn((nc, (ngf*2), 5, 5), 'gwx')
+gwx = gifn((nc, (ngf*1), 5, 5), 'gwx')
 
 #
 # Define some modules to use in the discriminator
@@ -191,6 +198,7 @@ DiscConvModule(
     filt_shape=(5,5),
     in_chans=nc,
     out_chans=ndf,
+    num_layers=nl,
     apply_bn_1=False,
     apply_bn_2=True,
     ds_stride=2,
@@ -204,6 +212,7 @@ DiscConvModule(
     filt_shape=(3,3),
     in_chans=(ndf*1),
     out_chans=(ndf*2),
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     ds_stride=2,
@@ -217,6 +226,7 @@ DiscConvModule(
     filt_shape=(3,3),
     in_chans=(ndf*2),
     out_chans=(ndf*4),
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     ds_stride=2,
@@ -229,7 +239,8 @@ disc_module_4 = \
 DiscConvModule(
     filt_shape=(3,3),
     in_chans=(ndf*4),
-    out_chans=(ndf*8),
+    out_chans=(ndf*4),
+    num_layers=nl,
     apply_bn_1=True,
     apply_bn_2=True,
     ds_stride=2,
@@ -241,12 +252,12 @@ DiscConvModule(
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*2*2),
+    in_dim=(ndf*4*2*2),
     apply_bn=True,
     init_func=difn,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
- 
+
 #
 # Grab parameters from generator and discriminator
 #
@@ -267,7 +278,7 @@ def gen(Z0, wx):
     # feedforward through the fully connected part of generator
     h2 = gen_module_1.apply(rand_vals=Z0)
     # reshape as input to a conv layer (in 2x2 grid)
-    h2 = h2.reshape((h2.shape[0], ngf*8, 2, 2))
+    h2 = h2.reshape((h2.shape[0], ngf*4, 2, 2))
     # feedforward through convolutional generator module
     h3 = gen_module_2.apply(h2, rand_vals=None)
     # feedforward through convolutional generator module
@@ -282,36 +293,31 @@ def gen(Z0, wx):
     return x
 
 def discrim(X):
-    # apply 3x3 double conv discriminator module
+    # apply convolutional discriminator module
     h1, y1 = disc_module_1.apply(X)
-    # apply 3x3 double conv discriminator module
+    # apply convolutional discriminator module
     h2, y2 = disc_module_2.apply(h1)
-    # apply 3x3 double conv discriminator module
+    # apply convolutional discriminator module
     h3, y3 = disc_module_3.apply(h2)
-    # apply 3x3 double conv discriminator module
+    # apply convolutional discriminator module
     h4, y4 = disc_module_4.apply(h3)
-    # concat label info and feedforward through fc module
+    # apply fully-connected discriminator module
     h4 = T.flatten(h4, 2)
     y5 = disc_module_5.apply(h4)
     return y1, y2, y3, y4, y5
 
 X = T.tensor4()
 Z0 = T.matrix()
-Z1 = T.matrix()
 
 # draw samples from the generator
-gX0 = gen(Z0, gwx)
-gX1 = gen(Z1, gwx)
+XIZ0 = gen(Z0, gwx)
 
 # feed real data and generated data through discriminator
 p_real = discrim(X)
-p_gen = discrim(gX0)
-p_real_gen = discrim(gX1)
+p_gen = discrim(XIZ0)
 
 # compute costs based on discriminator output for real/generated data
-_d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
-_d_cost_real_gen = sum([bce(p, T.ones(p.shape)).mean() for p in p_real_gen])
-d_cost_real = 0.666*_d_cost_real + 0.333*_d_cost_real_gen
+d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
 d_cost_gen = sum([bce(p, T.zeros(p.shape)).mean() for p in p_gen])
 g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
 
@@ -329,17 +335,17 @@ updates = d_updates + g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z0, Z1], cost, updates=g_updates)
-_train_d = theano.function([X, Z0, Z1], cost, updates=d_updates)
-_gen = theano.function([Z0], gX0)
+_train_g = theano.function([X, Z0], cost, updates=g_updates)
+_train_d = theano.function([X, Z0], cost, updates=d_updates)
+_gen = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 
 f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
 log_fields = [
-    'n_epochs', 
-    'n_updates', 
-    'n_examples', 
+    'n_epochs',
+    'n_updates',
+    'n_examples',
     'n_seconds',
     'g_cost',
     'd_cost',
@@ -364,17 +370,16 @@ for epoch in range(1, niter+niter_decay+1):
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
-        z1mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:
-            result = _train_d(imb, z0mb, z1mb)
-            d_cost += result[1]
-            d_cost_real += result[3]
-            dc_iter += 1
-        else:
-            result = _train_g(imb, z0mb, z1mb)
+            result = _train_g(imb, z0mb)
             g_cost += result[0]
             g_cost_d += result[2]
             gc_iter += 1
+        else:
+            result = _train_d(imb, z0mb)
+            d_cost += result[1]
+            d_cost_real += result[3]
+            dc_iter += 1
         n_updates += 1
         n_examples += len(imb)
     print("g_cost: {0:.4f}, d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
