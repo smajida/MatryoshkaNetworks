@@ -453,6 +453,72 @@ class GenFCModule(object):
             h2 = relu(h2)
         return h2
 
+####################################
+# GENERATOR FULLY CONNECTED MODULE #
+####################################
+
+class GenUniModule(object):
+    """
+    Module that applies a linear transform followed by an non-linearity.
+    """
+    def __init__(self, rand_dim, out_dim,
+                 apply_bn=True, init_func=None,
+                 rand_type='normal', final_relu=True, 
+                 mod_name='dm_uni'):
+        self.rand_dim = rand_dim
+        self.out_dim = out_dim
+        self.apply_bn = apply_bn
+        self.mod_name = mod_name
+        self.rand_type = rand_type
+        self.final_relu = final_relu
+        self.rng = RandStream(123)
+        if init_func is None:
+            self.init_func = inits.Normal(scale=0.02)
+        else:
+            self.init_func = init_func
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.w1 = self.init_func((self.rand_dim, self.out_dim),
+                                 "{}_w1".format(self.mod_name))
+        self.params = [ self.w1 ]
+        # make gains and biases for transforms that will get batch normed
+        if self.apply_bn:
+            gain_ifn = inits.Normal(loc=1., scale=0.02)
+            bias_ifn = inits.Constant(c=0.)
+            self.g1 = gain_ifn((self.out_dim), "{}_g1".format(self.mod_name))
+            self.b1 = bias_ifn((self.out_dim), "{}_b1".format(self.mod_name))
+            self.params.extend([self.g1, self.b1])
+        return
+
+    def apply(self, batch_size=None, rand_vals=None):
+        """
+        Apply this generator module. Pass _either_ batch_size or rand_vals.
+        """
+        assert not ((batch_size is None) and (rand_vals is None)), "need either batch_size or rand_vals"
+        if rand_vals is None:
+            rand_shape = (batch_size, self.rand_dim)
+            if self.rand_type == 'normal':
+                rand_vals = self.rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+                                            dtype=theano.config.floatX)
+            else:
+                rand_vals = self.rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
+                                             dtype=theano.config.floatX)
+        else:
+            rand_shape = (rand_vals.shape[0], self.rand_dim)
+        rand_vals = rand_vals.reshape(rand_shape)
+        # transform random values linearly
+        h1 = T.dot(rand_vals, self.w1)
+        if self.apply_bn:
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+        if self.final_relu:
+            h1 = relu(h1)
+        return h1
+
 
 
 

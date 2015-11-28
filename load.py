@@ -81,7 +81,9 @@ def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
         pickle_file = open(ex_file)
         data_dict = cPickle.load(pickle_file)
         ex_full_size = data_dict['X'].shape[3]
-        idx = npr.randint(low=0, high=ex_full_size, size=(ex_count))
+        idx = np.arange(ex_full_size)
+        npr.shuffle(idx)
+        idx = idx[:ex_count]
         Xex = data_dict['X'].take(idx, axis=3).astype(theano.config.floatX)
         Xex_vec = np.zeros((Xex.shape[3], 32*32*3)).astype(theano.config.floatX)
         for i in range(Xex.shape[3]):

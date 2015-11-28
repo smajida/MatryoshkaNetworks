@@ -28,7 +28,7 @@ from load import load_svhn
 # Phil's business
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule
+                              GenFCModule, BasicConvModule, GenUniModule
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
@@ -66,14 +66,14 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
+nz0 = 64          # # of dim for Z0
 nz1 = 8           # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 ngf = 32          # # of gen filters in first conv layer
 ndf = 32          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
+niter = 150       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0001       # initial learning rate for adam
 ntrain = Xtr.shape[0]
@@ -107,12 +107,10 @@ difn = inits.Normal(scale=0.02)
 # Define some modules to use in the generator
 #
 gen_module_1 = \
-GenFCModule(
+GenUniModule(
     rand_dim=nz0,
     out_dim=(ngf*8*2*2),
-    fc_dim=ngfc,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn=True,
     init_func=gifn,
     rand_type='normal',
     mod_name='gen_mod_1'
@@ -168,7 +166,7 @@ GenConvModule(
 
 gen_module_5 = \
 GenConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     rand_chans=nz1,
@@ -176,21 +174,21 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=False,
+    use_rand=True,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_5'
 )  # output is (batch, ngf*1, 32, 32)
 
 # weights for final convolutional "aggregation layer"
-gwx = gifn((nc, (ngf*2), 3, 3), 'gwx')
+gwx = gifn((nc, (ngf*2), 5, 5), 'gwx')
 
 #
 # Define some modules to use in the discriminator
 #
 disc_module_1 = \
 DiscConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=nc,
     out_chans=ndf,
     apply_bn_1=False,
@@ -312,9 +310,9 @@ d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
 d_cost_gen = sum([bce(p, T.zeros(p.shape)).mean() for p in p_gen])
 g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
 
-#d_cost_real = bce(p_real[-1], T.ones(p_real[-1].shape)).mean()
-#d_cost_gen = bce(p_gen[-1], T.zeros(p_gen[-1].shape)).mean()
-#g_cost_d = bce(p_gen[-1], T.ones(p_gen[-1].shape)).mean()
+# d_cost_real = bce(p_real[-1], T.ones(p_real[-1].shape)).mean()
+# d_cost_gen = bce(p_gen[-1], T.zeros(p_gen[-1].shape)).mean()
+# g_cost_d = bce(p_gen[-1], T.ones(p_gen[-1].shape)).mean()
 
 d_cost = d_cost_real + d_cost_gen + (1e-5 * sum([T.sum(p**2.0) for p in discrim_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
@@ -356,15 +354,22 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
+    g_cost = 0
+    d_cost = 0
+    gc_iter = 0
+    dc_iter = 0
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:
-            cost = _train_g(imb, z0mb)
+            g_cost += _train_g(imb, z0mb)[0]
+            gc_iter += 1
         else:
-            cost = _train_d(imb, z0mb)
+            d_cost += _train_d(imb, z0mb)[1]
+            dc_iter += 1
         n_updates += 1
         n_examples += len(imb)
+    print("g_cost: {0:.4f}, d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
     samples = np.asarray(_gen(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
     n_epochs += 1
