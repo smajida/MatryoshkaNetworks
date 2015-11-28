@@ -277,7 +277,7 @@ def gen(Z0, wx):
     # feedforward through convolutional generator module
     h6 = gen_module_5.apply(h5, rand_vals=None)
     # feedforward through another conv and clamp to [0,1]
-    h7 = dnn_conv(h6, wx, subsample=(1, 1), border_mode=(1, 1))
+    h7 = dnn_conv(h6, wx, subsample=(1, 1), border_mode=(2, 2))
     x = tanh(h7)
     return x
 
