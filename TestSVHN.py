@@ -28,7 +28,7 @@ from load import load_svhn
 # Phil's business
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule, GenUniModule
+                              GenFCModule, BasicConvModule
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
@@ -111,6 +111,7 @@ gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
     out_dim=(ngf*4*2*2),
+    fc_dim=ngfc,
     num_layers=2,
     apply_bn_1=True,
     apply_bn_2=True,

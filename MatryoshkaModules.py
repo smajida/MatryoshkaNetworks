@@ -182,7 +182,7 @@ class DiscConvModule(object):
                 h1 = dnn_pool(h1, (ss,ss), stride=(ss, ss), mode='max', pad=(0, 0))
             else:
                 # change spatial dim via strided convolution
-                h1 = dnn_conv(h1, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
+                h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
                 if self.apply_bn_1:
                     h1 = batchnorm(h1, g=self.g1, b=self.b1)
                 h1 = lrelu(h1)
