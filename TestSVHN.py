@@ -34,7 +34,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'matronet_2'
+desc = 'gen_updates_2x_disc_mix'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -297,22 +297,23 @@ def discrim(X):
 
 X = T.tensor4()
 Z0 = T.matrix()
+Z1 = T.matrix()
 
 # draw samples from the generator
-gX = gen(Z0, gwx)
+gX0 = gen(Z0, gwx)
+gX1 = gen(Z1, gwx)
 
 # feed real data and generated data through discriminator
 p_real = discrim(X)
-p_gen = discrim(gX)
+p_gen = discrim(gX0)
+p_real_gen = discrim(gX1)
 
 # compute costs based on discriminator output for real/generated data
-d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
+_d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
+_d_cost_real_gen = sum([bce(p, T.ones(p.shape)).mean() for p in p_real_gen])
+d_cost_real = 0.666*_d_cost_real + 0.333*_d_cost_real_gen
 d_cost_gen = sum([bce(p, T.zeros(p.shape)).mean() for p in p_gen])
 g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
-
-# d_cost_real = bce(p_real[-1], T.ones(p_real[-1].shape)).mean()
-# d_cost_gen = bce(p_gen[-1], T.zeros(p_gen[-1].shape)).mean()
-# g_cost_d = bce(p_gen[-1], T.ones(p_gen[-1].shape)).mean()
 
 d_cost = d_cost_real + d_cost_gen + (1e-5 * sum([T.sum(p**2.0) for p in discrim_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
@@ -328,9 +329,9 @@ updates = d_updates + g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z0], cost, updates=g_updates)
-_train_d = theano.function([X, Z0], cost, updates=d_updates)
-_gen = theano.function([Z0], gX)
+_train_g = theano.function([X, Z0, Z1], cost, updates=g_updates)
+_train_d = theano.function([X, Z0, Z1], cost, updates=d_updates)
+_gen = theano.function([Z0], gX0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 
@@ -355,21 +356,29 @@ sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     g_cost = 0
+    g_cost_d = 0
     d_cost = 0
+    d_cost_real = 0
     gc_iter = 0
     dc_iter = 0
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
+        z1mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:
-            g_cost += _train_g(imb, z0mb)[0]
-            gc_iter += 1
-        else:
-            d_cost += _train_d(imb, z0mb)[1]
+            result = _train_d(imb, z0mb, z1mb)
+            d_cost += result[1]
+            d_cost_real += result[3]
             dc_iter += 1
+        else:
+            result = _train_g(imb, z0mb, z1mb)
+            g_cost += result[0]
+            g_cost_d += result[2]
+            gc_iter += 1
         n_updates += 1
         n_examples += len(imb)
     print("g_cost: {0:.4f}, d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
+    print("g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter)))
     samples = np.asarray(_gen(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
     n_epochs += 1
