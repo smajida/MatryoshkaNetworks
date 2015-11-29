@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'gen_updates_1x_deep_er'
+desc = 'shallow_er_disc_noise_02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -65,7 +65,7 @@ k = 1             # # of discrim updates for each gen update
 l2 = 2.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nl = 2            # # of layers in each convolutional module
+nl = 1            # # of layers in each convolutional module
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
@@ -79,6 +79,7 @@ niter = 150       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0001       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
+disc_noise = 0.2  # standard deviation of activation noise in discriminator
 ntrain = Xtr.shape[0]
 
 def train_transform(X):
@@ -137,6 +138,7 @@ color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
+theano_rng = RandStream(123)
 
 gifn = inits.Normal(scale=0.02)
 difn = inits.Normal(scale=0.02)
@@ -332,15 +334,20 @@ def gen(Z0, wx):
 
 def discrim(X):
     # apply convolutional discriminator module
+    X = X + (disc_noise * theano_rng.normal(size=X.shape, dtype=theano.config.floatX))
     h1, y1 = disc_module_1.apply(X)
     # apply convolutional discriminator module
+    h1 = h1 + (disc_noise * theano_rng.normal(size=h1.shape, dtype=theano.config.floatX))
     h2, y2 = disc_module_2.apply(h1)
     # apply convolutional discriminator module
+    h2 = h2 + (disc_noise * theano_rng.normal(size=h2.shape, dtype=theano.config.floatX))
     h3, y3 = disc_module_3.apply(h2)
     # apply convolutional discriminator module
+    h3 = h3 + (disc_noise * theano_rng.normal(size=h3.shape, dtype=theano.config.floatX))
     h4, y4 = disc_module_4.apply(h3)
     # apply fully-connected discriminator module
     h4 = T.flatten(h4, 2)
+    h4 = h4 + (disc_noise * theano_rng.normal(size=h4.shape, dtype=theano.config.floatX))
     y5 = disc_module_5.apply(h4)
     return y1, y2, y3, y4, y5
 
