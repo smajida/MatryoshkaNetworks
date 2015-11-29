@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'gen_updates_1x_shallow'
+desc = 'gen_updates_1x_shallow_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -104,8 +104,17 @@ def update_exprep_buffer(er_buffer, generator, replace_frac=0.1):
     """
     buffer_size = er_buffer.shape[0]
     new_sample_count = int(buffer_size * replace_frac)
-    new_samples = generator.generate_samples(new_sample_count)
-    new_samples = new_samples.flatten(2)
+    new_samples = floatX(np.zeros((new_sample_count, nc*npx*npx)))
+    start_idx = 0
+    end_idx = 500
+    print("Updating experience replay buffer...")
+    while start_idx < new_sample_count:
+        samples = generator.generate_samples(500)
+        samples = samples.reshape((500,-1))
+        end_idx = min(end_idx, new_sample_count)
+        new_samples[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
+        start_idx += 500
+        end_idx += 500
     idx = np.arange(buffer_size)
     npr.shuffle(idx)
     replace_idx = idx[:new_sample_count]
@@ -335,9 +344,9 @@ def discrim(X):
     y5 = disc_module_5.apply(h4)
     return y1, y2, y3, y4, y5
 
-X = T.tensor4()  # symbolic var for real inputs to discriminator
-Z0 = T.matrix()  # symbolic var for rand values to pass into generator
-Xer = T.matrix() # symbolic var for samples from experience replay buffer
+X = T.tensor4()   # symbolic var for real inputs to discriminator
+Z0 = T.matrix()   # symbolic var for rand values to pass into generator
+Xer = T.tensor4() # symbolic var for samples from experience replay buffer
 
 # draw samples from the generator
 XIZ0 = gen(Z0, gwx)
@@ -409,9 +418,9 @@ end_idx = 1000
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
     samples = model_generator.generate_samples(1000)
-    samples = samples.flatten(2)
+    samples = samples.reshape((1000,-1))
     end_idx = min(end_idx, er_buffer_size)
-    er_bufffer[start_idx:end_idx,:] = samples
+    er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
     start_idx += 1000
     end_idx += 1000
 print("DONE.")
