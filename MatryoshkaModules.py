@@ -163,7 +163,7 @@ class DiscConvModule(object):
                 self.params.extend([self.g2, self.b2])
         return
 
-    def apply(self, input):
+    def apply(self, input, noise_sigma=None):
         """
         Apply this discriminator module to the given input. This produces a
         collection of filter responses for feedforward and a spatial grid of
@@ -177,33 +177,33 @@ class DiscConvModule(object):
                 # change spatial dim via max pooling
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
                 if self.apply_bn_1:
-                    h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                    h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
                 h1 = lrelu(h1)
                 h1 = dnn_pool(h1, (ss,ss), stride=(ss, ss), mode='max', pad=(0, 0))
             else:
                 # change spatial dim via strided convolution
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
                 if self.apply_bn_1:
-                    h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                    h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
                 h1 = lrelu(h1)
             h2 = h1
         else:
             # apply first conv layer
             h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
             if self.apply_bn_1:
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
             h1 = lrelu(h1)
             # apply second conv layer (may include downsampling)
             if self.use_pooling:
                 h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
                 if self.apply_bn_2:
-                    h2 = batchnorm(h2, g=self.g2, b=self.b2)
+                    h2 = batchnorm(h2, g=self.g2, b=self.b2, n=noise_sigma)
                 h2 = lrelu(h2)
                 h2 = dnn_pool(h2, (ss,ss), stride=(ss, ss), mode='max', pad=(0, 0))
             else:
                 h2 = dnn_conv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
                 if self.apply_bn_2:
-                    h2 = batchnorm(h2, g=self.g2, b=self.b2)
+                    h2 = batchnorm(h2, g=self.g2, b=self.b2, n=noise_sigma)
                 h2 = lrelu(h2)
         # apply discriminator layer
         y = dnn_conv(h2, self.wd, subsample=(1, 1), border_mode=(bm, bm))
@@ -258,7 +258,7 @@ class DiscFCModule(object):
             self.params.extend([self.g1, self.b1])
         return
 
-    def apply(self, input):
+    def apply(self, input, noise_sigma=None):
         """
         Apply this discriminator module to the given input. This produces a
         scalar discriminator output for each input observation.
@@ -268,7 +268,7 @@ class DiscFCModule(object):
         # feedforward to fully connected layer
         h1 = T.dot(input, self.w1)
         if self.apply_bn:
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
         h1 = lrelu(h1)
         # feedforward to discriminator outputs
         y = sigmoid(T.dot(h1, self.w2))

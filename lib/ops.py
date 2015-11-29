@@ -49,7 +49,7 @@ def conv_cond_concat(x, y):
     """
     return T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
 
-def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8):
+def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8, n=None):
     """
     batchnorm with support for not using scale and shift parameters
     as well as inference values (u and s) and partial batchnorm (via a)
@@ -66,6 +66,9 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8):
             b_u = (1. - a)*0. + a*b_u
             b_s = (1. - a)*1. + a*b_s
         X = (X - b_u) / T.sqrt(b_s + e)
+        if not (n is None):
+            # add noise in "normalized" space (i.e. prior to shift and rescale)
+            X = X + (n[0] * t_rng.normal(size=X.shape))
         if g is not None and b is not None:
             X = X*g.dimshuffle('x', 0, 'x', 'x') + b.dimshuffle('x', 0, 'x', 'x')
     elif X.ndim == 2:
@@ -76,6 +79,9 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8):
             u = (1. - a)*0. + a*u
             s = (1. - a)*1. + a*s
         X = (X - u) / T.sqrt(s + e)
+        if not (n is None):
+            # add noise in "normalized" space (i.e. prior to shift and rescale)
+            X = X + (n[0] * t_rng.normal(size=X.shape))
         if g is not None and b is not None:
             X = X*g + b
     else:
