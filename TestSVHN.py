@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'deep_gen_shallow_disc_er_disc_noise_02'
+desc = 'deep_gen_shallow_disc_er_disc_noise_01'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -80,7 +80,7 @@ niter = 150       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0001       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
-disc_noise = 0.2  # standard deviation of activation noise in discriminator
+disc_noise = 0.1  # standard deviation of activation noise in discriminator
 ntrain = Xtr.shape[0]
 
 def train_transform(X):
