@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'deep_gen_shallow_disc_er_full_bn'
+desc = 'deep_gen_shallow_disc_er_semi_bn'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -247,7 +247,7 @@ DiscConvModule(
     in_chans=nc,
     out_chans=ndf,
     num_layers=nld,
-    apply_bn_1=True,
+    apply_bn_1=False,
     apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
