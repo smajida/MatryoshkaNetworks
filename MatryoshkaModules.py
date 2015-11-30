@@ -30,13 +30,13 @@ class BasicConvModule(object):
         in_chans: number of channels in input
         out_chans: number of channels to produce as output
         apply_bn: whether to apply batch normalization after conv
-        act_func: should be "relu" or "lrelu"
+        act_func: should be "ident", "relu", or "lrelu"
         init_func: function for initializing module parameters
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, filt_shape, in_chans, out_chans,
-                 apply_bn=True, act_func='lrelu', init_func=None,
-                 mod_name='dm_conv'):
+                 apply_bn=True, act_func='ident', init_func=None,
+                 mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         self.filt_dim = filt_shape[0]
         self.in_chans = in_chans
@@ -67,7 +67,7 @@ class BasicConvModule(object):
             self.params.extend([self.g1, self.b1])
         return
 
-    def apply(self, input):
+    def apply(self, input, **kwargs):
         """
         Apply this convolutional module to the given input.
         """
@@ -76,12 +76,14 @@ class BasicConvModule(object):
         h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
-        if self.act_func == 'lrelu':
+        if self.act_func == 'ident':
+            pass # apply identity activation function...
+        elif self.act_func == 'lrelu':
             h1 = lrelu(h1)
         elif self.act_func == 'relu':
             h1 = relu(h1)
         else:
-            assert False, "Unsupported activation function."
+            assert False, "unsupported activation function."
         return h1
 
 #############################################
@@ -223,14 +225,19 @@ class DiscFCModule(object):
     Params:
         fc_dim: dimension of the fully connected layer
         in_dim: dimension of the inputs to the module
+        num_layers: 1 or 2, 1 uses no hidden layer and 2 uses a hidden layer
         apply_bn: whether to apply batch normalization at fc layer
         init_func: function for initializing module parameters
         mod_name: text name for identifying module in theano graph
     """
-    def __init__(self, fc_dim, in_dim, apply_bn=True,
-                 init_func=None, mod_name='dm_fc'):
+    def __init__(self, fc_dim, in_dim, num_layers,
+                 apply_bn=True, init_func=None,
+                 mod_name='dm_fc'):
+        assert ((num_layers == 1) or (num_layers == 2)), \
+                "num_layers must be 1 or 2."
         self.fc_dim = fc_dim
         self.in_dim = in_dim
+        self.num_layers = num_layers
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         if init_func is None:
@@ -244,18 +251,23 @@ class DiscFCModule(object):
         """
         Initialize parameters for the layers in this discriminator module.
         """
-        self.w1 = self.init_func((self.in_dim, self.fc_dim),
-                                 "{}_w1".format(self.mod_name))
-        self.w2 = self.init_func((self.fc_dim, 1),
-                                 "{}_w2".format(self.mod_name))
-        self.params = [self.w1, self.w2]
-        # make gains and biases for transforms that will get batch normed
-        if self.apply_bn:
-            gain_ifn = inits.Normal(loc=1., scale=0.02)
-            bias_ifn = inits.Constant(c=0.)
-            self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
-            self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
-            self.params.extend([self.g1, self.b1])
+        if self.num_layers == 2:
+            self.w1 = self.init_func((self.in_dim, self.fc_dim),
+                                     "{}_w1".format(self.mod_name))
+            self.w2 = self.init_func((self.fc_dim, 1),
+                                     "{}_w2".format(self.mod_name))
+            self.params = [self.w1, self.w2]
+            # make gains and biases for transforms that will get batch normed
+            if self.apply_bn:
+                gain_ifn = inits.Normal(loc=1., scale=0.02)
+                bias_ifn = inits.Constant(c=0.)
+                self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
+                self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
+                self.params.extend([self.g1, self.b1])
+        else:
+            self.w1 = self.init_func((self.in_dim, 1),
+                                     "{}_w1".format(self.mod_name))
+            self.params = [self.w1]
         return
 
     def apply(self, input, noise_sigma=None):
@@ -265,13 +277,16 @@ class DiscFCModule(object):
         """
         # flatten input to 1d per example
         input = T.flatten(input, 2)
-        # feedforward to fully connected layer
-        h1 = T.dot(input, self.w1)
-        if self.apply_bn:
-            h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
-        h1 = lrelu(h1)
-        # feedforward to discriminator outputs
-        y = sigmoid(T.dot(h1, self.w2))
+        if self.num_layers == 2:
+            # feedforward to fully connected layer
+            h1 = T.dot(input, self.w1)
+            if self.apply_bn:
+                h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
+            h1 = lrelu(h1)
+            # feedforward to discriminator outputs
+            y = sigmoid(T.dot(h1, self.w2))
+        else:
+            y = sigmoid(T.dot(input, self.w1))
         return y
 
 
@@ -424,15 +439,18 @@ class GenFCModule(object):
     layer, and then a linear transform (with another relu, optionally).
     """
     def __init__(self,
-                 rand_dim, out_dim, fc_dim,
+                 rand_dim, fc_dim, out_shape,
                  num_layers,
                  apply_bn_1=True, apply_bn_2=True,
                  init_func=None, rand_type='normal',
                  mod_name='dm_fc'):
         assert ((num_layers == 1) or (num_layers == 2)), \
                 "num_layers must be 1 or 2."
+        assert (len(out_shape) == 3), \
+                "out_shape should describe the input to a conv layer."
         self.rand_dim = rand_dim
-        self.out_dim = out_dim
+        self.out_shape = out_shape
+        self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
         self.fc_dim = fc_dim
         self.apply_bn_1 = apply_bn_1
         self.apply_bn_2 = apply_bn_2
@@ -480,6 +498,8 @@ class GenFCModule(object):
         """
         assert not ((batch_size is None) and (rand_vals is None)), \
                 "need either batch_size or rand_vals"
+        assert ((batch_size is None) or (rand_vals is None)), \
+                "need either batch_size or rand_vals"
         if rand_vals is None:
             rand_shape = (batch_size, self.rand_dim)
             if self.rand_type == 'normal':
@@ -505,71 +525,10 @@ class GenFCModule(object):
             if self.apply_bn_2:
                 h2 = batchnorm(h2, g=self.g2, b=self.b2)
             h2 = relu(h2)
+        # reshape vector outputs for use a conv layer inputs
+        h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
+                         self.out_shape[1], self.out_shape[2]))
         return h2
-
-# ####################################
-# # GENERATOR FULLY CONNECTED MODULE #
-# ####################################
-#
-# class GenUniModule(object):
-#     """
-#     Module that applies a linear transform followed by an non-linearity.
-#     """
-#     def __init__(self, rand_dim, out_dim,
-#                  apply_bn=True, init_func=None,
-#                  rand_type='normal',
-#                  mod_name='dm_uni'):
-#         self.rand_dim = rand_dim
-#         self.out_dim = out_dim
-#         self.apply_bn = apply_bn
-#         self.mod_name = mod_name
-#         self.rand_type = rand_type
-#         self.rng = RandStream(123)
-#         if init_func is None:
-#             self.init_func = inits.Normal(scale=0.02)
-#         else:
-#             self.init_func = init_func
-#         self._init_params() # initialize parameters
-#         return
-#
-#     def _init_params(self):
-#         """
-#         Initialize parameters for the layers in this generator module.
-#         """
-#         self.w1 = self.init_func((self.rand_dim, self.out_dim),
-#                                  "{}_w1".format(self.mod_name))
-#         self.params = [ self.w1 ]
-#         # make gains and biases for transforms that will get batch normed
-#         if self.apply_bn:
-#             gain_ifn = inits.Normal(loc=1., scale=0.02)
-#             bias_ifn = inits.Constant(c=0.)
-#             self.g1 = gain_ifn((self.out_dim), "{}_g1".format(self.mod_name))
-#             self.b1 = bias_ifn((self.out_dim), "{}_b1".format(self.mod_name))
-#             self.params.extend([self.g1, self.b1])
-#         return
-#
-#     def apply(self, batch_size=None, rand_vals=None):
-#         """
-#         Apply this generator module. Pass _either_ batch_size or rand_vals.
-#         """
-#         assert not ((batch_size is None) and (rand_vals is None)), "need either batch_size or rand_vals"
-#         if rand_vals is None:
-#             rand_shape = (batch_size, self.rand_dim)
-#             if self.rand_type == 'normal':
-#                 rand_vals = self.rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-#                                             dtype=theano.config.floatX)
-#             else:
-#                 rand_vals = self.rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
-#                                              dtype=theano.config.floatX)
-#         else:
-#             rand_shape = (rand_vals.shape[0], self.rand_dim)
-#         rand_vals = rand_vals.reshape(rand_shape)
-#         # transform random values linearly
-#         h1 = T.dot(rand_vals, self.w1)
-#         if self.apply_bn:
-#             h1 = batchnorm(h1, g=self.g1, b=self.b1)
-#         h1 = relu(h1)
-#         return h1
 
 
 

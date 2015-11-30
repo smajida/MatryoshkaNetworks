@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'deep_gen_shallow_disc_er_full_bn'
+desc = 'dcgan_arch_with_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -62,25 +62,26 @@ Xtr = 2.0 * (Xtr - 0.5)
 
 
 k = 1             # # of discrim updates for each gen update
-l2 = 2.0e-5       # l2 weight decay
+l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nld = 1           # # of layers in conv modules for discriminator
-nlg = 2           # # of layers in conv modules for generator
+nlg = 1           # # of layers in conv modules for generator
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
+fd = 5            # filter dim in convolution modules
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
+niter = 100       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0001       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
-dn = 0.1          # standard deviation of activation noise in discriminator
+dn = 0.0          # standard deviation of activation noise in discriminator
 ntrain = Xtr.shape[0]
 disc_noise = sharedX([dn], name='disc_noise')
 
@@ -141,7 +142,6 @@ def sample_exprep_buffer(er_buffer, sample_count):
 # draw some examples from training set
 color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_dir))
 
-
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
@@ -156,7 +156,7 @@ difn = inits.Normal(scale=0.02)
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_dim=(ngf*4*2*2),
+    out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
     apply_bn_1=True,
@@ -164,11 +164,11 @@ GenFCModule(
     init_func=gifn,
     rand_type='normal',
     mod_name='gen_mod_1'
-) # output is (batch, ngf*4*2*2)
+) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
 GenConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     rand_chans=nz1,
@@ -185,7 +185,7 @@ GenConvModule(
 
 gen_module_3 = \
 GenConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     rand_chans=nz1,
@@ -202,7 +202,7 @@ GenConvModule(
 
 gen_module_4 = \
 GenConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     rand_chans=nz1,
@@ -219,7 +219,7 @@ GenConvModule(
 
 gen_module_5 = \
 GenConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     rand_chans=nz1,
@@ -234,19 +234,28 @@ GenConvModule(
     mod_name='gen_mod_5'
 )  # output is (batch, ngf*1, 32, 32)
 
-# weights for final convolutional "aggregation layer"
-gwx = gifn((nc, (ngf*1), 5, 5), 'gwx')
+gen_module_6 = \
+BasicConvModule(
+    filt_shape=(5,5),
+    in_chans=(ngf*1),
+    out_chans=c,
+    apply_bn=False,
+    act_func='ident',
+    init_func=gifn,
+    mod_name='gen_mod_6'
+)  # output is (batch, c, 32, 32)
+
 
 #
 # Define some modules to use in the discriminator
 #
 disc_module_1 = \
 DiscConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=nc,
     out_chans=ndf,
     num_layers=nld,
-    apply_bn_1=True,
+    apply_bn_1=False,
     apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
@@ -256,7 +265,7 @@ DiscConvModule(
 
 disc_module_2 = \
 DiscConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     num_layers=nld,
@@ -270,7 +279,7 @@ DiscConvModule(
 
 disc_module_3 = \
 DiscConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     num_layers=nld,
@@ -284,7 +293,7 @@ DiscConvModule(
 
 disc_module_4 = \
 DiscConvModule(
-    filt_shape=(3,3),
+    filt_shape=(fd,fd),
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     num_layers=nld,
@@ -300,6 +309,7 @@ disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*2*2),
+    num_layers=nld,
     apply_bn=True,
     init_func=difn,
     mod_name='disc_mod_5'
@@ -313,7 +323,7 @@ gen_params = gen_module_1.params + \
              gen_module_3.params + \
              gen_module_4.params + \
              gen_module_5.params + \
-             [gwx]
+             gen_module_6.params
 
 discrim_params = disc_module_1.params + \
                  disc_module_2.params + \
@@ -321,11 +331,9 @@ discrim_params = disc_module_1.params + \
                  disc_module_4.params + \
                  disc_module_5.params
 
-def gen(Z0, wx):
+def gen(Z0):
     # feedforward through the fully connected part of generator
     h2 = gen_module_1.apply(rand_vals=Z0)
-    # reshape as input to a conv layer (in 2x2 grid)
-    h2 = h2.reshape((h2.shape[0], ngf*4, 2, 2))
     # feedforward through convolutional generator module
     h3 = gen_module_2.apply(h2, rand_vals=None)
     # feedforward through convolutional generator module
@@ -334,8 +342,8 @@ def gen(Z0, wx):
     h5 = gen_module_4.apply(h4, rand_vals=None)
     # feedforward through convolutional generator module
     h6 = gen_module_5.apply(h5, rand_vals=None)
-    # feedforward through another conv and clamp to [0,1]
-    h7 = dnn_conv(h6, wx, subsample=(1, 1), border_mode=(2, 2))
+    # feedforward through another conv and squash to [-1,1]
+    h7 = gen_module_6.apply(h6)
     x = tanh(h7)
     return x
 
@@ -358,7 +366,7 @@ Z0 = T.matrix()   # symbolic var for rand values to pass into generator
 Xer = T.tensor4() # symbolic var for samples from experience replay buffer
 
 # draw samples from the generator
-XIZ0 = gen(Z0, gwx)
+XIZ0 = gen(Z0)
 
 # feed real data and generated data through discriminator
 p_real = discrim(X)
