@@ -35,7 +35,7 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'deep_gen_shallow_disc_er_semi_bn'
+desc = 'deep_gen_shallow_disc_er_full_bn'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -51,8 +51,7 @@ tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
 te_file = "{}/data/svhn_test.pkl".format(EXP_DIR)
 ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
-#data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=250000)
-data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=100000)
+data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=250000)
 
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
@@ -247,7 +246,7 @@ DiscConvModule(
     in_chans=nc,
     out_chans=ndf,
     num_layers=nld,
-    apply_bn_1=False,
+    apply_bn_1=True,
     apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
