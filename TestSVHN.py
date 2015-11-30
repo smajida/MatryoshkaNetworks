@@ -30,6 +30,7 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
+from MatryoshkaNetworks import GenNetwork
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
@@ -238,13 +239,18 @@ gen_module_6 = \
 BasicConvModule(
     filt_shape=(5,5),
     in_chans=(ngf*1),
-    out_chans=c,
+    out_chans=nc,
     apply_bn=False,
     act_func='ident',
     init_func=gifn,
     mod_name='gen_mod_6'
 )  # output is (batch, c, 32, 32)
 
+gen_modules = [gen_module_1, gen_module_2, gen_module_3,
+               gen_module_4, gen_module_5, gen_module_6]
+
+# Initialize the generator network
+gen_network = GeneratorNetwork(modules=gen_modules, output_transform=tanh)
 
 #
 # Define some modules to use in the discriminator
@@ -315,37 +321,12 @@ DiscFCModule(
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
-#
-# Grab parameters from generator and discriminator
-#
-gen_params = gen_module_1.params + \
-             gen_module_2.params + \
-             gen_module_3.params + \
-             gen_module_4.params + \
-             gen_module_5.params + \
-             gen_module_6.params
-
+# list of parameters in discriminator
 discrim_params = disc_module_1.params + \
                  disc_module_2.params + \
                  disc_module_3.params + \
                  disc_module_4.params + \
                  disc_module_5.params
-
-def gen(Z0):
-    # feedforward through the fully connected part of generator
-    h2 = gen_module_1.apply(rand_vals=Z0)
-    # feedforward through convolutional generator module
-    h3 = gen_module_2.apply(h2, rand_vals=None)
-    # feedforward through convolutional generator module
-    h4 = gen_module_3.apply(h3, rand_vals=None)
-    # feedforward through convolutional generator module
-    h5 = gen_module_4.apply(h4, rand_vals=None)
-    # feedforward through convolutional generator module
-    h6 = gen_module_5.apply(h5, rand_vals=None)
-    # feedforward through another conv and squash to [-1,1]
-    h7 = gen_module_6.apply(h6)
-    x = tanh(h7)
-    return x
 
 def discrim(X):
     # apply convolutional discriminator module
@@ -366,7 +347,8 @@ Z0 = T.matrix()   # symbolic var for rand values to pass into generator
 Xer = T.tensor4() # symbolic var for samples from experience replay buffer
 
 # draw samples from the generator
-XIZ0 = gen(Z0)
+gen_inputs = [Z0] + [None for gm in gen_modules[1:]]
+XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 
 # feed real data and generated data through discriminator
 p_real = discrim(X)
@@ -399,24 +381,6 @@ _train_d = theano.function([X, Z0, Xer], cost, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
-class SimpleGenerator(object):
-    def __init__(self, gen_func, rand_dim, rand_type):
-        self.gen_func = gen_func
-        self.rand_dim = rand_dim
-        self.rand_type = rand_type
-        return
-
-    def generate_samples(self, sample_count):
-        size = (sample_count, self.rand_dim)
-        if self.rand_type == 'normal':
-            rand_vals = floatX(np_rng.normal(size=size))
-        elif self.rand_type == 'uniform':
-            rand_vals = floatX(np_rng.uniform(-1., 1., size=size))
-        else:
-            assert False, 'unknown value for self.rand_type'
-        samples = self.gen_func(rand_vals)
-        return samples
-
 f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
 log_fields = [
     'n_epochs',
@@ -428,13 +392,12 @@ log_fields = [
 ]
 
 # initialize an experience replay buffer
-model_generator = SimpleGenerator(gen_func=_gen, rand_dim=nz0, rand_type='normal')
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
 end_idx = 1000
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = model_generator.generate_samples(1000)
+    samples = gen_network.generate_samples(1000)
     samples = samples.reshape((1000,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
@@ -481,7 +444,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
         if (n_updates % (epoch*20)) == 0:
-            update_exprep_buffer(er_buffer, model_generator, replace_frac=0.10)
+            update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     print("g_cost: {0:.4f}, d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
     print("g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter)))
     # reduce discriminator noise (at a fixed rate for now)

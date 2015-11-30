@@ -24,10 +24,18 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
 
 
 
-class GeneratorNetwork(object):
+class GenNetwork(object):
     """
     A deep convolutional generator network. This provides a wrapper around a
-    sequence of modules from MatryoshkaModules.py
+    sequence of modules from MatryoshkaModules.py.
+
+    Params:
+        modules: a list of the modules that make up this GenNetwork. The
+                 first module must be an instance of GenFCModule and the
+                 remaining modules should be instances of GenConvModule or
+                 BasicConvModule.
+        output_transform: transform to apply to output of final convolutional
+                          module to get the output of this GenNetwork.
     """
     def __init__(self, modules, output_transform):
         self.modules = [m for m in modules]
@@ -47,22 +55,40 @@ class GeneratorNetwork(object):
         Apply this generator network using the given random values.
         """
         assert not ((batch_size is None) and (rand_vals is None)), \
-                "need either batch_size or rand_vals"
+                "need _either_ batch_size or rand_vals."
         assert ((batch_size is None) or (rand_vals is None)), \
-                "need either batch_size or rand_vals"
+                "need _either_ batch_size or rand_vals."
         assert ((len(rand_vals) == len(self.modules)) or (rand_vals is None)), \
                 "random values should be appropriate for this network."
         if rand_vals is None:
+            # no random values were provided, which means we'll be generating
+            # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.modules))]
+        else:
+            if rand_vals[0] is None:
+                # random values were provided, but not for the fc module, so we
+                # need the batch size so that the fc module produces output
+                # with the appropriate shape.
+                rand_vals[0] = -1
         acts = []
         for i, rvs in enumerate(rand_vals):
             if i == 0:
-                # first module takes no inputs
-                acts.append(self.modules[i].apply(rand_vals=rvs,
-                                                  batch_size=batch_size))
+                # feedforward through the fc module
+                if not (rvs == -1):
+                    # rand_vals was not given or rand_vals[0] was given...
+                    acts.append(self.modules[i].apply(rand_vals=rvs,
+                                                      batch_size=batch_size))
+                else:
+                    # rand_vals was given, but rand_vals[0] was not given...
+                    # we need to get the batch_size param for this feedforward
+                    _rand_vals = [v for v in rand_vals if not (v is None)]
+                    bs = _rand_vals[0].shape[0]
+                    acts.append(self.modules[i].apply(rand_vals=None,
+                                                      batch_size=bs))
             else:
-                # subsequent modules take earlier outputs as inputs
+                # feedforward through a convolutional module
                 acts.append(self.modules[i].apply(acts[-1], rand_vals=rvs))
+        # apply final transform (e.g. tanh or sigmoid) to final activations
         output = self.output_transform(acts[-1])
         if return_acts:
             result = [output, acts]
