@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetwork
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'TEMP_dcgan_arch_with_er'
+desc = 'shallow_gen_shallow_disc_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -72,7 +72,7 @@ nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-fd = 5            # filter dim in convolution modules
+fd = 3            # filter dim in convolution modules
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
