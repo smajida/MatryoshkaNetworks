@@ -47,7 +47,9 @@ class GenNetwork(object):
             self.params.extend(module.params)
         self.output_transform = output_transform
         # construct a theano function for drawing samples from this model
+        print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
+        print("DONE.")
         return
 
     def apply(self, rand_vals=None, batch_size=None, return_acts=False):
@@ -58,7 +60,7 @@ class GenNetwork(object):
                 "need _either_ batch_size or rand_vals."
         assert ((batch_size is None) or (rand_vals is None)), \
                 "need _either_ batch_size or rand_vals."
-        assert ((len(rand_vals) == len(self.modules)) or (rand_vals is None)), \
+        assert ((rand_vals is None) or (len(rand_vals) == len(self.modules))), \
                 "random values should be appropriate for this network."
         if rand_vals is None:
             # no random values were provided, which means we'll be generating

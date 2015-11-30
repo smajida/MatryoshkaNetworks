@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetwork
 EXP_DIR = "./svhn"
 
 # setup paths for dumping diagnostic info
-desc = 'dcgan_arch_with_er'
+desc = 'TEMP_dcgan_arch_with_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -250,7 +250,8 @@ gen_modules = [gen_module_1, gen_module_2, gen_module_3,
                gen_module_4, gen_module_5, gen_module_6]
 
 # Initialize the generator network
-gen_network = GeneratorNetwork(modules=gen_modules, output_transform=tanh)
+gen_network = GenNetwork(modules=gen_modules, output_transform=tanh)
+gen_params = gen_network.params
 
 #
 # Define some modules to use in the discriminator
