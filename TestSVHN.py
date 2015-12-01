@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_no_er'
+desc = 'all_rand_all_disc_er_no_disc_bn'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,7 +86,8 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
+use_disc_bn = False # whether to use batch normalization in discriminator
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
 
@@ -272,7 +273,7 @@ DiscConvModule(
     out_chans=ndf,
     num_layers=nld,
     apply_bn_1=False,
-    apply_bn_2=True,
+    apply_bn_2=use_disc_bn,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -285,8 +286,8 @@ DiscConvModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn_1=use_disc_bn,
+    apply_bn_2=use_disc_bn,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -299,8 +300,8 @@ DiscConvModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn_1=use_disc_bn,
+    apply_bn_2=use_disc_bn,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -313,8 +314,8 @@ DiscConvModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn_1=use_disc_bn,
+    apply_bn_2=use_disc_bn,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -326,7 +327,7 @@ DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*2*2),
     num_layers=nld,
-    apply_bn=True,
+    apply_bn=use_disc_bn,
     init_func=difn,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
