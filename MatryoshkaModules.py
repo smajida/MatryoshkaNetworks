@@ -213,7 +213,7 @@ class DiscConvModule(object):
                 h2 = lrelu(h2)
         # apply discriminator layer
         y = dnn_conv(h2, self.wd, subsample=(1, 1), border_mode=(bm, bm))
-        y = sigmoid(T.flatten(y, 2)) # flatten to (batch_size, num_preds)
+        y = T.flatten(y, 2)
         return h2, y
 
 
@@ -289,10 +289,10 @@ class DiscFCModule(object):
             h1 = lrelu(h1)
             # feedforward to discriminator outputs
             h2 = T.dot(h1, self.w2)
-            y = sigmoid(h2)
+            y = h2
         else:
             h2 = T.dot(input, self.w1)
-            y = sigmoid(h2)
+            y = h2
         return h2, y
 
 

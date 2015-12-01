@@ -49,9 +49,11 @@ class GenNetwork(object):
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(50)
         print("DONE.")
         print("Compiling rand shape computer...")
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
+        shapes = self.compute_rand_shapes(50)
         print("DONE.")
         return
 
@@ -77,23 +79,33 @@ class GenNetwork(object):
                 # with the appropriate shape.
                 rand_vals[0] = -1
         acts = []
+        r_shapes = []
+        res = None
         for i, rvs in enumerate(rand_vals):
             if i == 0:
                 # feedforward through the fc module
                 if not (rvs == -1):
                     # rand_vals was not given or rand_vals[0] was given...
-                    acts.append(self.modules[i].apply(rand_vals=rvs,
-                                                      batch_size=batch_size))
+                    res = self.modules[i].apply(rand_vals=rvs,
+                                                batch_size=batch_size,
+                                                rand_shapes=rand_shapes)
                 else:
                     # rand_vals was given, but rand_vals[0] was not given...
                     # we need to get the batch_size param for this feedforward
                     _rand_vals = [v for v in rand_vals if not (v is None)]
                     bs = _rand_vals[0].shape[0]
-                    acts.append(self.modules[i].apply(rand_vals=None,
-                                                      batch_size=bs))
+                    res = self.modules[i].apply(rand_vals=None,
+                                                batch_size=bs,
+                                                rand_shapes=rand_shapes)
             else:
                 # feedforward through a convolutional module
-                acts.append(self.modules[i].apply(acts[-1], rand_vals=rvs))
+                res = self.modules[i].apply(acts[-1], rand_vals=rvs,
+                                            rand_shapes=rand_shapes)
+            if not rand_shapes:
+                acts.append(res)
+            else:
+                acts.append(res[0])
+                r_shapes.append(res[1])
         # apply final transform (e.g. tanh or sigmoid) to final activations
         output = self.output_transform(acts[-1])
         if return_acts:
@@ -126,18 +138,20 @@ class GenNetwork(object):
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
 
-class NllEstimator(object):
-    """
-    Wrapper class for extracting variational estimates of log-likelihood from
-    a GenNetwork. The NLLEstimator will be specific to a given set of inputs.
-    """
-    def __init__(self, X, gen_network):
-        self.X = sharedX(X, name='X_NllEstimator')
-        self.gen_network = gen_network
-        self.obs_count = X.shape[0]
-        # get initial means and log variances of stochastic variables for the
-        # observations in self.X, using the GenNetwork self.gen_network.
-        self._init_rand_vals(self.
+
+# class NllEstimator(object):
+#     """
+#     Wrapper class for extracting variational estimates of log-likelihood from
+#     a GenNetwork. The NLLEstimator will be specific to a given set of inputs.
+#     """
+#     def __init__(self, X, gen_network):
+#         self.X = sharedX(X, name='X_NllEstimator')
+#         self.gen_network = gen_network
+#         self.obs_count = X.shape[0]
+#         # get initial means and log variances of stochastic variables for the
+#         # observations in self.X, using the GenNetwork self.gen_network.
+#         self._init_rand_vals()
+#         return
 
 
 class DiscNetwork(object):
@@ -160,7 +174,8 @@ class DiscNetwork(object):
             self.params.extend(module.params)
         return
 
-    def apply(self, input, ret_vals=None, disc_noise=None):
+    def apply(self, input, ret_vals=None, app_sigm=True,
+              disc_noise=None):
         """
         Apply this DiscNetwork to some input and return some subset of the
         discriminator layer outputs from its underlying modules.
@@ -185,5 +200,8 @@ class DiscNetwork(object):
                 hi, yi = module.apply(hs[-1], noise_sigma=disc_noise)
             hs.append(hi)
             if i in ret_vals:
-                ys.append(yi)
+                if app_sigm:
+                    ys.append(sigmoid(yi))
+                else:
+                    ys.append(yi)
         return ys

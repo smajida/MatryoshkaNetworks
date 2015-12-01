@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_no_disc_bn'
+desc = 'all_rand_all_disc_er_z1_is_8'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -72,7 +72,7 @@ nlg = 1           # # of layers in conv modules for generator
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz1 = 8          # # of dim for Z1
 fd = 3            # filter dim in convolution modules
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -87,7 +87,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_disc_bn = False # whether to use batch normalization in discriminator
+use_disc_bn = True # whether to use batch normalization in discriminator
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
 
@@ -362,15 +362,18 @@ if all_disc:
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
-p_real = disc_network.apply(input=X, ret_vals=ret_vals, disc_noise=disc_noise)
-p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals, disc_noise=disc_noise)
-p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, disc_noise=disc_noise)
+p_real = disc_network.apply(input=X, ret_vals=ret_vals,
+                            disc_noise=disc_noise, ret_sigm=False)
+p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals,
+                           disc_noise=disc_noise, ret_sigm=False)
+p_er = disc_network.apply(input=Xer, ret_vals=ret_vals,
+                          disc_noise=disc_noise, ret_sigm=False)
 
 # compute costs based on discriminator output for real/generated data
-d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
-d_cost_gen = sum([bce(p, T.zeros(p.shape)).mean() for p in p_gen])
-d_cost_er = sum([bce(p, T.zeros(p.shape)).mean() for p in p_er])
-g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
+d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])
+d_cost_gen  = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen])
+d_cost_er   = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er])
+g_cost_d    = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen])
 
 # switch costs based on use of experience replay
 if use_er:
