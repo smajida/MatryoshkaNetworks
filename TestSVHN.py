@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_noise_all_disc_er'
+desc = 'all_rand_all_disc_no_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,6 +86,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
+use_er = False     # whether to use experience replay
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
 
@@ -183,7 +184,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_noise,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_2'
@@ -200,7 +201,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_noise,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_3'
@@ -217,7 +218,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_noise,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_4'
@@ -234,7 +235,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_noise,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_5'
@@ -370,7 +371,12 @@ d_cost_gen = sum([bce(p, T.zeros(p.shape)).mean() for p in p_gen])
 d_cost_er = sum([bce(p, T.zeros(p.shape)).mean() for p in p_er])
 g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
 
-d_cost = d_cost_real + 0.5*d_cost_gen + 0.5*d_cost_er + \
+# switch costs based on use of experience replay
+if use_er:
+    a1, a2 = 0.5, 0.5
+else:
+    a1, a2 = 1.0, 0.0
+d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (1e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
