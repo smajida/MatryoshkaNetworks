@@ -30,13 +30,14 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
-from MatryoshkaNetworks import GenNetwork
+from MatryoshkaNetworks import GenNetwork, DiscNetwork
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
+DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'shallow_gen_shallow_disc_er'
+desc = 'all_noise_all_disc_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -52,7 +53,7 @@ tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
 te_file = "{}/data/svhn_test.pkl".format(EXP_DIR)
 ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
-data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=250000)
+data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
@@ -81,10 +82,13 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0001       # initial learning rate for adam
-er_buffer_size = 250000 # size of "experience replay" buffer
+er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
+all_rand = True   # whether to use stochastic variables at all scales
+all_disc = True   # whether to use discriminator guidance at all scales
 ntrain = Xtr.shape[0]
-disc_noise = sharedX([dn], name='disc_noise')
+disc_noise = None #sharedX([dn], name='disc_noise')
+
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
@@ -148,12 +152,13 @@ sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 theano_rng = RandStream(123)
 
-gifn = inits.Normal(scale=0.02)
-difn = inits.Normal(scale=0.02)
 
-#
-# Define some modules to use in the generator
-#
+###############################
+# Setup the generator network #
+###############################
+
+gifn = inits.Normal(scale=0.02)
+
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
@@ -178,7 +183,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=False,
+    use_rand=all_noise,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_2'
@@ -195,7 +200,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=True,
+    use_rand=all_noise,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_3'
@@ -212,7 +217,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=True,
+    use_rand=all_noise,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_4'
@@ -229,7 +234,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=True,
+    use_rand=all_noise,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_5'
@@ -253,9 +258,12 @@ gen_modules = [gen_module_1, gen_module_2, gen_module_3,
 gen_network = GenNetwork(modules=gen_modules, output_transform=tanh)
 gen_params = gen_network.params
 
-#
-# Define some modules to use in the discriminator
-#
+
+###################################
+# Setup the discriminator network #
+###################################
+difn = inits.Normal(scale=0.02)
+
 disc_module_1 = \
 DiscConvModule(
     filt_shape=(fd,fd),
@@ -322,26 +330,18 @@ DiscFCModule(
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
-# list of parameters in discriminator
-discrim_params = disc_module_1.params + \
-                 disc_module_2.params + \
-                 disc_module_3.params + \
-                 disc_module_4.params + \
-                 disc_module_5.params
+disc_modules = [disc_module_1, disc_module_2, disc_module_3,
+                disc_module_4, disc_module_5]
 
-def discrim(X):
-    # apply convolutional discriminator module
-    h1, y1 = disc_module_1.apply(X, noise_sigma=disc_noise)
-    # apply convolutional discriminator module
-    h2, y2 = disc_module_2.apply(h1, noise_sigma=disc_noise)
-    # apply convolutional discriminator module
-    h3, y3 = disc_module_3.apply(h2, noise_sigma=disc_noise)
-    # apply convolutional discriminator module
-    h4, y4 = disc_module_4.apply(h3, noise_sigma=disc_noise)
-    # apply fully-connected discriminator module
-    h4 = T.flatten(h4, 2)
-    y5 = disc_module_5.apply(h4, noise_sigma=disc_noise)
-    return y1, y2, y3, y4, y5
+# Initialize the discriminator network
+disc_network = DiscNetwork(modules=disc_modules)
+disc_params = disc_network.params
+
+
+
+####################################
+# Setup the optimization objective #
+####################################
 
 X = T.tensor4()   # symbolic var for real inputs to discriminator
 Z0 = T.matrix()   # symbolic var for rand values to pass into generator
@@ -352,9 +352,17 @@ gen_inputs = [Z0] + [None for gm in gen_modules[1:]]
 XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 
 # feed real data and generated data through discriminator
-p_real = discrim(X)
-p_gen = discrim(XIZ0)
-p_er = discrim(Xer)
+#   -- optimize with respect to discriminator output from a subset of the
+#      discriminator's modules.
+if all_disc:
+    # multi-scale discriminator guidance
+    ret_vals = range(len(disc_network.modules))
+else:
+    # full-scale discriminator guidance only
+    ret_vals = [ (len(disc_network.modules)-1) ]
+p_real = disc_network.apply(input=X, ret_vals=ret_vals, disc_noise=disc_noise)
+p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals, disc_noise=disc_noise)
+p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, disc_noise=disc_noise)
 
 # compute costs based on discriminator output for real/generated data
 d_cost_real = sum([bce(p, T.ones(p.shape)).mean() for p in p_real])
@@ -363,7 +371,7 @@ d_cost_er = sum([bce(p, T.zeros(p.shape)).mean() for p in p_er])
 g_cost_d = sum([bce(p, T.ones(p.shape)).mean() for p in p_gen])
 
 d_cost = d_cost_real + 0.5*d_cost_gen + 0.5*d_cost_er + \
-         (1e-5 * sum([T.sum(p**2.0) for p in discrim_params]))
+         (1e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
@@ -371,7 +379,7 @@ cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
 g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
-d_updates = d_updater(discrim_params, d_cost)
+d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates
 
@@ -446,12 +454,14 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if (n_updates % (epoch*20)) == 0:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
-    print("g_cost: {0:.4f}, d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
-    print("g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter)))
+    print("Epoch {}:".format(epoch))
+    print("    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
+    print("  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter)))
     # reduce discriminator noise (at a fixed rate for now)
-    d_noise = disc_noise.get_value(borrow=False)
-    d_noise[0] = 0.95 * d_noise[0]
-    disc_noise.set_value(floatX(d_noise))
+    if not disc_noise is None:
+        d_noise = disc_noise.get_value(borrow=False)
+        d_noise[0] = 0.95 * d_noise[0]
+        disc_noise.set_value(floatX(d_noise))
     # generate some samples from the model, for visualization
     samples = np.asarray(_gen(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
@@ -460,4 +470,4 @@ for epoch in range(1, niter+niter_decay+1):
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
     if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
         joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
-        joblib.dump([p.get_value() for p in discrim_params], "{}/{}_discrim_params.jl".format(model_dir, n_epochs))
+        joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))

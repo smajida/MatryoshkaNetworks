@@ -284,10 +284,12 @@ class DiscFCModule(object):
                 h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
             h1 = lrelu(h1)
             # feedforward to discriminator outputs
-            y = sigmoid(T.dot(h1, self.w2))
+            h2 = T.dot(h1, self.w2)
+            y = sigmoid(h2)
         else:
-            y = sigmoid(T.dot(input, self.w1))
-        return y
+            h2 = T.dot(input, self.w1)
+            y = sigmoid(h2)
+        return h2, y
 
 
 #########################################

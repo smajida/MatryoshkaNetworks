@@ -111,3 +111,52 @@ class GenNetwork(object):
             samples = sample_func(sample_count)
             return samples
         return sampler
+
+
+class DiscNetwork(object):
+    """
+    A deep convolutional discriminator network. This provides a wrapper around
+    a sequence of modules from MatryoshkaModules.py.
+
+    Params:
+        modules: a list of the modules that make up this DiscNetwork. All but
+                 the last module should be instances of DiscConvModule. The
+                 last module should an instance of DiscFCModule.
+    """
+    def __init__(self, modules):
+        self.modules = [m for m in modules]
+        self.fc_module = self.modules[-1]
+        self.conv_modules = self.modules[:-1]
+        self.rng = RandStream(123)
+        self.params = []
+        for module in self.modules:
+            self.params.extend(module.params)
+        return
+
+    def apply(self, input, ret_vals=None, disc_noise=None):
+        """
+        Apply this DiscNetwork to some input and return some subset of the
+        discriminator layer outputs from its underlying modules.
+        """
+        if ret_vals is None:
+            ret_vals = range(len(self.modules))
+        hs = [input]
+        ys = []
+        for i, module in enumerate(self.modules):
+            if i == (len(self.modules) - 1):
+                # final fc module takes 1d input
+                try:
+                    hi, yi = module.apply(T.flatten(hs[-1], 2),
+                                          noise_sigma=disc_noise)
+                except:
+                    print("OOPS")
+                    print("hs: {}".format(str(hs)))
+                    print("disc_noise: {}".format(str(disc_noise)))
+                    print("OOPS")
+            else:
+                # other modules take 2d input
+                hi, yi = module.apply(hs[-1], noise_sigma=disc_noise)
+            hs.append(hi)
+            if i in ret_vals:
+                ys.append(yi)
+        return ys
