@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_z1_is_8'
+desc = 'all_rand_two_disc_no_er_z1_is_8'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,7 +86,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+use_er = False     # whether to use experience replay
 use_disc_bn = True # whether to use batch normalization in discriminator
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
@@ -358,16 +358,17 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if all_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(len(disc_network.modules))
+    #ret_vals = range(len(disc_network.modules))
+    ret_vals = [2, 4]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
 p_real = disc_network.apply(input=X, ret_vals=ret_vals,
-                            disc_noise=disc_noise, ret_sigm=False)
+                            disc_noise=disc_noise, app_sigm=False)
 p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals,
-                           disc_noise=disc_noise, ret_sigm=False)
+                           disc_noise=disc_noise, app_sigm=False)
 p_er = disc_network.apply(input=Xer, ret_vals=ret_vals,
-                          disc_noise=disc_noise, ret_sigm=False)
+                          disc_noise=disc_noise, app_sigm=False)
 
 # compute costs based on discriminator output for real/generated data
 d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])

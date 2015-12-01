@@ -409,6 +409,7 @@ class GenConvModule(object):
                     rand_vals = self.rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
                                                  dtype=theano.config.floatX)
             rand_vals = rand_vals.reshape(rand_shape)
+            rand_shape = rand_vals.shape
             # stack random values on top of input
             full_input = T.concatenate([rand_vals, input], axis=1)
         else:
@@ -521,6 +522,7 @@ class GenFCModule(object):
         else:
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
+        rand_shape = rand_vals.shape
         # always apply first layer
         h1 = T.dot(rand_vals, self.w1)
         if self.apply_bn_1:
