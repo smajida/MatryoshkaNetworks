@@ -67,7 +67,7 @@ class BasicConvModule(object):
             self.params.extend([self.g1, self.b1])
         return
 
-    def apply(self, input, **kwargs):
+    def apply(self, input, rand_vals=None, rand_shapes=False):
         """
         Apply this convolutional module to the given input.
         """
@@ -84,7 +84,11 @@ class BasicConvModule(object):
             h1 = relu(h1)
         else:
             assert False, "unsupported activation function."
-        return h1
+        if rand_shapes:
+            result = [h1, input.shape]
+        else:
+            result = h1
+        return result
 
 #############################################
 # DISCRIMINATOR DOUBLE CONVOLUTIONAL MODULE #
@@ -383,7 +387,7 @@ class GenConvModule(object):
                 self.params.extend([self.g2, self.b2])
         return
 
-    def apply(self, input, rand_vals=None):
+    def apply(self, input, rand_vals=None, rand_shapes=False):
         """
         Apply this generator module to some input.
         """
@@ -428,7 +432,11 @@ class GenConvModule(object):
             if self.apply_bn_2:
                 h2 = batchnorm(h2, g=self.g2, b=self.b2)
             h2 = relu(h2)
-        return h2
+        if rand_shapes:
+            result = [h2, rand_shape]
+        else:
+            result = h2
+        return result
 
 
 ####################################
@@ -494,7 +502,7 @@ class GenFCModule(object):
                 self.params.extend([self.g2, self.b2])
         return
 
-    def apply(self, batch_size=None, rand_vals=None):
+    def apply(self, batch_size=None, rand_vals=None, rand_shapes=False):
         """
         Apply this generator module. Pass _either_ batch_size or rand_vals.
         """
@@ -530,7 +538,11 @@ class GenFCModule(object):
         # reshape vector outputs for use a conv layer inputs
         h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
                          self.out_shape[1], self.out_shape[2]))
-        return h2
+        if rand_shapes:
+            result = [h2, rand_shape]
+        else:
+            result = h2
+        return result
 
 
 

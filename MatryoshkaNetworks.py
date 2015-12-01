@@ -50,9 +50,13 @@ class GenNetwork(object):
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
         print("DONE.")
+        print("Compiling rand shape computer...")
+        self.compute_rand_shapes = self._construct_compute_rand_shapes()
+        print("DONE.")
         return
 
-    def apply(self, rand_vals=None, batch_size=None, return_acts=False):
+    def apply(self, rand_vals=None, batch_size=None, return_acts=False,
+              rand_shapes=False):
         """
         Apply this generator network using the given random values.
         """
@@ -96,6 +100,8 @@ class GenNetwork(object):
             result = [output, acts]
         else:
             result = output
+        if rand_shapes:
+            result = r_shapes
         return result
 
     def _construct_generate_samples(self):
@@ -107,10 +113,31 @@ class GenNetwork(object):
         sym_samples = self.apply(batch_size=batch_size)
         # compile a theano function for computing the stochastic feedforward
         sample_func = theano.function([batch_size], sym_samples)
-        def sampler(sample_count):
-            samples = sample_func(sample_count)
-            return samples
-        return sampler
+        return sample_func
+
+    def _construct_compute_rand_shapes(self):
+        """
+        Compute the shape of stochastic input for all layers in this network.
+        """
+        batch_size = T.lscalar()
+        # feedforward through the model with batch size "batch_size"
+        sym_shapes = self.apply(batch_size=batch_size, rand_shapes=True)
+        # compile a theano function for computing the stochastic feedforward
+        shape_func = theano.function([batch_size], sym_shapes)
+        return shape_func
+
+class NllEstimator(object):
+    """
+    Wrapper class for extracting variational estimates of log-likelihood from
+    a GenNetwork. The NLLEstimator will be specific to a given set of inputs.
+    """
+    def __init__(self, X, gen_network):
+        self.X = sharedX(X, name='X_NllEstimator')
+        self.gen_network = gen_network
+        self.obs_count = X.shape[0]
+        # get initial means and log variances of stochastic variables for the
+        # observations in self.X, using the GenNetwork self.gen_network.
+        self._init_rand_vals(self.
 
 
 class DiscNetwork(object):
