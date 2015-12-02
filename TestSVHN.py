@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_two_disc_er_z1_is_8_linear'
+desc = 'all_rand_all_disc_er_2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -72,7 +72,7 @@ nlg = 1           # # of layers in conv modules for generator
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
-nz1 = 8          # # of dim for Z1
+nz1 = 16          # # of dim for Z1
 fd = 3            # filter dim in convolution modules
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -86,7 +86,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
 use_disc_bn = True # whether to use batch normalization in discriminator
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
@@ -160,7 +160,7 @@ color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
-theano_rng = RandStream(123)
+theano_rng = RandStream(1234)
 
 
 ###############################
@@ -366,8 +366,8 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if all_disc:
     # multi-scale discriminator guidance
-    #ret_vals = range(len(disc_network.modules))
-    ret_vals = [2, 4]
+    ret_vals = range(len(disc_network.modules))
+    #ret_vals = [2, 4]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -382,8 +382,9 @@ p_er = disc_network.apply(input=Xer, ret_vals=ret_vals,
 d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])
 d_cost_gen  = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen])
 d_cost_er   = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er])
+g_cost_d  = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen])
 #g_cost_d    = sum([mixed_hinge_loss(-1.0*p).mean() for p in p_gen])
-g_cost_d    = sum([-1.0*p.mean() for p in p_gen])
+#g_cost_d    = sum([-1.0*p.mean() for p in p_gen])
 
 # switch costs based on use of experience replay
 if use_er:
@@ -441,6 +442,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
+sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
