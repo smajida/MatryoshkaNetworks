@@ -9,8 +9,6 @@ from sklearn.externals import joblib
 
 import theano
 import theano.tensor as T
-from theano.sandbox.cuda.dnn import dnn_conv
-from theano.sandbox.cuda.rng_curand import CURAND_RandomStreams as RandStream
 
 #
 # DCGAN paper repo stuff
@@ -19,7 +17,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.vis import color_grid_vis
-from lib.rng import py_rng, np_rng
+from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
@@ -37,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_2'
+desc = 'all_rand_all_disc_er_3'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -61,8 +59,10 @@ del data_dict
 Xtr = Xtr - np.min(Xtr)
 Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
+Xtr_std = np.std(Xtr, axis=0)
+Xtr_var = Xtr_std**2.0
 
-
+set_seed(123)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -87,7 +87,8 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_disc_bn = True # whether to use batch normalization in discriminator
+use_annealing = False # whether to use "annealing" of the target distribution
+
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
 
@@ -153,6 +154,17 @@ def sample_exprep_buffer(er_buffer, sample_count):
     idx = npr.randint(0,high=buffer_size)
     samples = er_buffer[idx,:]
     return samples
+
+def gauss_blur(x, x_std, w_x, w_g):
+    """
+    Add gaussian noise to x, with rescaling to keep variance constant w.r.t.
+    the initial variance of x (in x_var). w_x and w_g should be weights for
+    a convex combination.
+    """
+    g_std = np.sqrt( (x_std * (1. - w_x)**2.) / w_g**2. )
+    g_noise = g_std * np_rng.normal(size=x.shape)
+    x_blurred = w_x*x + w_g*g_noise
+    return floatX(x_blurred)
 
 # draw some examples from training set
 color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_dir))
@@ -281,7 +293,7 @@ DiscConvModule(
     out_chans=ndf,
     num_layers=nld,
     apply_bn_1=False,
-    apply_bn_2=use_disc_bn,
+    apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -294,8 +306,8 @@ DiscConvModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     num_layers=nld,
-    apply_bn_1=use_disc_bn,
-    apply_bn_2=use_disc_bn,
+    apply_bn_1=True,
+    apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -308,8 +320,8 @@ DiscConvModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     num_layers=nld,
-    apply_bn_1=use_disc_bn,
-    apply_bn_2=use_disc_bn,
+    apply_bn_1=True,
+    apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -322,8 +334,8 @@ DiscConvModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     num_layers=nld,
-    apply_bn_1=use_disc_bn,
-    apply_bn_2=use_disc_bn,
+    apply_bn_1=True,
+    apply_bn_2=True,
     ds_stride=2,
     use_pooling=False,
     init_func=difn,
@@ -335,7 +347,7 @@ DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*2*2),
     num_layers=nld,
-    apply_bn=use_disc_bn,
+    apply_bn=True,
     init_func=difn,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
@@ -442,7 +454,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
+gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
@@ -453,6 +465,10 @@ for epoch in range(1, niter+niter_decay+1):
     gc_iter = 0
     dc_iter = 0
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+        w_x = gauss_blur_weights[epoch]
+        w_g = 1.0 - w_x
+        if use_annealing:
+            imb = gauss_blur(imb, Xtr_std, w_x, w_g)
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:

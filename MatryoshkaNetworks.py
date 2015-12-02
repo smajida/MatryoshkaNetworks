@@ -3,7 +3,6 @@ import numpy.random as npr
 import theano
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
-from theano.sandbox.cuda.rng_curand import CURAND_RandomStreams as RandStream
 
 #
 # DCGAN paper repo stuff
@@ -12,7 +11,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.vis import color_grid_vis
-from lib.rng import py_rng, np_rng
+from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, deconv
 from lib.theano_utils import floatX, sharedX
 
@@ -41,7 +40,6 @@ class GenNetwork(object):
         self.modules = [m for m in modules]
         self.fc_module = self.modules[0]
         self.conv_modules = self.modules[1:]
-        self.rng = RandStream(123)
         self.params = []
         for module in self.modules:
             self.params.extend(module.params)
@@ -168,7 +166,6 @@ class DiscNetwork(object):
         self.modules = [m for m in modules]
         self.fc_module = self.modules[-1]
         self.conv_modules = self.modules[:-1]
-        self.rng = RandStream(123)
         self.params = []
         for module in self.modules:
             self.params.extend(module.params)

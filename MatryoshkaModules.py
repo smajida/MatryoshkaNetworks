@@ -2,12 +2,11 @@ import numpy as np
 import theano
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool
-from theano.sandbox.cuda.rng_curand import CURAND_RandomStreams as RandStream
 
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.rng import py_rng, np_rng
+from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
 from lib.theano_utils import floatX, sharedX
 
@@ -343,7 +342,6 @@ class GenConvModule(object):
         self.use_pooling = use_pooling
         self.mod_name = mod_name
         self.rand_type = rand_type
-        self.rng = RandStream(123)
         if init_func is None:
             self.init_func = inits.Normal(scale=0.02)
         else:
@@ -403,11 +401,11 @@ class GenConvModule(object):
             # augment input with random channels
             if rand_vals is None:
                 if self.rand_type == 'normal':
-                    rand_vals = self.rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-                                                dtype=theano.config.floatX)
+                    rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+                                              dtype=theano.config.floatX)
                 else:
-                    rand_vals = self.rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
-                                                 dtype=theano.config.floatX)
+                    rand_vals = cu_rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
+                                               dtype=theano.config.floatX)
             rand_vals = rand_vals.reshape(rand_shape)
             rand_shape = rand_vals.shape
             # stack random values on top of input
@@ -468,7 +466,6 @@ class GenFCModule(object):
         self.num_layers = num_layers
         self.mod_name = mod_name
         self.rand_type = rand_type
-        self.rng = RandStream(123)
         if init_func is None:
             self.init_func = inits.Normal(scale=0.02)
         else:
@@ -514,10 +511,10 @@ class GenFCModule(object):
         if rand_vals is None:
             rand_shape = (batch_size, self.rand_dim)
             if self.rand_type == 'normal':
-                rand_vals = self.rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
                                             dtype=theano.config.floatX)
             else:
-                rand_vals = self.rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
+                rand_vals = cu_rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
                                              dtype=theano.config.floatX)
         else:
             rand_shape = (rand_vals.shape[0], self.rand_dim)
