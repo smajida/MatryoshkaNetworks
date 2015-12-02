@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_two_disc_er_z1_is_8_hinge'
+desc = 'all_rand_two_disc_er_z1_is_8_linear'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -382,8 +382,8 @@ p_er = disc_network.apply(input=Xer, ret_vals=ret_vals,
 d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])
 d_cost_gen  = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen])
 d_cost_er   = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er])
-g_cost_d    = sum([mixed_hinge_loss(-1.0*p).mean() for p in p_gen])
-#g_cost_d    = sum([-1.0*p.mean() for p in p_gen])
+#g_cost_d    = sum([mixed_hinge_loss(-1.0*p).mean() for p in p_gen])
+g_cost_d    = sum([-1.0*p.mean() for p in p_gen])
 
 # switch costs based on use of experience replay
 if use_er:
