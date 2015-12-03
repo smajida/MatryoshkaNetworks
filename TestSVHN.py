@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_4'
+desc = 'all_rand_all_disc_er_3_rand'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -80,7 +80,7 @@ ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
@@ -204,7 +204,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_rand,
+    use_rand=False, #all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_2'
@@ -238,7 +238,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=all_rand,
+    use_rand=False, #all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_4'
