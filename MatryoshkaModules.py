@@ -407,12 +407,13 @@ class GenConvModule(object):
                     rand_vals = cu_rng.uniform(size=rand_shape, low=-1.0, high=1.0, \
                                                dtype=theano.config.floatX)
             rand_vals = rand_vals.reshape(rand_shape)
-            rand_shape = rand_vals.shape
+            rand_shape = rand_vals.shape # return vals must be theano vars
             # stack random values on top of input
             full_input = T.concatenate([rand_vals, input], axis=1)
         else:
             # don't augment input with random channels
             full_input = input
+            rand_shape = full_input.shape # return vals must be theano vars
         # apply first convolution, perhaps with fractional striding
         if self.use_pooling:
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
