@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_anneal'
+desc = 'all_rand_all_disc_er_4'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -81,13 +81,13 @@ ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
-lr = 0.0001       # initial learning rate for adam
+lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_annealing = True # whether to use "annealing" of the target distribution
+use_annealing = False # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
@@ -250,7 +250,7 @@ GenConvModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     rand_chans=nz1,
-    num_layers=nlg,
+    num_layers=1,
     apply_bn_1=True,
     apply_bn_2=True,
     us_stride=2,
@@ -469,7 +469,7 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             w_x = 1.0
         w_g = 1.0 - w_x
-        if use_annealing:
+        if use_annealing and (w_x < 0.999):
             imb = gauss_blur(imb, Xtr_std, w_x, w_g)
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
