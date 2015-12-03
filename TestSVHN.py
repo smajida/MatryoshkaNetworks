@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_3'
+desc = 'all_rand_all_disc_er_anneal'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -59,7 +59,7 @@ del data_dict
 Xtr = Xtr - np.min(Xtr)
 Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
-Xtr_std = np.std(Xtr, axis=0)
+Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
 set_seed(123)     # seed for shared rngs
@@ -87,7 +87,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_annealing = False # whether to use "annealing" of the target distribution
+use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
@@ -161,7 +161,7 @@ def gauss_blur(x, x_std, w_x, w_g):
     the initial variance of x (in x_var). w_x and w_g should be weights for
     a convex combination.
     """
-    g_std = np.sqrt( (x_std * (1. - w_x)**2.) / w_g**2. )
+    g_std = np.sqrt( (x_std * (1. - w_x)**2.) / (w_g**2. + 1e-4) )
     g_noise = g_std * np_rng.normal(size=x.shape)
     x_blurred = w_x*x + w_g*g_noise
     return floatX(x_blurred)
@@ -172,7 +172,6 @@ color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
-theano_rng = RandStream(1234)
 
 
 ###############################
@@ -465,7 +464,10 @@ for epoch in range(1, niter+niter_decay+1):
     gc_iter = 0
     dc_iter = 0
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
-        w_x = gauss_blur_weights[epoch]
+        if epoch < gauss_blur_weights.shape[0]:
+            w_x = gauss_blur_weights[epoch]
+        else:
+            w_x = 1.0
         w_g = 1.0 - w_x
         if use_annealing:
             imb = gauss_blur(imb, Xtr_std, w_x, w_g)
