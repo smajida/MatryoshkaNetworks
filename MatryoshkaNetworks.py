@@ -164,7 +164,7 @@ class VarInfModel(object):
         self.bounded_logvar = 8.0 * T.tanh(self.output_logvar[0] / 8.0)
         # compute reconstruction/NLL cost using self.Xg
         self.nlls = self._construct_nlls(x=self.X, m=self.M, x_hat=self.Xg,
-                                         obs_logvar=self.bounded_logvar)
+                                         out_logvar=self.bounded_logvar)
         # construct symbolic vars for KL divergences between our reparametrized
         # Gaussians, and some ZMUV Gaussians.
         self.lam_kld = sharedX(np.ones((1,)), name='VIM.lam_kld')
@@ -190,7 +190,7 @@ class VarInfModel(object):
         self.sample_vfe_bounds = theano.function(inputs=[],
                                                  outputs=self.vfe_bounds)
         # construct theano function for sampling "reconstructions" from
-        # self.gen_network, given self.rv_mean/self.rv_logvar
+        # self.gen_network, given self.rv_means/self.rv_logvars
         print("Compiling VarInfModel.sample_Xg()...")
         self.sample_Xg = theano.function(inputs=[], outputs=self.Xg)
         return
@@ -201,7 +201,7 @@ class VarInfModel(object):
         """
         zero_ary = np.zeros((1,))
         new_lam = zero_ary + lam_kld
-        self.lam_kld.set_value(to_fX(new_lam))
+        self.lam_kld.set_value(floatX(new_lam))
         return
 
     def _construct_rvs(self):
@@ -241,10 +241,13 @@ class VarInfModel(object):
         Compute KL divergence between reparametrized Gaussians based on
         self.rv_mean/self.rv_logvar, and ZMUV Gaussians.
         """
-        all_klds = gaussian_kld(mu_left=T.flatten(self.rv_mean, 2),
-                                logvar_left=T.flatten(self.rv_logvar, 2),
-                                mu_right=0.0, logvar_right=0.0)
-        obs_klds = T.sum(all_klds, axis=1)
+        all_klds = []
+        for rv_mean, rv_logvar in zip(self.rv_means, self.rv_logvars):
+            layer_kld = gaussian_kld(mu_left=T.flatten(rv_mean, 2),
+                                     logvar_left=T.flatten(rv_logvar, 2),
+                                     mu_right=0.0, logvar_right=0.0)
+            all_klds.append(T.sum(layer_kld, axis=1))
+        obs_klds = sum(all_klds)
         return obs_klds
 
 

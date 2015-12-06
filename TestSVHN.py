@@ -28,14 +28,14 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
-from MatryoshkaNetworks import GenNetwork, DiscNetwork
+from MatryoshkaNetworks import GenNetwork, DiscNetwork, VarInfModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_5'
+desc = 'all_rand_all_disc_er_5_anneal'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -87,7 +87,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_annealing = False # whether to use "annealing" of the target distribution
+use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 disc_noise = None #sharedX([dn], name='disc_noise')
