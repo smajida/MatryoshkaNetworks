@@ -358,6 +358,17 @@ disc_modules = [disc_module_1, disc_module_2, disc_module_3,
 disc_network = DiscNetwork(modules=disc_modules)
 disc_params = disc_network.params
 
+###########################################
+# Construct a VarInfModel for gen_network #
+###########################################
+X_vim = Xtr[0:100,:]
+M_vim = floatX(np.ones(X_vim.shape))
+print("Building VarInfModel...")
+VIM = VarInfModel(X_vim, M_vim, gen_network, gifn, gifn)
+print("Testing VarInfModel...")
+opt_cost, vfe_bounds = VIM.train(0.001)
+vfe_bounds = VIM.sample_vfe_bounds()
+Xg_vim = VIM.sample_Xg()
 
 
 ####################################

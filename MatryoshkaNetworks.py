@@ -3,6 +3,7 @@ import numpy.random as npr
 import theano
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv
+from collections import OrderedDict
 
 #
 # DCGAN paper repo stuff
@@ -18,6 +19,8 @@ from lib.theano_utils import floatX, sharedX
 #
 # Phil's business
 #
+from LogPDFs import log_prob_gaussian2, gaussian_kld
+from DKCode import get_adam_updates, get_adadelta_updates
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
 
@@ -137,19 +140,119 @@ class GenNetwork(object):
         return shape_func
 
 
-# class NllEstimator(object):
-#     """
-#     Wrapper class for extracting variational estimates of log-likelihood from
-#     a GenNetwork. The NLLEstimator will be specific to a given set of inputs.
-#     """
-#     def __init__(self, X, gen_network):
-#         self.X = sharedX(X, name='X_NllEstimator')
-#         self.gen_network = gen_network
-#         self.obs_count = X.shape[0]
-#         # get initial means and log variances of stochastic variables for the
-#         # observations in self.X, using the GenNetwork self.gen_network.
-#         self._init_rand_vals()
-#         return
+class VarInfModel(object):
+    """
+    Wrapper class for extracting variational estimates of log-likelihood from
+    a GenNetwork. The VarInfModel will be specific to a given set of inputs.
+    """
+    def __init__(self, X, M, gen_network, mean_init_func, logvar_init_func):
+        # observations for which to perform variational inference
+        self.X = sharedX(X, name='VIM.X')
+        # masks for which components of each observation are "visible"
+        self.M = sharedX(M, name='VIM.M')
+        self.gen_network = gen_network
+        self.obs_count = X.shape[0]
+        self.mean_init_func = mean_init_func
+        self.logvar_init_func = logvar_init_func
+        # get initial means and log variances of stochastic variables for the
+        # observations in self.X, using the GenNetwork self.gen_network. also,
+        # make symbolic random variables for passing to self.gen_network.
+        self.rv_means, self.rv_logvars, self.rand_vals = self._construct_rvs()
+        # get samples from self.gen_network using self.rv_mean/self.rv_logvar
+        self.Xg = self.gen_network.apply(rand_vals=self.rand_vals)
+        # self.output_logvar modifies the output distribution
+        self.output_logvar = sharedX(np.zeros((1,)), name='VIM.output_logvar')
+        self.bounded_logvar = 8.0 * T.tanh(self.output_logvar[0] / 8.0)
+        # compute reconstruction/NLL cost using self.Xg
+        self.nlls = self._construct_nlls(x=self.X, m=self.M, x_hat=self.Xg,
+                                         obs_logvar=self.bounded_logvar)
+        # construct symbolic vars for KL divergences between our reparametrized
+        # Gaussians, and some ZMUV Gaussians.
+        self.lam_kld = sharedX(np.ones((1,)), name='VIM.lam_kld')
+        self.set_lam_kld(lam_kld=1.0)
+        self.klds = self._construct_klds()
+        # make symbolic vars for the overall optimization objective
+        self.vfe_bounds = self.nlls + self.klds
+        self.opt_cost = T.mean(self.nlls) + (self.lam_kld[0]*T.mean(self.klds))
+        # construct updates for self.rv_means/self.rv_logvars
+        self.params = self.rv_means + self.rv_logvars + [self.output_logvar]
+        self.lr = T.scalar()
+        updater = updates.Adam(lr=self.lr, b1=0.5, b2=0.98, e=1e-4)
+        print("Constructing VarInfModel updates...")
+        self.param_updates = updater(self.params, self.opt_cost)
+        print("Compiling VarInfModel.train()...")
+        self.train = theano.function(inputs=[self.lr],
+                                     outputs=[self.opt_cost, self.vfe_bounds],
+                                     updates=self.param_updates)
+        # construct theano function for estimating log-likelihood cost given
+        # the observations in self.X and the current means/logvars in
+        # self.rv_means/self.rv_logvars.
+        print("Compiling VarInfModel.sample_vfe_bounds()...")
+        self.sample_vfe_bounds = theano.function(inputs=[],
+                                                 outputs=self.vfe_bounds)
+        # construct theano function for sampling "reconstructions" from
+        # self.gen_network, given self.rv_mean/self.rv_logvar
+        print("Compiling VarInfModel.sample_Xg()...")
+        self.sample_Xg = theano.function(inputs=[], outputs=self.Xg)
+        return
+
+    def set_lam_kld(self, lam_kld=1.0):
+        """
+        Set the relative weight of KL-divergence vs. data likelihood.
+        """
+        zero_ary = np.zeros((1,))
+        new_lam = zero_ary + lam_kld
+        self.lam_kld.set_value(to_fX(new_lam))
+        return
+
+    def _construct_rvs(self):
+        """
+        Initialize random values required for generating self.obs_count
+        observations from self.gen_network.
+        """
+        # compute shapes of random values required for the feedforward pass
+        # through self.gen_network (to generate self.obs_count observations)
+        rand_shapes = self.gen_network.compute_rand_shapes(self.obs_count)
+        # initialize random theano shared vars with the appropriate shapes for
+        # storing means and log variances to reparametrize gaussian samples
+        rv_means = [self.mean_init_func(rs) for rs in rand_shapes]
+        rv_logvars = [self.logvar_init_func(rs) for rs in rand_shapes]
+        # construct symbolic variables for reparametrized gaussian samples
+        rand_vals = []
+        for rv_mean, rv_logvar in zip(rv_means, rv_logvars):
+            zmuv_gauss = t_rng.normal(size=rv_mean.shape)
+            reparam_gauss = rv_mean + (T.exp(0.5*rv_logvar) * zmuv_gauss)
+            rand_vals.append(reparam_gauss)
+        return rv_means, rv_logvars, rand_vals
+
+    def _construct_nlls(self, x, m, x_hat, out_logvar):
+        """
+        Compute the reconstruction cost for the ground truth values in x, using
+        the reconstructed values in x_hat, ignoring values when m == 0.
+        """
+        x = T.flatten(x, 2)
+        m = T.flatten(m, 2)
+        x_hat = T.flatten(x_hat, 2)
+        nll = -1.0 * log_prob_gaussian2(x, x_hat, log_vars=out_logvar, mask=m)
+        nll = nll.flatten()
+        return nll
+
+    def _construct_klds(self):
+        """
+        Compute KL divergence between reparametrized Gaussians based on
+        self.rv_mean/self.rv_logvar, and ZMUV Gaussians.
+        """
+        all_klds = gaussian_kld(mu_left=T.flatten(self.rv_mean, 2),
+                                logvar_left=T.flatten(self.rv_logvar, 2),
+                                mu_right=0.0, logvar_right=0.0)
+        obs_klds = T.sum(all_klds, axis=1)
+        return obs_klds
+
+
+
+
+
+
 
 
 class DiscNetwork(object):
