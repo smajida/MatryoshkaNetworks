@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'all_rand_all_disc_er_3_rand'
+desc = 'all_rand_all_disc_er_5'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -62,7 +62,7 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(123)     # seed for shared rngs
+set_seed(1234)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -204,7 +204,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=False, #all_rand,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_2'
@@ -238,7 +238,7 @@ GenConvModule(
     apply_bn_2=True,
     us_stride=2,
     init_func=gifn,
-    use_rand=False, #all_rand,
+    use_rand=all_rand,
     use_pooling=False,
     rand_type='normal',
     mod_name='gen_mod_4'

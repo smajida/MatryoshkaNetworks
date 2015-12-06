@@ -20,7 +20,6 @@ from lib.theano_utils import floatX, sharedX
 # Phil's business
 #
 from LogPDFs import log_prob_gaussian2, gaussian_kld
-from DKCode import get_adam_updates, get_adadelta_updates
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
 
