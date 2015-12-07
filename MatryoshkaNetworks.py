@@ -24,7 +24,6 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
 
 
-
 class GenNetwork(object):
     """
     A deep convolutional generator network. This provides a wrapper around a
