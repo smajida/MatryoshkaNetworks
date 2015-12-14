@@ -32,12 +32,15 @@ class BasicConvModule(object):
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, filt_shape, in_chans, out_chans,
-                 apply_bn=True, act_func='ident',
+                 stride='single', apply_bn=True, act_func='ident',
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
+        assert (stride in ['single', 'double', 'half']), \
+                "stride should be 'single', 'double', or 'half'."
         self.filt_dim = filt_shape[0]
         self.in_chans = in_chans
         self.out_chans = out_chans
+        self.stride = stride
         self.apply_bn = apply_bn
         self.act_func = act_func
         self.mod_name = mod_name
@@ -67,7 +70,15 @@ class BasicConvModule(object):
         """
         bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
         # apply first conv layer
-        h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        if self.stride == 'single':
+            # normal, 1x1 stride
+            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        elif self.stride == 'double':
+            # downsampling, 2x2 stride
+            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        else:
+            # upsampling, 0.5x0.5 stride
+            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
         if self.apply_bn:
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
         if self.act_func == 'ident':
