@@ -772,12 +772,12 @@ class GenConvResModule2(object):
 
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
-            h4 = batch_norm(h4, g=self.g_prj, b=self.b_prj)
+            h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
             output = relu(h4)
         else:
             # apply direct input->output "projection" layer
             h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
-            h3 = batch_norm(h3, g=self.g_prj, b=self.b_prj)
+            h3 = batchnorm(h3, g=self.g_prj, b=self.b_prj)
             output = relu(h3)
 
         if rand_shapes:

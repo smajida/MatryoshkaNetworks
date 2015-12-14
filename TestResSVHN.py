@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_1'
+desc = 'test_resnet_2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -195,7 +195,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_2'
 ) # output is (batch, ngf*2, 4, 4)
@@ -207,7 +207,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*2, 8, 8)
@@ -219,7 +219,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
@@ -231,7 +231,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*1, 32, 32)
