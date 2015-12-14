@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_res_1'
+desc = 'all_rand_all_disc_no_er_7'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -62,12 +62,13 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(123)     # seed for shared rngs
+set_seed(4321)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nld = 1           # # of layers in conv modules for discriminator
+nlg = 1           # # of layers in conv modules for generator
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
@@ -81,6 +82,7 @@ niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
+dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = False     # whether to use experience replay
@@ -174,12 +176,10 @@ bce = T.nnet.binary_crossentropy
 # Setup the generator network #
 ###############################
 
-gifn = inits.Normal(scale=0.02)
-
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 2, 2),
+    out_shape=(ngf*2, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
     apply_bn_1=True,
@@ -188,74 +188,58 @@ GenFCModule(
 ) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
-GenConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    rand_chans=nz1,
-    num_layers=nlg,
-    apply_bn_1=True,
-    apply_bn_2=True,
-    us_stride=2,
-    use_rand=all_rand,
-    use_pooling=False,
-    mod_name='gen_mod_2'
-) # output is (batch, ngf*4, 4, 4)
-
-gen_module_3 = \
-GenConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    rand_chans=nz1,
-    num_layers=nlg,
-    apply_bn_1=True,
-    apply_bn_2=True,
-    us_stride=2,
-    use_rand=all_rand,
-    use_pooling=False,
-    mod_name='gen_mod_3'
-) # output is (batch, ngf*4, 8, 8)
-
-gen_module_4 = \
-GenConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*4),
+GenConvResModule(
+    in_chans=(ngf*2),
+    conv_chans=ngf,
     out_chans=(ngf*2),
     rand_chans=nz1,
-    num_layers=nlg,
-    apply_bn_1=True,
-    apply_bn_2=True,
-    us_stride=2,
     use_rand=all_rand,
-    use_pooling=False,
+    us_stride=2,
+    mod_name='gen_mod_2'
+) # output is (batch, ngf*2, 4, 4)
+
+gen_module_3 = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    conv_chans=ngf,
+    out_chans=(ngf*2),
+    rand_chans=nz1,
+    use_rand=all_rand,
+    us_stride=2,
+    mod_name='gen_mod_3'
+) # output is (batch, ngf*2, 8, 8)
+
+gen_module_4 = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    conv_chans=ngf,
+    out_chans=(ngf*2),
+    rand_chans=nz1,
+    use_rand=all_rand,
+    us_stride=2,
     mod_name='gen_mod_4'
-)  # output is (batch, ngf*2, 16, 16)
+) # output is (batch, ngf*2, 16, 16)
 
 gen_module_5 = \
-GenConvModule(
-    filt_shape=(3,3),
+GenConvResModule(
     in_chans=(ngf*2),
+    conv_chans=ngf,
     out_chans=(ngf*1),
     rand_chans=nz1,
-    num_layers=1,
-    apply_bn_1=True,
-    apply_bn_2=True,
-    us_stride=2,
     use_rand=all_rand,
-    use_pooling=False,
+    us_stride=2,
     mod_name='gen_mod_5'
-)  # output is (batch, ngf*1, 32, 32)
+) # output is (batch, ngf*1, 32, 32)
 
 gen_module_6 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
     act_func='ident',
     mod_name='gen_mod_6'
-)  # output is (batch, c, 32, 32)
+) # output is (batch, c, 32, 32)
 
 gen_modules = [gen_module_1, gen_module_2, gen_module_3,
                gen_module_4, gen_module_5, gen_module_6]
@@ -268,7 +252,6 @@ gen_params = gen_network.params
 ###################################
 # Setup the discriminator network #
 ###################################
-difn = inits.Normal(scale=0.02)
 
 disc_module_1 = \
 DiscConvModule(
