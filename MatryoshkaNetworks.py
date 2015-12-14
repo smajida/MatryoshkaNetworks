@@ -143,15 +143,15 @@ class VarInfModel(object):
     Wrapper class for extracting variational estimates of log-likelihood from
     a GenNetwork. The VarInfModel will be specific to a given set of inputs.
     """
-    def __init__(self, X, M, gen_network, mean_init_func, logvar_init_func):
+    def __init__(self, X, M, gen_network):
         # observations for which to perform variational inference
         self.X = sharedX(X, name='VIM.X')
         # masks for which components of each observation are "visible"
         self.M = sharedX(M, name='VIM.M')
         self.gen_network = gen_network
         self.obs_count = X.shape[0]
-        self.mean_init_func = mean_init_func
-        self.logvar_init_func = logvar_init_func
+        self.mean_init_func = inits.Normal(loc=0., scale=0.02)
+        self.logvar_init_func = inits.Normal(loc=0., scale=0.02)
         # get initial means and log variances of stochastic variables for the
         # observations in self.X, using the GenNetwork self.gen_network. also,
         # make symbolic random variables for passing to self.gen_network.

@@ -27,7 +27,7 @@ from load import load_svhn
 # Phil's business
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule
+                              GenFCModule, BasicConvModule, GenConvResModule
 from MatryoshkaNetworks import GenNetwork, DiscNetwork, VarInfModel
 
 # path for dumping experiment info and fetching dataset
@@ -327,7 +327,7 @@ disc_params = disc_network.params
 X_vim = Xtr[0:100,:]
 M_vim = floatX(np.ones(X_vim.shape))
 print("Building VarInfModel...")
-VIM = VarInfModel(X_vim, M_vim, gen_network, gifn, gifn)
+VIM = VarInfModel(X_vim, M_vim, gen_network)
 print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()

@@ -541,7 +541,7 @@ class GenConvResModule(object):
                  in_chans, conv_chans, out_chans, rand_chans,
                  use_rand=True, us_stride=2,
                  mod_name='gm_conv'):
-        assert ((us_stride == 1) or (us_stride == 2)),
+        assert ((us_stride == 1) or (us_stride == 2)), \
             "upsampling stride (i.e. us_stride) must be 1 or 2."
         self.in_chans = in_chans
         self.conv_chans = conv_chans
