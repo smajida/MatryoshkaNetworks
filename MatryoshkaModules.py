@@ -651,7 +651,7 @@ class GenConvResModule(object):
 
         # apply second 1x1 conv layer
         h3 = dnn_conv(h2, self.w_fc2, subsample=(1, 1), border_mode=(0, 0))
-        #h3 = batchnorm(h3, g=self.g_fc2, b=self.b_fc2) # use this?
+        h3 = batchnorm(h3, g=self.g_fc2, b=self.b_fc2) # use this?
 
         # add h3 to input to get output, so that non-linear functions in this
         # layer transform the input via perturbation rather than replacement.

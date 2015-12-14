@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_2'
+desc = 'test_resnet_1_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -85,7 +85,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -220,43 +220,43 @@ GenConvResModule(
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
 
-gen_module_5 = \
-BasicConvModule(
-    filt_shape=(5,5),
-    in_chans=(ngf*2),
-    out_chans=nc,
-    stride='half',
-    apply_bn=False,
-    act_func='ident',
-    mod_name='gen_mod_5'
-) # output is (batch, c, 32, 32)
-
-gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-               gen_module_4, gen_module_5]
-
 # gen_module_5 = \
-# GenConvResModule(
-#     in_chans=(ngf*2),
-#     conv_chans=ngf,
-#     out_chans=(ngf*1),
-#     rand_chans=nz1,
-#     use_rand=all_rand,
-#     us_stride=2,
-#     mod_name='gen_mod_5'
-# ) # output is (batch, ngf*1, 32, 32)
-#
-# gen_module_6 = \
 # BasicConvModule(
-#     filt_shape=(3,3),
-#     in_chans=(ngf*1),
+#     filt_shape=(5,5),
+#     in_chans=(ngf*2),
 #     out_chans=nc,
+#     stride='half',
 #     apply_bn=False,
 #     act_func='ident',
-#     mod_name='gen_mod_6'
+#     mod_name='gen_mod_5'
 # ) # output is (batch, c, 32, 32)
 #
 # gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-#                gen_module_4, gen_module_5, gen_module_6]
+#                gen_module_4, gen_module_5]
+
+gen_module_5 = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    conv_chans=ngf,
+    out_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=all_rand,
+    us_stride=2,
+    mod_name='gen_mod_5'
+) # output is (batch, ngf*1, 32, 32)
+
+gen_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
+    out_chans=nc,
+    apply_bn=False,
+    act_func='ident',
+    mod_name='gen_mod_6'
+) # output is (batch, c, 32, 32)
+
+gen_modules = [gen_module_1, gen_module_2, gen_module_3,
+               gen_module_4, gen_module_5, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetwork(modules=gen_modules, output_transform=tanh)
