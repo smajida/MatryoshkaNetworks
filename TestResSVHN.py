@@ -222,13 +222,13 @@ GenConvResModule(
 
 gen_module_5 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=(ngf*2),
     out_chans=nc,
     stride='half',
     apply_bn=False,
     act_func='ident',
-    mod_name='gen_mod_6'
+    mod_name='gen_mod_5'
 ) # output is (batch, c, 32, 32)
 
 gen_modules = [gen_module_1, gen_module_2, gen_module_3,
