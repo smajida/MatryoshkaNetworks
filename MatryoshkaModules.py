@@ -673,6 +673,118 @@ class GenConvResModule(object):
 
 
 
+#########################################
+# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
+#########################################
+
+class GenConvResModule2(object):
+    """
+    Module of one "fractionally strided" convolution layer followed by one
+    regular convolution layer. Inputs to the fractionally strided convolution
+    can optionally be augmented with some random values.
+
+    Params:
+        filt_shape: shape for convolution filters -- should be square and odd
+        in_chans: number of channels in the inputs to module
+        out_chans: number of channels in the outputs from module
+        conv_chans: number of channels in the "internal" convolution layer
+        rand_chans: number of random channels to augment input
+        use_rand: flag for whether or not to augment inputs
+        use_conv: flag for whether to use "internal" convolution layer
+        us_stride: upsampling ratio in the fractionally strided convolution
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 in_chans, out_chans, conv_chans, rand_chans,
+                 use_rand=True, use_conv=True, us_stride=2,
+                 mod_name='gm_conv'):
+        assert ((us_stride == 1) or (us_stride == 2)), \
+                "us_stride must be 1 or 2."
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.conv_chans = conv_chans
+        self.rand_chans = rand_chans
+        self.use_rand = use_rand
+        self.use_conv = use_conv
+        self.us_stride = us_stride
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 3, 3),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize convolutional projection layer parameters
+        self.w_prj = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), 3, 3),
+                                "{}_w_prj".format(self.mod_name))
+        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
+        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
+        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        return
+
+    def apply(self, input, rand_vals=None, rand_shapes=False):
+        """
+        Apply this generator module to some input.
+        """
+        batch_size = input.shape[0] # number of inputs in this batch
+        ss = self.us_stride         # stride for "learned upsampling"
+
+        # get shape for random values that will augment input
+        rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
+        # augment input with random channels
+        if rand_vals is None:
+            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+                                      dtype=theano.config.floatX)
+        if not self.use_rand:
+            rand_vals = 0.0 * rand_vals
+        rand_vals = rand_vals.reshape(rand_shape)
+        rand_shape = rand_vals.shape # return vals must be theano vars
+
+        # stack random values on top of input
+        full_input = T.concatenate([rand_vals, input], axis=1)
+
+        if self.use_conv:
+            # apply first internal conv layer
+            h1 = deconv(full_input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = relu(h1)
+            # apply second internal conv layer
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
+            # apply direct input->output "projection" layer
+            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+
+            # combine non-linear and linear transforms of input...
+            h4 = h2 + h3
+            h4 = batch_norm(h4, g=self.g_prj, b=self.b_prj)
+            output = relu(h4)
+        else:
+            # apply direct input->output "projection" layer
+            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h3 = batch_norm(h3, g=self.g_prj, b=self.b_prj)
+            output = relu(h3)
+
+        if rand_shapes:
+            result = [output, rand_shape]
+        else:
+            result = output
+        return result
 
 
 

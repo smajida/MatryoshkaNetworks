@@ -27,7 +27,8 @@ from load import load_svhn
 # Phil's business
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule, GenConvResModule
+                              GenFCModule, BasicConvModule, GenConvResModule, \
+                              GenConvResModule2
 from MatryoshkaNetworks import GenNetwork, DiscNetwork, VarInfModel
 
 # path for dumping experiment info and fetching dataset
@@ -35,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_1_er'
+desc = 'test_resnet_1'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -85,7 +86,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+use_er = False     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -188,59 +189,49 @@ GenFCModule(
 ) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
-GenConvResModule(
+GenConvResModule2(
     in_chans=(ngf*2),
-    conv_chans=ngf,
     out_chans=(ngf*2),
+    conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_2'
 ) # output is (batch, ngf*2, 4, 4)
 
 gen_module_3 = \
-GenConvResModule(
+GenConvResModule2(
     in_chans=(ngf*2),
-    conv_chans=ngf,
     out_chans=(ngf*2),
+    conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*2, 8, 8)
 
 gen_module_4 = \
-GenConvResModule(
+GenConvResModule2(
     in_chans=(ngf*2),
-    conv_chans=ngf,
     out_chans=(ngf*2),
+    conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
 
-# gen_module_5 = \
-# BasicConvModule(
-#     filt_shape=(5,5),
-#     in_chans=(ngf*2),
-#     out_chans=nc,
-#     stride='half',
-#     apply_bn=False,
-#     act_func='ident',
-#     mod_name='gen_mod_5'
-# ) # output is (batch, c, 32, 32)
-#
-# gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-#                gen_module_4, gen_module_5]
-
 gen_module_5 = \
-GenConvResModule(
+GenConvResModule2(
     in_chans=(ngf*2),
-    conv_chans=ngf,
     out_chans=(ngf*1),
+    conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*1, 32, 32)
