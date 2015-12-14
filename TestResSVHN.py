@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_2'
+desc = 'test_resnet_2_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -356,7 +356,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if all_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(len(disc_network.modules))
+    ret_vals = range(1, len(disc_network.modules))
     #ret_vals = [2, 4]
 else:
     # full-scale discriminator guidance only
@@ -468,7 +468,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % min(10,epoch*30)) == 0) and use_er:
+        if ((n_updates % (min(25,epoch)*25)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     print("Epoch {}:".format(epoch))
     print("    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
