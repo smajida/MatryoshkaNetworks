@@ -354,19 +354,20 @@ else:
 p_real = disc_network.apply(input=X, ret_vals=ret_vals, app_sigm=False)
 p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals, app_sigm=False)
 p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, app_sigm=False)
-print("Collecting discriminator signals from {} layers...".format(len(p_er)))
+print("Gathering discriminator signal from {} layers...".format(len(p_er)))
 
 # compute costs based on discriminator output for real/generated data
-d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])
-d_cost_gen  = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen])
-d_cost_er   = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er])
-g_cost_d    = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen])
+d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
+d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
+d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
+g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-#weights = [float(1.)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-#d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
-#d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
-#d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
-#g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
+weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+print("Discriminator signal weights {}...".format(weights))
+d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
+d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
+d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
+g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
 
 
 # switch costs based on use of experience replay
