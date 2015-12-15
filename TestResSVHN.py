@@ -28,7 +28,7 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule, GenConvResModule, \
-                              GenConvResModule2
+                              DiscConvResModule
 from MatryoshkaNetworks import GenNetwork, DiscNetwork, VarInfModel
 
 # path for dumping experiment info and fetching dataset
@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT'
+desc = 'test_resnet_convT_erT_flat_weight'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -87,7 +87,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_conv = False   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -349,11 +349,11 @@ d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds  = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-weights = [float(i)/sum(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+weights = [float(1.)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
-g_cost_d = sum([w*c for w, c in zip(weights, g_cost_d)])
+g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
 
 
 # switch costs based on use of experience replay
