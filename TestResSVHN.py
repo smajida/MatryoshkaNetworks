@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_X'
+desc = 'test_resnet_convT_erT_weighted'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -89,6 +89,7 @@ all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
+use_weights = True # whether use different weights for discriminator costs
 
 ntrain = Xtr.shape[0]
 
@@ -276,7 +277,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    use_conv=use_conv,
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -286,7 +287,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    use_conv=use_conv,
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
@@ -296,7 +297,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    use_conv=use_conv,
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)
@@ -362,7 +363,10 @@ d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+if use_weights:
+    weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+else:
+    weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])

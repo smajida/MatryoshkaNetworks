@@ -762,11 +762,11 @@ class GenConvResModule(object):
 
         if self.use_conv:
             # apply first internal conv layer
-            h1 = deconv(full_input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
+            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = relu(h1)
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
+            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
             # apply direct input->output "projection" layer
             h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
 
@@ -858,11 +858,11 @@ class DiscConvResModule(object):
         ss = self.ds_stride         # stride for "learned downsampling"
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+            h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = lrelu(h1)
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
             # apply direct input->output "projection" layer
             h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
 
