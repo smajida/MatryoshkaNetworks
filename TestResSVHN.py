@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_2_er'
+desc = 'test_resnet_1_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,7 +86,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -195,7 +195,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=False,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_2'
 ) # output is (batch, ngf*2, 4, 4)
@@ -207,7 +207,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=False,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*2, 8, 8)
@@ -219,7 +219,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=False,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
@@ -231,7 +231,7 @@ GenConvResModule2(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=False,
+    use_conv=True,
     us_stride=2,
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*1, 32, 32)
