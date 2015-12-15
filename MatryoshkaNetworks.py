@@ -288,21 +288,20 @@ class DiscNetwork(object):
         for i, module in enumerate(self.modules):
             if i == (len(self.modules) - 1):
                 # final fc module takes 1d input
-                try:
-                    hi, yi = module.apply(T.flatten(hs[-1], 2),
-                                          noise_sigma=disc_noise)
-                except:
-                    print("OOPS")
-                    print("hs: {}".format(str(hs)))
-                    print("disc_noise: {}".format(str(disc_noise)))
-                    print("OOPS")
+                result = module.apply(T.flatten(hs[-1], 2),
+                                      noise_sigma=disc_noise)
             else:
                 # other modules take 2d input
-                hi, yi = module.apply(hs[-1], noise_sigma=disc_noise)
+                result = module.apply(hs[-1], noise_sigma=disc_noise)
+            if type(result) == type([1, 2, 3]):
+                hi = result[0]
+                yi = result[1]
+                if i in ret_vals:
+                    if app_sigm:
+                        ys.append(sigmoid(yi))
+                    else:
+                        ys.append(yi)
+            else:
+                hi = result
             hs.append(hi)
-            if i in ret_vals:
-                if app_sigm:
-                    ys.append(sigmoid(yi))
-                else:
-                    ys.append(yi)
         return ys

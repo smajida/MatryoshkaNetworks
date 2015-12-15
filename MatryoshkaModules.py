@@ -27,6 +27,7 @@ class BasicConvModule(object):
         filt_shape: filter shape, should be square and odd dim
         in_chans: number of channels in input
         out_chans: number of channels to produce as output
+        stride: whether to use 'double', 'single', or 'half' stride.
         apply_bn: whether to apply batch normalization after conv
         act_func: should be "ident", "relu", or "lrelu"
         mod_name: text name to identify this module in theano graph
@@ -64,7 +65,7 @@ class BasicConvModule(object):
             self.params.extend([self.g1, self.b1])
         return
 
-    def apply(self, input, rand_vals=None, rand_shapes=False):
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise_sigma=None):
         """
         Apply this convolutional module to the given input.
         """
@@ -213,7 +214,7 @@ class DiscConvModule(object):
         # apply discriminator layer
         y = dnn_conv(h2, self.wd, subsample=(1, 1), border_mode=(bm, bm))
         y = T.flatten(y, 2)
-        return h2, y
+        return [h2, y]
 
 
 ########################################
@@ -288,7 +289,7 @@ class DiscFCModule(object):
         else:
             h2 = T.dot(input, self.w1)
             y = h2
-        return h2, y
+        return [h2, y]
 
 
 #########################################
@@ -514,162 +515,162 @@ class GenFCModule(object):
         return result
 
 
-##################################################
-# GENERATOR DOUBLE CONVOLUTIONAL RESIDUAL MODULE #
-##################################################
-
-class GenConvResModule(object):
-    """
-    Module of one "fractionally strided" convolution layer followed by one
-    regular convolution layer. Inputs to the fractionally strided convolution
-    can optionally be augmented with some random values.
-
-    Module structure is based on the "bottleneck" modules of MSR's residual
-    network that won the 2015 Imagenet competition(s).
-
-    First layer is a 1x1 convolutional layer with batch normalization.
-
-    Second layer is a 3x3 convolutional layer with batch normalization.
-
-    Third layer is a 1x1 convolutional layer with batch normalization.
-
-    Output of the third layer is added to the (maybe upsampled) input to the
-    module, then batch normalization is applied prior to a ReLU.
-
-    Process: IN -> fc1(IN) -> conv(fc1) -> fc2(conv) -> relu(fc2 + IN)
-
-    Params:
-        in_chans: number of channels in the inputs to module
-        conv_chans: number of channels in convolutional layer
-        out_chans: number of channels in the outputs from module
-        rand_chans: number of random channels to augment input
-        use_rand: flag for whether or not to augment inputs with noise
-        us_stride: upsampling ratio in the fractionally strided convolution
-        init_func: function for initializing module parameters
-        mod_name: text name for identifying module in theano graph
-    """
-    def __init__(self,
-                 in_chans, conv_chans, out_chans, rand_chans,
-                 use_rand=True, us_stride=2,
-                 mod_name='gm_conv'):
-        assert ((us_stride == 1) or (us_stride == 2)), \
-            "upsampling stride (i.e. us_stride) must be 1 or 2."
-        self.in_chans = in_chans
-        self.conv_chans = conv_chans
-        self.out_chans = out_chans
-        self.rand_chans = rand_chans
-        self.use_rand = use_rand
-        self.us_stride = us_stride
-        self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this generator module.
-        """
-        self.params = []
-        weight_ifn = inits.Normal(scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        #
-        # Initialize parameters for first 1x1 convolutional layer.
-        #
-        # input shape : (batch, in_chans+rand_chans, rows, cols)
-        # output shape: (batch, conv_chans, rows, cols)
-        #
-        self.w_fc1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
-                                "{}_w_fc1".format(self.mod_name))
-        self.g_fc1 = gain_ifn((self.conv_chans), "{}_g_fc1".format(self.mod_name))
-        self.b_fc1 = bias_ifn((self.conv_chans), "{}_b_fc1".format(self.mod_name))
-        self.params.extend([self.w_fc1, self.g_fc1, self.b_fc1])
-        #
-        # Initialize parameters for 3x3 convolutional layer.
-        #
-        # input shape : (batch, conv_chans, rows, cols)
-        # output shape: (batch, conv_chans, rows/us_stride, cols/us_stride)
-        #
-        self.w_conv = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
-                                 "{}_w_conv".format(self.mod_name))
-        self.g_conv = gain_ifn((self.conv_chans), "{}_g_conv".format(self.mod_name))
-        self.b_conv = bias_ifn((self.conv_chans), "{}_b_conv".format(self.mod_name))
-        self.params.extend([self.w_conv, self.g_conv, self.b_conv])
-        #
-        # Initialize parameters for second 1x1 convolutional layer.
-        #
-        # input shape : (batch, conv_chans, rows/us_stride, cols/us_stride)
-        # output shape: (batch, out_chans, rows/us_stride, cols/us_stride)
-        #
-        self.w_fc2 = weight_ifn((self.out_chans, self.conv_chans, 1, 1),
-                                "{}_w_fc2".format(self.mod_name))
-        self.g_fc2 = gain_ifn((self.out_chans), "{}_g_fc2".format(self.mod_name))
-        self.b_fc2 = bias_ifn((self.out_chans), "{}_b_fc2".format(self.mod_name))
-        self.params.extend([self.w_fc2, self.g_fc2, self.b_fc2])
-        #
-        # Initialize parameters for output projection and summing layer.
-        #
-        # input shape : (batch, in_chans, rows, cols)
-        # output shape: (batch, out_chans, rows, cols)
-        #
-        self.w_out = weight_ifn((self.out_chans, self.in_chans, 1, 1),
-                                "{}_w_out".format(self.mod_name))
-        self.g_out = gain_ifn((self.out_chans), "{}_g_out".format(self.mod_name))
-        self.b_out = bias_ifn((self.out_chans), "{}_b_out".format(self.mod_name))
-        self.params.extend([self.w_out, self.g_out, self.b_out])
-        return
-
-    def apply(self, input, rand_vals=None, rand_shapes=False):
-        """
-        Apply this generator module to some input.
-        """
-        batch_size = input.shape[0] # number of inputs in this batch
-        ss = self.us_stride         # stride for upsampling
-
-        # get shape for random values that we'll append to module input
-        rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
-        if rand_vals is None:
-            # generate random values to append to module input
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
-                                      dtype=theano.config.floatX)
-            if not self.use_rand:
-                # mask out random values, so they won't get used
-                rand_vals = 0.0 * rand_vals
-        rand_shape = rand_vals.shape # return vals must be theano vars
-
-        # stack random values on top of input
-        input_and_rvs = T.concatenate([rand_vals, input], axis=1)
-
-        # apply first 1x1 conv layer
-        h1 = dnn_conv(input_and_rvs, self.w_fc1, subsample=(1, 1), border_mode=(0, 0))
-        h1 = batchnorm(h1, g=self.g_fc1, b=self.b_fc1)
-        h1 = relu(h1)
-
-        # apply 3x3 conv layer (with fractional stride for upsampling)
-        h2 = deconv(h1, self.w_conv, subsample=(ss, ss), border_mode=(1, 1))
-        h2 = batchnorm(h2, g=self.g_conv, b=self.b_conv)
-        h2 = relu(h2)
-
-        # apply second 1x1 conv layer
-        h3 = dnn_conv(h2, self.w_fc2, subsample=(1, 1), border_mode=(0, 0))
-        h3 = batchnorm(h3, g=self.g_fc2, b=self.b_fc2) # use this?
-
-        # add h3 to input to get output, so that non-linear functions in this
-        # layer transform the input via perturbation rather than replacement.
-        if not (self.out_chans == self.in_chans):
-            # linearly "project" input to match desired output dimension
-            input = dnn_conv(input, self.w_out, subsample=(1,1), border_mode=(0,0))
-        if self.us_stride == 2:
-            # upsample input 2x if necessary (would prefer linear upsampling)
-            input = input.repeat(2, axis=2).repeat(2, axis=3)
-        output = input + h3
-        output = batchnorm(output, g=self.g_out, b=self.b_out) # use this?
-        output = relu(output)
-        # decide what to return: output only, or output and rand_vals.shape...
-        if rand_shapes:
-            result = [output, rand_shape]
-        else:
-            result = output
-        return result
+# ##################################################
+# # GENERATOR DOUBLE CONVOLUTIONAL RESIDUAL MODULE #
+# ##################################################
+#
+# class GenConvResModule(object):
+#     """
+#     Module of one "fractionally strided" convolution layer followed by one
+#     regular convolution layer. Inputs to the fractionally strided convolution
+#     can optionally be augmented with some random values.
+#
+#     Module structure is based on the "bottleneck" modules of MSR's residual
+#     network that won the 2015 Imagenet competition(s).
+#
+#     First layer is a 1x1 convolutional layer with batch normalization.
+#
+#     Second layer is a 3x3 convolutional layer with batch normalization.
+#
+#     Third layer is a 1x1 convolutional layer with batch normalization.
+#
+#     Output of the third layer is added to the (maybe upsampled) input to the
+#     module, then batch normalization is applied prior to a ReLU.
+#
+#     Process: IN -> fc1(IN) -> conv(fc1) -> fc2(conv) -> relu(fc2 + IN)
+#
+#     Params:
+#         in_chans: number of channels in the inputs to module
+#         conv_chans: number of channels in convolutional layer
+#         out_chans: number of channels in the outputs from module
+#         rand_chans: number of random channels to augment input
+#         use_rand: flag for whether or not to augment inputs with noise
+#         us_stride: upsampling ratio in the fractionally strided convolution
+#         init_func: function for initializing module parameters
+#         mod_name: text name for identifying module in theano graph
+#     """
+#     def __init__(self,
+#                  in_chans, conv_chans, out_chans, rand_chans,
+#                  use_rand=True, us_stride=2,
+#                  mod_name='gm_conv'):
+#         assert ((us_stride == 1) or (us_stride == 2)), \
+#             "upsampling stride (i.e. us_stride) must be 1 or 2."
+#         self.in_chans = in_chans
+#         self.conv_chans = conv_chans
+#         self.out_chans = out_chans
+#         self.rand_chans = rand_chans
+#         self.use_rand = use_rand
+#         self.us_stride = us_stride
+#         self.mod_name = mod_name
+#         self._init_params() # initialize parameters
+#         return
+#
+#     def _init_params(self):
+#         """
+#         Initialize parameters for the layers in this generator module.
+#         """
+#         self.params = []
+#         weight_ifn = inits.Normal(scale=0.02)
+#         gain_ifn = inits.Normal(loc=1., scale=0.02)
+#         bias_ifn = inits.Constant(c=0.)
+#         #
+#         # Initialize parameters for first 1x1 convolutional layer.
+#         #
+#         # input shape : (batch, in_chans+rand_chans, rows, cols)
+#         # output shape: (batch, conv_chans, rows, cols)
+#         #
+#         self.w_fc1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
+#                                 "{}_w_fc1".format(self.mod_name))
+#         self.g_fc1 = gain_ifn((self.conv_chans), "{}_g_fc1".format(self.mod_name))
+#         self.b_fc1 = bias_ifn((self.conv_chans), "{}_b_fc1".format(self.mod_name))
+#         self.params.extend([self.w_fc1, self.g_fc1, self.b_fc1])
+#         #
+#         # Initialize parameters for 3x3 convolutional layer.
+#         #
+#         # input shape : (batch, conv_chans, rows, cols)
+#         # output shape: (batch, conv_chans, rows/us_stride, cols/us_stride)
+#         #
+#         self.w_conv = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+#                                  "{}_w_conv".format(self.mod_name))
+#         self.g_conv = gain_ifn((self.conv_chans), "{}_g_conv".format(self.mod_name))
+#         self.b_conv = bias_ifn((self.conv_chans), "{}_b_conv".format(self.mod_name))
+#         self.params.extend([self.w_conv, self.g_conv, self.b_conv])
+#         #
+#         # Initialize parameters for second 1x1 convolutional layer.
+#         #
+#         # input shape : (batch, conv_chans, rows/us_stride, cols/us_stride)
+#         # output shape: (batch, out_chans, rows/us_stride, cols/us_stride)
+#         #
+#         self.w_fc2 = weight_ifn((self.out_chans, self.conv_chans, 1, 1),
+#                                 "{}_w_fc2".format(self.mod_name))
+#         self.g_fc2 = gain_ifn((self.out_chans), "{}_g_fc2".format(self.mod_name))
+#         self.b_fc2 = bias_ifn((self.out_chans), "{}_b_fc2".format(self.mod_name))
+#         self.params.extend([self.w_fc2, self.g_fc2, self.b_fc2])
+#         #
+#         # Initialize parameters for output projection and summing layer.
+#         #
+#         # input shape : (batch, in_chans, rows, cols)
+#         # output shape: (batch, out_chans, rows, cols)
+#         #
+#         self.w_out = weight_ifn((self.out_chans, self.in_chans, 1, 1),
+#                                 "{}_w_out".format(self.mod_name))
+#         self.g_out = gain_ifn((self.out_chans), "{}_g_out".format(self.mod_name))
+#         self.b_out = bias_ifn((self.out_chans), "{}_b_out".format(self.mod_name))
+#         self.params.extend([self.w_out, self.g_out, self.b_out])
+#         return
+#
+#     def apply(self, input, rand_vals=None, rand_shapes=False):
+#         """
+#         Apply this generator module to some input.
+#         """
+#         batch_size = input.shape[0] # number of inputs in this batch
+#         ss = self.us_stride         # stride for upsampling
+#
+#         # get shape for random values that we'll append to module input
+#         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
+#         if rand_vals is None:
+#             # generate random values to append to module input
+#             rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
+#                                       dtype=theano.config.floatX)
+#             if not self.use_rand:
+#                 # mask out random values, so they won't get used
+#                 rand_vals = 0.0 * rand_vals
+#         rand_shape = rand_vals.shape # return vals must be theano vars
+#
+#         # stack random values on top of input
+#         input_and_rvs = T.concatenate([rand_vals, input], axis=1)
+#
+#         # apply first 1x1 conv layer
+#         h1 = dnn_conv(input_and_rvs, self.w_fc1, subsample=(1, 1), border_mode=(0, 0))
+#         h1 = batchnorm(h1, g=self.g_fc1, b=self.b_fc1)
+#         h1 = relu(h1)
+#
+#         # apply 3x3 conv layer (with fractional stride for upsampling)
+#         h2 = deconv(h1, self.w_conv, subsample=(ss, ss), border_mode=(1, 1))
+#         h2 = batchnorm(h2, g=self.g_conv, b=self.b_conv)
+#         h2 = relu(h2)
+#
+#         # apply second 1x1 conv layer
+#         h3 = dnn_conv(h2, self.w_fc2, subsample=(1, 1), border_mode=(0, 0))
+#         h3 = batchnorm(h3, g=self.g_fc2, b=self.b_fc2) # use this?
+#
+#         # add h3 to input to get output, so that non-linear functions in this
+#         # layer transform the input via perturbation rather than replacement.
+#         if not (self.out_chans == self.in_chans):
+#             # linearly "project" input to match desired output dimension
+#             input = dnn_conv(input, self.w_out, subsample=(1,1), border_mode=(0,0))
+#         if self.us_stride == 2:
+#             # upsample input 2x if necessary (would prefer linear upsampling)
+#             input = input.repeat(2, axis=2).repeat(2, axis=3)
+#         output = input + h3
+#         output = batchnorm(output, g=self.g_out, b=self.b_out) # use this?
+#         output = relu(output)
+#         # decide what to return: output only, or output and rand_vals.shape...
+#         if rand_shapes:
+#             result = [output, rand_shape]
+#         else:
+#             result = output
+#         return result
 
 
 
@@ -677,14 +678,13 @@ class GenConvResModule(object):
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
 
-class GenConvResModule2(object):
+class GenConvResModule(object):
     """
     Module of one "fractionally strided" convolution layer followed by one
     regular convolution layer. Inputs to the fractionally strided convolution
     can optionally be augmented with some random values.
 
     Params:
-        filt_shape: shape for convolution filters -- should be square and odd
         in_chans: number of channels in the inputs to module
         out_chans: number of channels in the outputs from module
         conv_chans: number of channels in the "internal" convolution layer
@@ -787,7 +787,99 @@ class GenConvResModule2(object):
         return result
 
 
+#########################################
+# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
+#########################################
 
+class DiscConvResModule(object):
+    """
+    Module of one regular convolution layer followed by one "fractionally
+    strided convolution layer. Has a direct pass-through connection.
+
+    Params:
+        in_chans: number of channels in the inputs to module
+        out_chans: number of channels in the outputs from module
+        conv_chans: number of channels in the "internal" convolution layer
+        use_conv: flag for whether to use "internal" convolution layer
+        ds_stride: downsampling ratio in the fractionally strided convolution
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 in_chans, out_chans, conv_chans,
+                 use_conv=True, ds_stride=2,
+                 mod_name='dm_conv'):
+        assert ((ds_stride == 1) or (ds_stride == 2)), \
+                "ds_stride must be 1 or 2."
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.conv_chans = conv_chans
+        self.use_conv = use_conv
+        self.ds_stride = ds_stride
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 3, 3),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize convolutional projection layer parameters
+        self.w_prj = weight_ifn((self.out_chans, self.in_chans, 3, 3),
+                                "{}_w_prj".format(self.mod_name))
+        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
+        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
+        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        # initialize weights for the "discrimination" layer
+        self.wd = weight_ifn((1, self.out_chans, 3, 3),
+                             "{}_wd".format(self.mod_name))
+        return
+
+    def apply(self, input, noise_sigma=None):
+        """
+        Apply this generator module to some input.
+        """
+        batch_size = input.shape[0] # number of inputs in this batch
+        ss = self.ds_stride         # stride for "learned downsampling"
+        if self.use_conv:
+            # apply first internal conv layer
+            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = lrelu(h1)
+            # apply second internal conv layer
+            h2 = dnn_conv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
+            # apply direct input->output "projection" layer
+            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+
+            # combine non-linear and linear transforms of input...
+            h4 = h2 + h3
+            h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
+            output = lrelu(h4)
+        else:
+            # apply direct input->output "projection" layer
+            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h3 = batchnorm(h3, g=self.g_prj, b=self.b_prj)
+            output = lrelu(h3)
+
+        # apply discriminator layer
+        y = dnn_conv(output, self.wd, subsample=(1, 1), border_mode=(1, 1))
+        y = T.flatten(y, 2)
+        return [output, y]
 
 
 

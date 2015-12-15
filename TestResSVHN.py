@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_1_er'
+desc = 'test_resnet_convT_erT'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -63,7 +63,7 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(4321)     # seed for shared rngs
+set_seed(1234)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -87,6 +87,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
+use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -180,7 +181,7 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*2, 2, 2),
+    out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
     apply_bn_1=True,
@@ -189,65 +190,54 @@ GenFCModule(
 ) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
-GenConvResModule2(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=ngf,
+GenConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_2'
-) # output is (batch, ngf*2, 4, 4)
+    mod_name='gen_mod_3'
+) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
-GenConvResModule2(
-    in_chans=(ngf*2),
+GenConvResModule(
+    in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*2, 8, 8)
 
 gen_module_4 = \
-GenConvResModule2(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=ngf,
-    rand_chans=nz1,
-    use_rand=all_rand,
-    use_conv=True,
-    us_stride=2,
-    mod_name='gen_mod_4'
-) # output is (batch, ngf*2, 16, 16)
-
-gen_module_5 = \
-GenConvResModule2(
+GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=True,
+    use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_5'
-) # output is (batch, ngf*1, 32, 32)
+    mod_name='gen_mod_4'
+) # output is (batch, ngf*1, 16, 16)
 
-gen_module_6 = \
+gen_module_5 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
+    stride='half',
     act_func='ident',
-    mod_name='gen_mod_6'
+    mod_name='gen_mod_5'
 ) # output is (batch, c, 32, 32)
 
 gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-               gen_module_4, gen_module_5, gen_module_6]
+               gen_module_4, gen_module_5]
 
 # Initialize the generator network
 gen_network = GenNetwork(modules=gen_modules, output_transform=tanh)
@@ -259,56 +249,45 @@ gen_params = gen_network.params
 ###################################
 
 disc_module_1 = \
-DiscConvModule(
-    filt_shape=(3,3),
+BasicConvModule(
+    filt_shape=(5,5),
     in_chans=nc,
-    out_chans=ndf,
-    num_layers=nld,
-    apply_bn_1=False,
-    apply_bn_2=True,
-    ds_stride=2,
-    use_pooling=False,
+    out_chans=(ndf*1),
+    apply_bn=False,
+    stride='double',
+    act_func='lrelu',
     mod_name='disc_mod_1'
-) # output is (batch, ndf, 16, 16)
+) # output is (batch, ndf*1, 16, 16)
 
 disc_module_2 = \
-DiscConvModule(
-    filt_shape=(3,3),
+DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
-    num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    conv_chans=ndf,
+    use_conv=use_conv,
     ds_stride=2,
-    use_pooling=False,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
 
 disc_module_3 = \
-DiscConvModule(
-    filt_shape=(3,3),
+DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    conv_chans=ndf,
+    use_conv=use_conv,
     ds_stride=2,
-    use_pooling=False,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*4, 4, 4)
+) # output is (batch, ndf*2, 4, 4)
 
 disc_module_4 = \
-DiscConvModule(
-    filt_shape=(3,3),
+DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
-    num_layers=nld,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    conv_chans=(ndf*2),
+    use_conv=use_conv,
     ds_stride=2,
-    use_pooling=False,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*8, 2, 2)
+) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
@@ -357,7 +336,6 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 if all_disc:
     # multi-scale discriminator guidance
     ret_vals = range(1, len(disc_network.modules))
-    #ret_vals = [2, 4]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -366,12 +344,17 @@ p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals, app_sigm=False)
 p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, app_sigm=False)
 
 # compute costs based on discriminator output for real/generated data
-d_cost_real = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real])
-d_cost_gen  = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen])
-d_cost_er   = sum([bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er])
-g_cost_d  = sum([bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen])
-#g_cost_d    = sum([mixed_hinge_loss(-1.0*p).mean() for p in p_gen])
-#g_cost_d    = sum([-1.0*p.mean() for p in p_gen])
+d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
+d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
+d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
+g_cost_ds  = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
+# reweight costs based on depth in discriminator (costs get heavier higher up)
+weights = [float(i)/sum(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
+d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
+d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
+g_cost_d = sum([w*c for w, c in zip(weights, g_cost_d)])
+
 
 # switch costs based on use of experience replay
 if use_er:
