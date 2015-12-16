@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_dbl_convT_erT_weighted'
+desc = 'test_resnet_dbl_convT_erT_weighted_2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -63,7 +63,7 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(1234)     # seed for shared rngs
+set_seed(12)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -424,6 +424,10 @@ while start_idx < er_buffer_size:
 print("DONE.")
 
 print desc.upper()
+
+log_name = "{}/RESULTS.txt".format(sample_dir)
+out_file = open(log_name, 'wb')
+
 n_updates = 0
 n_check = 0
 n_epochs = 0
@@ -471,9 +475,13 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(25,epoch)*25)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
-    print("Epoch {}:".format(epoch))
-    print("    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter)))
-    print("  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter)))
+    str1 = "Epoch {}:".format(epoch)
+    str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter))
+    str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter))
+    joint_str = "\n".join([str1, str2, str3])
+    print(joint_str)
+    out_file.write(joint_str+"\n")
+    out_file.flush()
     # generate some samples from the model, for visualization
     samples = np.asarray(_gen(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
