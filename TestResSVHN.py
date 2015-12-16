@@ -365,8 +365,12 @@ g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 if use_weights:
     weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+    scale = sum(weights)
+    weights = [w/scale for w in weights]
 else:
     weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+    scale = sum(weights)
+    weights = [w/scale for w in weights]
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
