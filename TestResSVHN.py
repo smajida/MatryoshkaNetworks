@@ -28,7 +28,7 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule, GenConvResModule, \
-                              DiscConvResModule
+                              DiscConvResModule, GenConvDblResModule
 from MatryoshkaNetworks import GenNetwork, DiscNetwork, VarInfModel
 
 # path for dumping experiment info and fetching dataset
@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_weighted'
+desc = 'test_resnet_dbl_convT_erT_weighted'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -191,7 +191,7 @@ GenFCModule(
 ) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
-GenConvResModule(
+GenConvDblResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -203,7 +203,7 @@ GenConvResModule(
 ) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
-GenConvResModule(
+GenConvDblResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=ngf,
@@ -215,7 +215,7 @@ GenConvResModule(
 ) # output is (batch, ngf*2, 8, 8)
 
 gen_module_4 = \
-GenConvResModule(
+GenConvDblResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=ngf,
@@ -227,7 +227,7 @@ GenConvResModule(
 ) # output is (batch, ngf*2, 16, 16)
 
 gen_module_5 = \
-GenConvResModule(
+GenConvDblResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=ngf,
