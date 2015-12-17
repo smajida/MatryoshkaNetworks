@@ -15,6 +15,112 @@ sigmoid = activations.Sigmoid()
 lrelu = activations.LeakyRectify()
 bce = T.nnet.binary_crossentropy
 
+#####################################
+# BASIC DOUBLE CONVOLUTIONAL MODULE #
+#####################################
+
+class BasicConvResModule(object):
+    """
+    Module with a direct pass-through connection that gets modulated by a pair
+    of hidden convolutional layers.
+
+    Params:
+        in_chans: number of channels in the inputs to module
+        out_chans: number of channels in the outputs from module
+        conv_chans: number of channels in the "internal" convolution layer
+        use_conv: flag for whether to use "internal" convolution layer
+        stride: allowed strides are 'double', 'single', and 'half'
+        act_func: allowed activations are 'ident', 'relu', and 'lrelu'
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 in_chans, out_chans, conv_chans,
+                 use_conv=True, stride='single', act_func='relu',
+                 mod_name='basic_conv_res'):
+        assert (stride in ['single', 'double', 'half']), \
+                "stride must be 'double', 'single', or 'half'."
+        assert (act_func in ['ident', 'relu', 'lrelu']), \
+                "act_func must be 'ident', 'relu', or 'lrelu'."
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.conv_chans = conv_chans
+        self.use_conv = use_conv
+        self.stride = stride
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 3, 3),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize convolutional projection layer parameters
+        self.w_prj = weight_ifn((self.out_chans, self.in_chans, 3, 3),
+                                "{}_w_prj".format(self.mod_name))
+        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
+        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
+        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        return
+
+    def apply(self, input):
+        """
+        Apply this convolutional module to some input.
+        """
+        batch_size = input.shape[0] # number of inputs in this batch
+        ss = 1 if (self.stride == 'single') else 2
+        if self.use_conv:
+            if self.stride in ['double', 'single']:
+                # apply first internal conv layer (might downsample)
+                h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
+                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                h1 = self.act_func(h1)
+                # apply second internal conv layer
+                h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
+                # apply pass-through conv layer (might downsample)
+                h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            else:
+                # apply first internal conv layer
+                h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                h1 = self.act_func(h1)
+                # apply second internal conv layer (might upsample)
+                h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
+                # apply pass-through conv layer (might upsample)
+                h3 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            # combine non-linear and linear transforms of input...
+            h4 = h2 + h3
+        else:
+            # apply direct pass-through conv layer
+            if self.stride in ['double', 'single']:
+                h4 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            else:
+                h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+        h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
+        output = self.act_func(h4)
+        return output
+
 #############################
 # BASIC CONVOLUTIONAL LAYER #
 #############################
@@ -760,7 +866,6 @@ class GenConvDblResModule(object):
         return result
 
 
-
 #########################################
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
@@ -871,43 +976,47 @@ class GenConvResModule(object):
         return result
 
 
-#####################################
-# BASIC DOUBLE CONVOLUTIONAL MODULE #
-#####################################
 
-class BasicConvResModule(object):
+#
+# TODO: Implement "InfConvMergeModule" and "InfFCModule".
+#
+# InfConvMergeModule: this module merges bottom-up and top-down information, in
+#                     order to place an approximate posterior over a 2d grid of
+#                     vectors of Gaussian latent variables.
+#
+# InfFCModule: this module sits on top of a bottom-up inference network, in
+#              in order to place an approximate posterior over a vector of
+#              Gaussian latent variables, at the initial layer of a deep,
+#              directed generative model.
+#
+
+#########################################
+# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
+#########################################
+
+class InfConvMergeModule(object):
     """
-    Module with a direct pass-through connection that gets modulated by a pair
-    of hidden convolutional layers.
+    Module for merging bottom-up and top-down information in a deep generative
+    convolutional network with multiple layers of latent variables.
 
     Params:
-        in_chans: number of channels in the inputs to module
-        out_chans: number of channels in the outputs from module
+        td_chans: number of channels in the "top-down" inputs to module
+        bu_chans: number of channels in the "bottom-up" inputs to module
+        rand_chans: number of latent channels that we want conditionals for
         conv_chans: number of channels in the "internal" convolution layer
         use_conv: flag for whether to use "internal" convolution layer
-        stride: allowed strides are 'double', 'single', and 'half'
-        act_func: allowed activations are 'ident', 'relu', and 'lrelu'
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
-                 in_chans, out_chans, conv_chans,
-                 use_conv=True, stride='single', act_func='relu',
-                 mod_name='basic_conv_res'):
-        assert (stride in ['single', 'double', 'half']), \
-                "stride must be 'double', 'single', or 'half'."
-        assert (act_func in ['ident', 'relu', 'lrelu']), \
-                "act_func must be 'ident', 'relu', or 'lrelu'."
-        self.in_chans = in_chans
-        self.out_chans = out_chans
+                 td_chans, bu_chans, rand_chans, conv_chans,
+                 use_conv=True,
+                 mod_name='gm_conv'):
+        self.td_chans = td_chans
+        self.bu_chans = bu_chans
+        self.rand_chans = rand_chans
         self.conv_chans = conv_chans
         self.use_conv = use_conv
-        self.stride = stride
-        if act_func == 'ident':
-            self.act_func = lambda x: x
-        elif act_func == 'relu':
-            self.act_func = lambda x: relu(x)
-        else:
-            self.act_func = lambda x: lrelu(x)
+        self.us_stride = us_stride
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -921,65 +1030,68 @@ class BasicConvResModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 3, 3),
+        self.w1 = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize second conv layer parameters
-        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+        self.w2 = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                              "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.g2 = gain_ifn((2*self.rand_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((2*self.rand_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, 3, 3),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        self.w_out = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
+                                "{}_w_out".format(self.mod_name))
+        self.g_out = gain_ifn((2*self.rand_chans), "{}_g_out".format(self.mod_name))
+        self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
+        self.params.extend([self.w_out, self.g_out, self.b_out])
         return
 
-    def apply(self, input):
+    def apply(self, input, rand_vals=None, rand_shapes=False):
         """
-        Apply this convolutional module to some input.
+        Apply this generator module to some input.
         """
         batch_size = input.shape[0] # number of inputs in this batch
-        ss = 1 if (self.stride == 'single') else 2
+        ss = self.us_stride         # stride for "learned upsampling"
+
+        # get shape for random values that will augment input
+        rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
+        # augment input with random channels
+        if rand_vals is None:
+            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+                                      dtype=theano.config.floatX)
+        if not self.use_rand:
+            rand_vals = 0.0 * rand_vals
+        rand_vals = rand_vals.reshape(rand_shape)
+        rand_shape = rand_vals.shape # return vals must be theano vars
+
+        # stack random values on top of input
+        full_input = T.concatenate([rand_vals, input], axis=1)
+
         if self.use_conv:
-            if self.stride in ['double', 'single']:
-                # apply first internal conv layer (might downsample)
-                h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
-                h1 = self.act_func(h1)
-                # apply second internal conv layer
-                h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
-                # apply pass-through conv layer (might downsample)
-                h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
-            else:
-                # apply first internal conv layer
-                h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(1, 1))
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
-                h1 = self.act_func(h1)
-                # apply second internal conv layer (might upsample)
-                h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
-                # apply pass-through conv layer (might upsample)
-                h3 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            # apply first internal conv layer
+            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = relu(h1)
+            # apply second internal conv layer
+            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
+            # apply direct input->output "projection" layer
+            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
-            # apply direct pass-through conv layer
-            if self.stride in ['double', 'single']:
-                h4 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
-            else:
-                h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            # apply direct input->output "projection" layer
+            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
         h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
-        output = self.act_func(h4)
-        return output
+        output = relu(h4)
 
-
-
-
+        if rand_shapes:
+            result = [output, rand_shape]
+        else:
+            result = output
+        return result
 
 
 ##############

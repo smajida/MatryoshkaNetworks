@@ -249,13 +249,6 @@ class VarInfModel(object):
         obs_klds = sum(all_klds)
         return obs_klds
 
-
-
-
-
-
-
-
 class DiscNetwork(object):
     """
     A deep convolutional discriminator network. This provides a wrapper around

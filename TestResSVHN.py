@@ -36,7 +36,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_dbl_convT_erT_weighted_2'
+desc = 'test_resnet_dbl_convT_erT_unweighted_2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -89,7 +89,7 @@ all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
-use_weights = True # whether use different weights for discriminator costs
+use_weights = False # whether use different weights for discriminator costs
 
 ntrain = Xtr.shape[0]
 
