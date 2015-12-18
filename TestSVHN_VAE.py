@@ -329,18 +329,31 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
+obs_logvar = sharedX(np.zeros((1,1)).astype(theano.config.floatX))
+bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
 
 X = T.tensor4()   # symbolic var for real inputs to mega deep, convolutional generatotron
 
 # draw sample reconstructons from the generatotron, and compute some KLds too.
 td_output, kld_dicts = inf_gen_model.apply_im(X)
+layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
+
+nll_costs = log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
+                              logvars=bounded_logvar[0])
+kld_costs = sum(layer_klds)
+
+vfe_cost = T.mean(nll_costs) + T.mean(kld_costs)
+reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in inf_gen_model.params])
+joint_output = [td_output, vfe_cost]
 
 # compile a theano function strictly for sampling reconstructions from generatotron
-sample_recons = theano.function([X], td_output)
+train_func = theano.function([X], joint_output)
 
 # TEMP TEST FOR MODEL ARCHITECTURE
 x_batch = train_transform(Xtr[0:100,:])
-x_recon = sample_recons(x_batch)
+batch_output = train_func(x_batch)
+print("vfe cost: {0:.2f}".format(batch_output[-1]))
+
 
 #
 #
