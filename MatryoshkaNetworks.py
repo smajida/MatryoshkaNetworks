@@ -397,7 +397,7 @@ class InfGenModel(object):
         """
         acts = []
         res_dict = {}
-        for i, bu_mod in self.bu_modules:
+        for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
                 res = bu_mod.apply(input)
             else:
