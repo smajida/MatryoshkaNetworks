@@ -1002,7 +1002,6 @@ class InfConvMergeModule(object):
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
         self.use_conv = use_conv
-        self.us_stride = us_stride
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return

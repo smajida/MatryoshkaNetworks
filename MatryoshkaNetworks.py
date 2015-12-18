@@ -324,8 +324,9 @@ class InfGenModel(object):
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
-        self.im_modules_dict = {m.name: m for m in im_modules}
+        self.im_modules_dict = {m.mod_name: m for m in im_modules}
         # grab the full set of trainable parameters in these modules
+        self.params = []
         for module in self.bu_modules:
             self.params.extend(module.params)
         for module in self.td_modules:
@@ -412,7 +413,7 @@ class InfGenModel(object):
         """
         batch_size = T.lscalar()
         # feedforward through the model with batch size "batch_size"
-        sym_samples = self.td_apply(batch_size=batch_size)
+        sym_samples = self.apply_td(batch_size=batch_size)
         # compile a theano function for sampling outputs from the top-down
         # generative model.
         sample_func = theano.function([batch_size], sym_samples)
@@ -424,7 +425,7 @@ class InfGenModel(object):
         """
         batch_size = T.lscalar()
         # feedforward through the model with batch size "batch_size"
-        sym_shapes = self.td_apply(batch_size=batch_size, rand_shapes=True)
+        sym_shapes = self.apply_td(batch_size=batch_size, rand_shapes=True)
         # compile a theano function for computing shapes of the Gaussian latent
         # variables used in the top-down generative model.
         shape_func = theano.function([batch_size], sym_shapes)

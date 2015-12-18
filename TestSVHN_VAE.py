@@ -28,7 +28,7 @@ from load import load_svhn
 from MatryoshkaModules import BasicConvModule, GenConvModule, \
                               GenConvDblResModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
-                              InfFCModule
+                              InfFCModule, BasicConvResModule
 from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
@@ -312,6 +312,7 @@ inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
+    merge_info=merge_info,
     output_transform=tanh
 )
 
