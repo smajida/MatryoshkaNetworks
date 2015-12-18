@@ -495,52 +495,52 @@ class InfGenModel(object):
         return shape_func
 
 
-class InfGenModel(object):
-    """
-    A deep convolutional generator network. This provides a wrapper around a
-    collection of bottom-up, top-down, and info merging Matryoshka modules.
-
-    Params:
-        bu_modules: modules for computing bottom-up (inference) information.
-        td_modules: modules for computing top-down (generative) information.
-        im_modules: modules for merging bottom-up and top-down information
-                    to put conditionals over Gaussian latent variables that
-                    participate in the top-down computation.
-        merge_info: dict of dicts describing how to compute the conditionals
-                    required by the feedforward pass through top-down modules.
-        output_transform: transform to apply to outputs of the top-down model.
-    """
-    def __init__(self,
-                 bu_modules, td_modules, im_modules,
-                 merge_info,
-                 output_transform):
-        # grab the bottom-up, top-down, and info merging modules
-        self.bu_modules = [m for m in bu_modules]
-        self.td_modules = [m for m in td_modules]
-        self.im_modules = [m for m in im_modules]
-        self.im_modules_dict = {m.mod_name: m for m in im_modules}
-        # grab the full set of trainable parameters in these modules
-        self.params = []
-        for module in self.bu_modules:
-            self.params.extend(module.params)
-        for module in self.td_modules:
-            self.params.extend(module.params)
-        for module in self.im_modules:
-            self.params.extend(module.params)
-        # get instructions for how to merge bottom-up and top-down info
-        self.merge_info = merge_info
-        # keep a transform that we'll apply to generator output
-        if output_transform == 'ident':
-            self.output_transform = lambda x: x
-        else:
-            self.output_transform = output_transform
-        # construct a theano function for drawing samples from this model
-        print("Compiling sample generator...")
-        self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(50)
-        print("DONE.")
-        print("Compiling rand shape computer...")
-        self.compute_rand_shapes = self._construct_compute_rand_shapes()
-        shapes = self.compute_rand_shapes(50)
-        print("DONE.")
-        return
+# class InfGenModel(object):
+#     """
+#     A deep convolutional generator network. This provides a wrapper around a
+#     collection of bottom-up, top-down, and info merging Matryoshka modules.
+#
+#     Params:
+#         bu_modules: modules for computing bottom-up (inference) information.
+#         td_modules: modules for computing top-down (generative) information.
+#         im_modules: modules for merging bottom-up and top-down information
+#                     to put conditionals over Gaussian latent variables that
+#                     participate in the top-down computation.
+#         merge_info: dict of dicts describing how to compute the conditionals
+#                     required by the feedforward pass through top-down modules.
+#         output_transform: transform to apply to outputs of the top-down model.
+#     """
+#     def __init__(self,
+#                  bu_modules, td_modules, im_modules,
+#                  merge_info,
+#                  output_transform):
+#         # grab the bottom-up, top-down, and info merging modules
+#         self.bu_modules = [m for m in bu_modules]
+#         self.td_modules = [m for m in td_modules]
+#         self.im_modules = [m for m in im_modules]
+#         self.im_modules_dict = {m.mod_name: m for m in im_modules}
+#         # grab the full set of trainable parameters in these modules
+#         self.params = []
+#         for module in self.bu_modules:
+#             self.params.extend(module.params)
+#         for module in self.td_modules:
+#             self.params.extend(module.params)
+#         for module in self.im_modules:
+#             self.params.extend(module.params)
+#         # get instructions for how to merge bottom-up and top-down info
+#         self.merge_info = merge_info
+#         # keep a transform that we'll apply to generator output
+#         if output_transform == 'ident':
+#             self.output_transform = lambda x: x
+#         else:
+#             self.output_transform = output_transform
+#         # construct a theano function for drawing samples from this model
+#         print("Compiling sample generator...")
+#         self.generate_samples = self._construct_generate_samples()
+#         samps = self.generate_samples(50)
+#         print("DONE.")
+#         print("Compiling rand shape computer...")
+#         self.compute_rand_shapes = self._construct_compute_rand_shapes()
+#         shapes = self.compute_rand_shapes(50)
+#         print("DONE.")
+#         return
