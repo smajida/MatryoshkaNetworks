@@ -196,6 +196,7 @@ BasicConvModule(
     mod_name='td_mod_6'
 ) # output is (batch, c, 32, 32)
 
+# modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3,
               td_module_4, td_module_5, td_module_6]
 
@@ -268,8 +269,9 @@ InfFCModule(
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
-bu_modules = [bu_module_1, bu_module_2, bu_module_3,
-              bu_module_4, bu_module_5, bu_module_6]
+# modules must be listed in "evaluation order"
+bu_modules = [bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
