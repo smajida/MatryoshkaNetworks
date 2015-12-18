@@ -976,20 +976,6 @@ class GenConvResModule(object):
         return result
 
 
-
-#
-# TODO: Implement "InfConvMergeModule" and "InfFCModule".
-#
-# InfConvMergeModule: this module merges bottom-up and top-down information, in
-#                     order to place an approximate posterior over a 2d grid of
-#                     vectors of Gaussian latent variables.
-#
-# InfFCModule: this module sits on top of a bottom-up inference network, in
-#              in order to place an approximate posterior over a vector of
-#              Gaussian latent variables, at the initial layer of a deep,
-#              directed generative model.
-#
-
 #########################################
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
@@ -1038,37 +1024,20 @@ class InfConvMergeModule(object):
         # initialize second conv layer parameters
         self.w2 = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                              "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((2*self.rand_chans), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((2*self.rand_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2])
         # initialize convolutional projection layer parameters
         self.w_out = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
                                 "{}_w_out".format(self.mod_name))
-        self.g_out = gain_ifn((2*self.rand_chans), "{}_g_out".format(self.mod_name))
         self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
-        self.params.extend([self.w_out, self.g_out, self.b_out])
+        self.params.extend([self.w_out, self.b_out])
         return
 
-    def apply(self, input, rand_vals=None, rand_shapes=False):
+    def apply(self, td_input, bu_input):
         """
-        Apply this generator module to some input.
+        Combine td_input and bu_input, to put distributions over some stuff.
         """
-        batch_size = input.shape[0] # number of inputs in this batch
-        ss = self.us_stride         # stride for "learned upsampling"
-
-        # get shape for random values that will augment input
-        rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
-        # augment input with random channels
-        if rand_vals is None:
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-                                      dtype=theano.config.floatX)
-        if not self.use_rand:
-            rand_vals = 0.0 * rand_vals
-        rand_vals = rand_vals.reshape(rand_shape)
-        rand_shape = rand_vals.shape # return vals must be theano vars
-
-        # stack random values on top of input
-        full_input = T.concatenate([rand_vals, input], axis=1)
+        # stack top-down and bottom-up inputs on top of each other
+        full_input = T.concatenate([td_input, bu_input], axis=1)
 
         if self.use_conv:
             # apply first internal conv layer
@@ -1076,22 +1045,103 @@ class InfConvMergeModule(object):
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = relu(h1)
             # apply second internal conv layer
-            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
-            # apply direct input->output "projection" layer
-            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
+            # apply direct input->output conv layer
+            h3 = dnn_conv(full_input, self.w_out, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
-            h4 = h2 + h3
+            h4 = h2 + h3 + self.b_out.dimshuffle('x',0,'x','x')
         else:
-            # apply direct input->output "projection" layer
-            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
-        h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
-        output = relu(h4)
+            # apply direct input->output conv layer
+            h4 = dnn_conv(full_input, self.w_out, subsample=(1, 1), border_mode=(1, 1))
+            h4 = h4 + self.b_out.dimshuffle('x',0,'x','x')
 
-        if rand_shapes:
-            result = [output, rand_shape]
+        # split output into "mean" and "log variance" components, for using in
+        # Gaussian reparametrization.
+        out_mean = h4[:,:self.rand_chans,:,:]
+        out_logvar = h4[:,self.rand_chans:,:,:]
+        return out_mean, out_logvar
+
+####################################
+# INFERENCE FULLY CONNECTED MODULE #
+####################################
+
+class InfFCModule(object):
+    """
+    Module that feeds forward through a single fully connected hidden layer
+    and then produces a conditional over some Gaussian latent variables.
+
+    Params:
+        bu_chans: dimension of the "bottom-up" inputs to the module
+        fc_chans: dimension of the fully connected layer
+        rand_chans: dimension of the Gaussian latent vars of interest
+        use_fc: flag for whether to use the hidden fully connected layer
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self, bu_chans, fc_chans, rand_chans,
+                 use_fc=True,
+                 mod_name='dm_fc'):
+        self.bu_chans = bu_chans
+        self.fc_chans = fc_chans
+        self.rand_chans = rand_chans
+        self.use_fc = use_fc
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this discriminator module.
+        """
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize weights for transform into fc layer
+        self.w1 = weight_ifn((self.bu_chans, self.fc_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.g1, self.b1]
+        # initialize weights for transform out of fc layer
+        self.w2 = weight_ifn((self.fc_chans, 2*self.rand_chans),
+                             "{}_w2".format(self.mod_name))
+        self.params.extend([self.w2])
+        # initialize weights for transform straight from input to output
+        self.w_out = weight_ifn((self.bu_chans, 2*self.rand_chans),
+                                "{}_w_out".format(self.mod_name))
+        self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
+        self.params.extend([self.w_out, self.b_out])
+        return
+
+    def apply(self, bu_input):
+        """
+        Apply this fully connected inference module to the given input. This
+        produces a set of means and log variances for some Gaussian variables.
+        """
+        # flatten input to 1d per example
+        bu_input = T.flatten(bu_input, 2)
+        if self.use_fc:
+            # feedforward to fc layer
+            h1 = T.dot(bu_input, self.w1)
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = relu(h1)
+            # feedforward to from fc layer to output
+            h2 = T.dot(h1, self.w2)
+            # feedforward directly from bu_input to output
+            h3 = T.dot(bu_input, self.w_out)
+            h4 = h2 + h3 + self.b_out.dimshuffle('x',0)
         else:
-            result = output
-        return result
+            # feedforward directly from bu_input to output
+            h3 = T.dot(bu_input, self.w_out)
+            h4 = h3 + self.b_out.dimshuffle('x',0)
+        # split output into mean and log variance parts
+        out_mean = h4[:,:self.rand_chans]
+        out_logvar = h4[:,self.rand_chans:]
+        return out_mean, out_logvar
+
+
+
+
+
 
 
 ##############

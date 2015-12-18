@@ -24,18 +24,18 @@ from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
 
 
-class GenNetwork(object):
+class GenNetworkGAN(object):
     """
     A deep convolutional generator network. This provides a wrapper around a
     sequence of modules from MatryoshkaModules.py.
 
     Params:
-        modules: a list of the modules that make up this GenNetwork. The
+        modules: a list of the modules that make up this GenNetworkGAN. The
                  first module must be an instance of GenFCModule and the
                  remaining modules should be instances of GenConvModule or
                  BasicConvModule.
         output_transform: transform to apply to output of final convolutional
-                          module to get the output of this GenNetwork.
+                          module to get the output of this GenNetworkGAN.
     """
     def __init__(self, modules, output_transform):
         self.modules = [m for m in modules]
@@ -141,7 +141,7 @@ class GenNetwork(object):
 class VarInfModel(object):
     """
     Wrapper class for extracting variational estimates of log-likelihood from
-    a GenNetwork. The VarInfModel will be specific to a given set of inputs.
+    a GenNetworkGAN. The VarInfModel will be specific to a given set of inputs.
     """
     def __init__(self, X, M, gen_network):
         # observations for which to perform variational inference
@@ -153,7 +153,7 @@ class VarInfModel(object):
         self.mean_init_func = inits.Normal(loc=0., scale=0.02)
         self.logvar_init_func = inits.Normal(loc=0., scale=0.02)
         # get initial means and log variances of stochastic variables for the
-        # observations in self.X, using the GenNetwork self.gen_network. also,
+        # observations in self.X, using the GenNetworkGAN self.gen_network. also,
         # make symbolic random variables for passing to self.gen_network.
         self.rv_means, self.rv_logvars, self.rand_vals = self._construct_rvs()
         # get samples from self.gen_network using self.rv_mean/self.rv_logvar
@@ -249,13 +249,13 @@ class VarInfModel(object):
         obs_klds = sum(all_klds)
         return obs_klds
 
-class DiscNetwork(object):
+class DiscNetworkGAN(object):
     """
     A deep convolutional discriminator network. This provides a wrapper around
     a sequence of modules from MatryoshkaModules.py.
 
     Params:
-        modules: a list of the modules that make up this DiscNetwork. All but
+        modules: a list of the modules that make up this DiscNetworkGAN. All but
                  the last module should be instances of DiscConvModule. The
                  last module should an instance of DiscFCModule.
     """
@@ -271,7 +271,7 @@ class DiscNetwork(object):
     def apply(self, input, ret_vals=None, app_sigm=True,
               disc_noise=None):
         """
-        Apply this DiscNetwork to some input and return some subset of the
+        Apply this DiscNetworkGAN to some input and return some subset of the
         discriminator layer outputs from its underlying modules.
         """
         if ret_vals is None:
