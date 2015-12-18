@@ -16,6 +16,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
+from lib.costs import log_prob_gaussian
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
@@ -329,7 +330,7 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
-obs_logvar = sharedX(np.zeros((1,1)).astype(theano.config.floatX))
+obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
 
 X = T.tensor4()   # symbolic var for real inputs to mega deep, convolutional generatotron
@@ -339,7 +340,7 @@ td_output, kld_dicts = inf_gen_model.apply_im(X)
 layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
 
 nll_costs = log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
-                              logvars=bounded_logvar[0])
+                              log_vars=bounded_logvar[0])
 kld_costs = sum(layer_klds)
 
 vfe_cost = T.mean(nll_costs) + T.mean(kld_costs)
@@ -352,7 +353,7 @@ train_func = theano.function([X], joint_output)
 # TEMP TEST FOR MODEL ARCHITECTURE
 x_batch = train_transform(Xtr[0:100,:])
 batch_output = train_func(x_batch)
-print("vfe cost: {0:.2f}".format(batch_output[-1]))
+print("vfe cost: {}".format(batch_output[-1]))
 
 
 #
