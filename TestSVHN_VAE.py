@@ -299,15 +299,22 @@ InfConvMergeModule(
 
 im_modules = [im_module_3, im_module_5]
 
-# setup a description for where to get conditional distributions from
+#
+# Setup a description for where to get conditional distributions from. When
+# there's no info here for a particular top-down module, we won't pass any
+# random variables explicitly into the module, which will cause the module to
+# generate its own random variables (unconditionally). When a "bu_module" is
+# provided and an "im_module" is not, the conditional distribution is specified
+# directly by the bu_module's output, and no merging (via an im_module) is
+# required.
+#
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules
-
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -316,56 +323,23 @@ inf_gen_model = InfGenModel(
     output_transform=tanh
 )
 
-#
-# TODO: finish testing code.
-#
 
-#
-# ####################################
-# # Setup the optimization objective #
-# ####################################
-#
-# X = T.tensor4()   # symbolic var for real inputs to discriminator
-# Z0 = T.matrix()   # symbolic var for rand values to pass into generator
-# Xer = T.tensor4() # symbolic var for samples from experience replay buffer
-#
-# # draw samples from the generator
-# gen_inputs = [Z0] + [None for gm in gen_modules[1:]]
-# XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
-#
-# # feed real data and generated data through discriminator
-# #   -- optimize with respect to discriminator output from a subset of the
-# #      discriminator's modules.
-# if all_disc:
-#     # multi-scale discriminator guidance
-#     ret_vals = range(1, len(disc_network.modules))
-# else:
-#     # full-scale discriminator guidance only
-#     ret_vals = [ (len(disc_network.modules)-1) ]
-# p_real = disc_network.apply(input=X, ret_vals=ret_vals, app_sigm=False)
-# p_gen = disc_network.apply(input=XIZ0, ret_vals=ret_vals, app_sigm=False)
-# p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, app_sigm=False)
-# print("Gathering discriminator signal from {} layers...".format(len(p_er)))
-#
-# # compute costs based on discriminator output for real/generated data
-# d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
-# d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
-# d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
-# g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
-# # reweight costs based on depth in discriminator (costs get heavier higher up)
-# if use_weights:
-#     weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-#     scale = sum(weights)
-#     weights = [w/scale for w in weights]
-# else:
-#     weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-#     scale = sum(weights)
-#     weights = [w/scale for w in weights]
-# print("Discriminator signal weights {}...".format(weights))
-# d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
-# d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
-# d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
-# g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
+####################################
+# Setup the optimization objective #
+####################################
+
+X = T.tensor4()   # symbolic var for real inputs to mega deep, convolutional generatotron
+
+# draw sample reconstructons from the generatotron, and compute some KLds too.
+td_output, kld_dicts = inf_gen_model.apply_im(X)
+
+# compile a theano function strictly for sampling reconstructions from generatotron
+sample_recons = theano.function([X], td_output)
+
+# TEMP TEST FOR MODEL ARCHITECTURE
+x_batch = train_transform(Xtr[0:100,:])
+x_recon = sample_recons(x_batch)
+
 #
 #
 # # switch costs based on use of experience replay

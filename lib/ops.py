@@ -9,8 +9,6 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 from rng import t_rng
 
-t_rng = RandomStreams()
-
 def l2normalize(x, axis=1, e=1e-8, keepdims=True):
     return x/l2norm(x, axis=axis, e=e, keepdims=keepdims)
 
@@ -33,6 +31,23 @@ def euclidean(x, y, e=1e-8):
     dist = T.sqrt(dist)
     return dist
 
+def reparametrize(z_mean, z_logvar, rng=None, rvs=None):
+    """
+    Gaussian reparametrization helper function.
+    """
+    assert not ((rng is None) and (rvs is None)), \
+            "must provide either rng or rvs."
+    assert ((rng is None) or (rvs is None)), \
+            "must provide either rng or rvs."
+    if not (rng is None):
+        # generate zmuv samples from the provided rng
+        zmuv_gauss = rng.normal(size=z_mean.shape, dtype=theano.config.floatX)
+    else:
+        # use zmuv samples provided by the user
+        zmuv_gauss = rvs
+    reparam_gauss = z_mean + (T.exp(0.5*z_logvar) * zmuv_gauss)
+    return reparam_gauss
+
 def dropout(X, p=0.):
     """
     dropout using activation scaling to avoid test time weight rescaling
@@ -44,8 +59,8 @@ def dropout(X, p=0.):
     return X
 
 def conv_cond_concat(x, y):
-    """ 
-    concatenate conditioning vector on feature map axis 
+    """
+    concatenate conditioning vector on feature map axis
     """
     return T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
 
@@ -89,7 +104,7 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8, n=None):
     return X
 
 def deconv(X, w, subsample=(1, 1), border_mode=(0, 0), conv_mode='conv'):
-    """ 
+    """
     sets up dummy convolutional forward pass and uses its grad as deconv
     currently only tested/working with same padding
     """

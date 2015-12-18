@@ -13,8 +13,9 @@ from lib import updates
 from lib import inits
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, deconv
+from lib.ops import batchnorm, deconv, reparametrize
 from lib.theano_utils import floatX, sharedX
+from lib.costs import log_prob_gaussian, gaussian_kld
 
 #
 # Phil's business
@@ -56,7 +57,7 @@ class GenNetworkGAN(object):
         print("DONE.")
         return
 
-    def apply(self, rand_vals=None, batch_size=None, return_acts=False,
+    def apply(self, rand_vals=None, batch_size=None,
               rand_shapes=False):
         """
         Apply this generator network using the given random values.
@@ -106,11 +107,7 @@ class GenNetworkGAN(object):
                 acts.append(res[0])
                 r_shapes.append(res[1])
         # apply final transform (e.g. tanh or sigmoid) to final activations
-        output = self.output_transform(acts[-1])
-        if return_acts:
-            result = [output, acts]
-        else:
-            result = output
+        result = self.output_transform(acts[-1])
         if rand_shapes:
             result = r_shapes
         return result
@@ -314,6 +311,8 @@ class InfGenModel(object):
         im_modules: modules for merging bottom-up and top-down information
                     to put conditionals over Gaussian latent variables that
                     participate in the top-down computation.
+        merge_info: dict of dicts describing how to compute the conditionals
+                    required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
     """
     def __init__(self,
@@ -336,7 +335,10 @@ class InfGenModel(object):
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # keep a transform that we'll apply to generator output
-        self.output_transform = output_transform
+        if output_transform == 'ident':
+            self.output_transform = lambda x: x
+        else:
+            self.output_transform = output_transform
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -348,7 +350,7 @@ class InfGenModel(object):
         print("DONE.")
         return
 
-    def apply_td(self, rand_vals=None, batch_size=None, return_acts=False,
+    def apply_td(self, rand_vals=None, batch_size=None,
                  rand_shapes=False):
         """
         Apply this generator network using the given random values.
@@ -363,49 +365,110 @@ class InfGenModel(object):
             # no random values were provided, which means we'll be generating
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
-        else:
-            if rand_vals[0] is None:
-                # random values were provided, but not for the fc module, so we
-                # need the batch size so that the fc module produces output
-                # with the appropriate shape.
-                rand_vals[0] = -1
         acts = []
         r_shapes = []
         res = None
         for i, rvs in enumerate(rand_vals):
             if i == 0:
-                # feedforward through the fc module
-                if not (rvs == -1):
-                    # rand_vals was not given or rand_vals[0] was given...
-                    res = self.td_modules[i].apply(rand_vals=rvs,
-                                                   batch_size=batch_size,
-                                                   rand_shapes=rand_shapes)
-                else:
-                    # rand_vals was given, but rand_vals[0] was not given...
-                    # we need to get the batch_size param for this feedforward
-                    _rand_vals = [v for v in rand_vals if not (v is None)]
-                    bs = _rand_vals[0].shape[0]
-                    res = self.td_modules[i].apply(rand_vals=None,
-                                                   batch_size=bs,
-                                                   rand_shapes=rand_shapes)
+                # feedforward through the top-most, fully-connected module
+                res = self.td_modules[i].apply(rand_vals=rvs,
+                                               batch_size=batch_size,
+                                               rand_shapes=rand_shapes)
             else:
                 # feedforward through a convolutional module
-                res = self.td_modules[i].apply(acts[-1], rand_vals=rvs,
+                res = self.td_modules[i].apply(acts[-1],
+                                               rand_vals=rvs,
                                                rand_shapes=rand_shapes)
             if not rand_shapes:
                 acts.append(res)
             else:
                 acts.append(res[0])
                 r_shapes.append(res[1])
-        # apply final transform (e.g. tanh or sigmoid) to final activations
-        output = self.output_transform(acts[-1])
-        if return_acts:
-            result = [output, acts]
-        else:
-            result = output
+        # apply some transform (e.g. tanh or sigmoid) to final activations
+        result = self.output_transform(acts[-1])
         if rand_shapes:
             result = r_shapes
         return result
+
+    def apply_bu(self, input):
+        """
+        Apply this model's bottom-up inference modules to the given input,
+        and return a dict mapping BU module names to their outputs.
+        """
+        acts = []
+        res_dict = {}
+        for i, bu_mod in self.bu_modules:
+            if (i == 0):
+                res = bu_mod.apply(input)
+            else:
+                res = bu_mod.apply(acts[i-1])
+            acts.append(res)
+            res_dict[bu_mod.mod_name] = res
+        return res_dict
+
+    def apply_im(self, input):
+        """
+        Compute the merged pass over this model's bottom-up, top-down, and
+        information merging modules.
+
+        This first computes the full bottom-up pass to collect the output of
+        each BU module, where the output of the final BU module is the means
+        and log variances for a diagonal Gaussian distribution over the latent
+        variables that will be fed as input to the first TD module.
+
+        This then computes the top-down pass using latent variables sampled
+        from distributions determined by merging partial results of the BU pass
+        with results from the partially-completed TD pass.
+        """
+        # set aside a dict for recording KLd info at each layer where we use
+        # conditional distributions over the latent variables.
+        kld_dict = {}
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(input)
+        # now, run top-down pass using latent variables sampled from
+        # conditional distributions constructed by merging bottom-up and
+        # top-down information.
+        td_acts = []
+        for i, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            if (td_mod_name in self.merge_info):
+                # handle computation for a TD module that requires samples from
+                # a conditional distribution formed by merging BU and TD info.
+                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                if im_mod_name is None:
+                    # handle conditionals based purely on BU info
+                    cond_mean = bu_res_dict[bu_mod_name][0]
+                    cond_logvar = bu_res_dict[bu_mod_name][1]
+                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=t_rng)
+                    # feedforward through the top-most TD module
+                    td_act_i = td_module.apply(rand_vals=rand_vals)
+                else:
+                    # handle conditionals based on merging BU and TD info
+                    td_info = td_acts[-1]              # info from TD pass
+                    bu_info = bu_res_dict[bu_mod_name] # info from BU pass
+                    im_module = self.im_modules_dict[im_mod_name]
+                    cond_mean, cond_logvar = \
+                            im_module.apply(td_input=td_info, bu_input=bu_info)
+                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=t_rng)
+                    # feedforward through the current TD module
+                    td_act_i = td_module.apply(input=td_info,
+                                               rand_vals=rand_vals)
+                # record TD info produced by current module
+                td_acts.append(td_act_i)
+                # record KLd info for the relevant conditional distribution
+                kld_i = gaussian_kld(T.flatten(cond_mean, 2),
+                                     T.flatten(cond_logvar, 2),
+                                     0.0, 0.0)
+                kld_dict[td_mod_name] = kld_i
+            else:
+                # handle computation for a TD module that only requires
+                # information from preceding TD modules
+                td_info = td_acts[-1] # incoming info from TD pass
+                td_act_i = td_module.apply(input=td_info, rand_vals=None)
+                td_acts.append(td_act_i)
+        td_output = self.output_transform(td_acts[-1])
+        return td_output, kld_dict
 
     def _construct_generate_samples(self):
         """
