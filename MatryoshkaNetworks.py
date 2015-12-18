@@ -137,7 +137,6 @@ class GenNetworkGAN(object):
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
 
-
 class VarInfModel(object):
     """
     Wrapper class for extracting variational estimates of log-likelihood from
@@ -298,3 +297,135 @@ class DiscNetworkGAN(object):
                 hi = result
             hs.append(hi)
         return ys
+
+
+########################################################################
+# Collection of modules for variational inference and generating stuff #
+########################################################################
+
+class InfGenModel(object):
+    """
+    A deep convolutional generator network. This provides a wrapper around a
+    collection of bottom-up, top-down, and info merging Matryoshka modules.
+
+    Params:
+        bu_modules: modules for computing bottom-up (inference) information.
+        td_modules: modules for computing top-down (generative) information.
+        im_modules: modules for merging bottom-up and top-down information
+                    to put conditionals over Gaussian latent variables that
+                    participate in the top-down computation.
+        output_transform: transform to apply to outputs of the top-down model.
+    """
+    def __init__(self,
+                 bu_modules, td_modules, im_modules,
+                 merge_info,
+                 output_transform):
+        # grab the bottom-up, top-down, and info merging modules
+        self.bu_modules = [m for m in bu_modules]
+        self.td_modules = [m for m in td_modules]
+        self.im_modules = [m for m in im_modules]
+        self.im_modules_dict = {m.name: m for m in im_modules}
+        # grab the full set of trainable parameters in these modules
+        for module in self.bu_modules:
+            self.params.extend(module.params)
+        for module in self.td_modules:
+            self.params.extend(module.params)
+        for module in self.im_modules:
+            self.params.extend(module.params)
+        # get instructions for how to merge bottom-up and top-down info
+        self.merge_info = merge_info
+        # keep a transform that we'll apply to generator output
+        self.output_transform = output_transform
+        # construct a theano function for drawing samples from this model
+        print("Compiling sample generator...")
+        self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(50)
+        print("DONE.")
+        print("Compiling rand shape computer...")
+        self.compute_rand_shapes = self._construct_compute_rand_shapes()
+        shapes = self.compute_rand_shapes(50)
+        print("DONE.")
+        return
+
+    def apply_td(self, rand_vals=None, batch_size=None, return_acts=False,
+                 rand_shapes=False):
+        """
+        Apply this generator network using the given random values.
+        """
+        assert not ((batch_size is None) and (rand_vals is None)), \
+                "need _either_ batch_size or rand_vals."
+        assert ((batch_size is None) or (rand_vals is None)), \
+                "need _either_ batch_size or rand_vals."
+        assert ((rand_vals is None) or (len(rand_vals) == len(self.td_modules))), \
+                "random values should be appropriate for this network."
+        if rand_vals is None:
+            # no random values were provided, which means we'll be generating
+            # based on a user-provided batch_size.
+            rand_vals = [None for i in range(len(self.td_modules))]
+        else:
+            if rand_vals[0] is None:
+                # random values were provided, but not for the fc module, so we
+                # need the batch size so that the fc module produces output
+                # with the appropriate shape.
+                rand_vals[0] = -1
+        acts = []
+        r_shapes = []
+        res = None
+        for i, rvs in enumerate(rand_vals):
+            if i == 0:
+                # feedforward through the fc module
+                if not (rvs == -1):
+                    # rand_vals was not given or rand_vals[0] was given...
+                    res = self.td_modules[i].apply(rand_vals=rvs,
+                                                   batch_size=batch_size,
+                                                   rand_shapes=rand_shapes)
+                else:
+                    # rand_vals was given, but rand_vals[0] was not given...
+                    # we need to get the batch_size param for this feedforward
+                    _rand_vals = [v for v in rand_vals if not (v is None)]
+                    bs = _rand_vals[0].shape[0]
+                    res = self.td_modules[i].apply(rand_vals=None,
+                                                   batch_size=bs,
+                                                   rand_shapes=rand_shapes)
+            else:
+                # feedforward through a convolutional module
+                res = self.td_modules[i].apply(acts[-1], rand_vals=rvs,
+                                               rand_shapes=rand_shapes)
+            if not rand_shapes:
+                acts.append(res)
+            else:
+                acts.append(res[0])
+                r_shapes.append(res[1])
+        # apply final transform (e.g. tanh or sigmoid) to final activations
+        output = self.output_transform(acts[-1])
+        if return_acts:
+            result = [output, acts]
+        else:
+            result = output
+        if rand_shapes:
+            result = r_shapes
+        return result
+
+    def _construct_generate_samples(self):
+        """
+        Generate some samples from this network.
+        """
+        batch_size = T.lscalar()
+        # feedforward through the model with batch size "batch_size"
+        sym_samples = self.td_apply(batch_size=batch_size)
+        # compile a theano function for sampling outputs from the top-down
+        # generative model.
+        sample_func = theano.function([batch_size], sym_samples)
+        return sample_func
+
+    def _construct_compute_rand_shapes(self):
+        """
+        Compute the shape of stochastic input for all layers in this network.
+        """
+        batch_size = T.lscalar()
+        # feedforward through the model with batch size "batch_size"
+        sym_shapes = self.td_apply(batch_size=batch_size, rand_shapes=True)
+        # compile a theano function for computing shapes of the Gaussian latent
+        # variables used in the top-down generative model.
+        shape_func = theano.function([batch_size], sym_shapes)
+        return shape_func
