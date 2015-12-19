@@ -330,6 +330,7 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
+lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
 model_params = [obs_logvar] + inf_gen_model.params
@@ -345,17 +346,17 @@ nll_costs = -1.0 * log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
 layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
 kld_costs = sum(layer_klds)
 
-vfe_cost = T.mean(nll_costs) + T.mean(kld_costs)
+nll_cost = T.mean(nll_costs)
+kld_cost = lam_kld[0] * T.mean(kld_costs)
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
-total_cost = vfe_cost + reg_cost
-joint_output = [td_output, total_cost]
+total_cost = nll_cost + kld_cost + reg_cost
 
 # compile a theano function strictly for sampling reconstructions from generatotron
-trial_func = theano.function([X], joint_output)
+trial_func = theano.function([X], [td_output, total_cost])
 # TEMP TEST FOR MODEL ARCHITECTURE
 x_batch = train_transform(Xtr[0:100,:])
 batch_output = trial_func(x_batch)
-print("TEST -- vfe cost: {0:.4f}".format(1.0*batch_output[-1]))
+print("TEST -- total_cost: {0:.4f}".format(1.0*batch_output[-1]))
 
 # draw samples from the generator, with initial random vals provided by the user
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -371,7 +372,8 @@ model_updates = p_updater(model_params, total_cost)
 print("Compiling sampling function...")
 sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
-train_func = theano.function([X], total_cost, updates=model_updates)
+train_func = theano.function([X], [total_cost, nll_cost, kld_cost, reg_cost],
+                             updates=model_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 
@@ -386,18 +388,27 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    epoch_cost = 0.
+    scale = min(1.0, (epoch/10.0))
+    lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
+    total_cost = 0.
+    nll_cost = 0.
+    kld_cost = 0.
+    reg_cost = 0.
     batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         # compute model cost and apply update
         result = train_func(imb)
-        epoch_cost += result[1]
+        total_cost += result[0]
+        nll_cost += result[1]
+        kld_cost += result[2]
+        reg_cost += result[3]
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    train_cost: {0:.4f}".format(epoch_cost/batch_count)
+    str2 = "    total_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
+            (total_cost/batch_count), (nll_cost/batch_count), (kld_cost/batch_count), (reg_cost/batch_count))
     joint_str = "\n".join([str1, str2])
     print(joint_str)
     out_file.write(joint_str+"\n")
