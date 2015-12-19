@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_vae'
+desc = 'test_resnet_vae_10xKL'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -335,28 +335,34 @@ obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
 model_params = [obs_logvar] + inf_gen_model.params
 
-X = T.tensor4()   # symbolic var for real inputs to mega deep, convolutional generatotron
-Z0 = T.matrix()
+######################################################
+# BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
+######################################################
 
-# draw sample reconstructons from the generatotron, and compute some KLds too.
+# Setup symbolic vars for the model inputs, outputs, and costs
+X = T.tensor4()
+Z0 = T.matrix()
 td_output, kld_dicts = inf_gen_model.apply_im(X)
 
-nll_costs = -1.0 * log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
-                                     log_vars=bounded_logvar[0])
-layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
-kld_costs = sum(layer_klds)
-
-nll_cost = T.mean(nll_costs)
-kld_cost = lam_kld[0] * T.mean(kld_costs)
+# reconstruction (i.e. NLL) part of cost
+obs_nlls = -1.0 * log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
+                                    log_vars=bounded_logvar[0])
+nll_cost = T.mean(obs_nlls)
+# KL-divergence part of cost
+kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
+obs_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples] # per-obs KLd for each latent layer
+layer_klds = [T.mean(kld_i) for kld_i in obs_klds]       # mean KLd for each latent layer
+kld_cost = sum(layer_klds)                               # mean total KLd
+# parameter regularization part of cost
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
-total_cost = nll_cost + kld_cost + reg_cost
+total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
 
-# compile a theano function strictly for sampling reconstructions from generatotron
-trial_func = theano.function([X], [td_output, total_cost])
+# compile a theano function strictly for sampling reconstructions
+recon_func = theano.function([X], td_output)
 # TEMP TEST FOR MODEL ARCHITECTURE
-x_batch = train_transform(Xtr[0:100,:])
-batch_output = trial_func(x_batch)
-print("TEST -- total_cost: {0:.4f}".format(1.0*batch_output[-1]))
+Xtr_rec = train_transform(Xtr[0:200,:])
+test_recons = recon_func(Xtr_rec)
+color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
 
 # draw samples from the generator, with initial random vals provided by the user
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -366,17 +372,18 @@ XIZ0 = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 lrt = sharedX(lr)
 p_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 
+# build training cost and update functions
 t = time()
 print("Computing gradients...")
 model_updates = p_updater(model_params, total_cost)
 print("Compiling sampling function...")
 sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
-train_func = theano.function([X], [total_cost, nll_cost, kld_cost, reg_cost],
-                             updates=model_updates)
+cost_outputs = [total_cost, nll_cost, kld_cost, reg_cost] + layer_klds
+train_func = theano.function([X], cost_outputs, updates=model_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
-
+# make file for recording test progress
 log_name = "{}/RESULTS.txt".format(sample_dir)
 out_file = open(log_name, 'wb')
 
@@ -388,35 +395,37 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(1.0, (epoch/10.0))
+    scale = min(10.0, 1.0*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
-    total_cost = 0.
-    nll_cost = 0.
-    kld_cost = 0.
-    reg_cost = 0.
+    epoch_costs = [0. for i in range(len(cost_outputs))]
     batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         # compute model cost and apply update
         result = train_func(imb)
-        total_cost += result[0]
-        nll_cost += result[1]
-        kld_cost += result[2]
-        reg_cost += result[3]
+        epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
+    epoch_costs = [(c / batch_count) for c in epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     str2 = "    total_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
-            (total_cost/batch_count), (nll_cost/batch_count), (kld_cost/batch_count), (reg_cost/batch_count))
-    joint_str = "\n".join([str1, str2])
+            epoch_costs[0], epoch_costs[1], epoch_costs[2], epoch_costs[3])
+    kld_strs = ["       "]
+    for i, kld_i in enumerate(epoch_costs[4:]):
+        kld_strs.append("{0:s}: {1:.4f},".format(kld_tuples[i][0], kld_i))
+    str3 = " ".join(kld_strs)
+    joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    # generate some samples from the model, for visualization
-    samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
     n_epochs += 1
+    # generate some samples from the model prior
+    samples = np.asarray(sample_func(sample_z0mb))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}_gen.png".format(sample_dir, n_epochs))
+    # sample some reconstructions from the model
+    test_recons = recon_func(Xtr_recs)
+    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/{}_rec.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
     # if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
