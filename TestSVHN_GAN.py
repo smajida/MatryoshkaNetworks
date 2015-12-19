@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_dbl_convT_erT_unweighted_2'
+desc = 'test_resnet_1rand_1disc_no_ER_unweighted'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -62,7 +62,7 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(12)     # seed for shared rngs
+set_seed(5)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -83,9 +83,9 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
-all_rand = True   # whether to use stochastic variables at all scales
-all_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+all_rand = False   # whether to use stochastic variables at all scales
+all_disc = False   # whether to use discriminator guidance at all scales
+use_er = False     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 use_weights = False # whether use different weights for discriminator costs
@@ -190,7 +190,7 @@ GenFCModule(
 ) # output is (batch, ngf*4, 2, 2)
 
 gen_module_2 = \
-GenConvDblResModule(
+GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -202,7 +202,7 @@ GenConvDblResModule(
 ) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
-GenConvDblResModule(
+GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=ngf,
@@ -214,7 +214,7 @@ GenConvDblResModule(
 ) # output is (batch, ngf*2, 8, 8)
 
 gen_module_4 = \
-GenConvDblResModule(
+GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=ngf,
@@ -226,7 +226,7 @@ GenConvDblResModule(
 ) # output is (batch, ngf*2, 16, 16)
 
 gen_module_5 = \
-GenConvDblResModule(
+GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=ngf,
