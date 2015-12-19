@@ -332,146 +332,82 @@ inf_gen_model = InfGenModel(
 ####################################
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
+model_params = [obs_logvar] + inf_gen_model.params
 
 X = T.tensor4()   # symbolic var for real inputs to mega deep, convolutional generatotron
+Z0 = T.matrix()
 
 # draw sample reconstructons from the generatotron, and compute some KLds too.
 td_output, kld_dicts = inf_gen_model.apply_im(X)
-layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
 
-nll_costs = log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
-                              log_vars=bounded_logvar[0])
+nll_costs = -1.0 * log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
+                                     log_vars=bounded_logvar[0])
+layer_klds = [T.sum(kld_i, axis=1) for kld_i in kld_dicts.values()]
 kld_costs = sum(layer_klds)
 
 vfe_cost = T.mean(nll_costs) + T.mean(kld_costs)
-reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in inf_gen_model.params])
-joint_output = [td_output, vfe_cost]
+reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
+total_cost = vfe_cost + reg_cost
+joint_output = [td_output, total_cost]
 
 # compile a theano function strictly for sampling reconstructions from generatotron
-train_func = theano.function([X], joint_output)
-
+trial_func = theano.function([X], joint_output)
 # TEMP TEST FOR MODEL ARCHITECTURE
 x_batch = train_transform(Xtr[0:100,:])
-batch_output = train_func(x_batch)
-print("vfe cost: {}".format(batch_output[-1]))
+batch_output = trial_func(x_batch)
+print("TEST -- vfe cost: {0:.4f}".format(1.0*batch_output[-1]))
+
+# draw samples from the generator, with initial random vals provided by the user
+td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
+XIZ0 = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+
+# stuff for performing updates
+lrt = sharedX(lr)
+p_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+
+t = time()
+print("Computing gradients...")
+model_updates = p_updater(model_params, total_cost)
+print("Compiling sampling function...")
+sample_func = theano.function([Z0], XIZ0)
+print("Compiling training function...")
+train_func = theano.function([X], total_cost, updates=model_updates)
+print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 
-#
-#
-# # switch costs based on use of experience replay
-# if use_er:
-#     a1, a2 = 0.5, 0.5
-# else:
-#     a1, a2 = 1.0, 0.0
-# d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-#          (1e-5 * sum([T.sum(p**2.0) for p in disc_params]))
-# g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
-#
-# cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
-#
-# lrt = sharedX(lr)
-# d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
-# g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
-# d_updates = d_updater(disc_params, d_cost)
-# g_updates = g_updater(gen_params, g_cost)
-# updates = d_updates + g_updates
-#
-# print 'COMPILING'
-# t = time()
-# _train_g = theano.function([X, Z0, Xer], cost, updates=g_updates)
-# _train_d = theano.function([X, Z0, Xer], cost, updates=d_updates)
-# _gen = theano.function([Z0], XIZ0)
-# print "{0:.2f} seconds to compile theano functions".format(time()-t)
-#
-# f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
-# log_fields = [
-#     'n_epochs',
-#     'n_updates',
-#     'n_examples',
-#     'n_seconds',
-#     'g_cost',
-#     'd_cost',
-# ]
-#
-# # initialize an experience replay buffer
-# er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
-# start_idx = 0
-# end_idx = 1000
-# print("Initializing experience replay buffer...")
-# while start_idx < er_buffer_size:
-#     samples = gen_network.generate_samples(1000)
-#     samples = samples.reshape((1000,-1))
-#     end_idx = min(end_idx, er_buffer_size)
-#     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-#     start_idx += 1000
-#     end_idx += 1000
-# print("DONE.")
-#
-# print desc.upper()
-#
-# log_name = "{}/RESULTS.txt".format(sample_dir)
-# out_file = open(log_name, 'wb')
-#
-# n_updates = 0
-# n_check = 0
-# n_epochs = 0
-# n_updates = 0
-# n_examples = 0
-# t = time()
-# gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
-# sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
-# for epoch in range(1, niter+niter_decay+1):
-#     Xtr = shuffle(Xtr)
-#     g_cost = 0
-#     g_cost_d = 0
-#     d_cost = 0
-#     d_cost_real = 0
-#     gc_iter = 0
-#     dc_iter = 0
-#     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
-#         if epoch < gauss_blur_weights.shape[0]:
-#             w_x = gauss_blur_weights[epoch]
-#         else:
-#             w_x = 1.0
-#         w_g = 1.0 - w_x
-#         if use_annealing and (w_x < 0.999):
-#             imb = gauss_blur(imb, Xtr_std, w_x, w_g)
-#         imb = train_transform(imb)
-#         z0mb = rand_gen(size=(len(imb), nz0))
-#         if n_updates % (k+1) == 0:
-#             # sample data from experience replay buffer
-#             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
-#             # compute generator cost and apply update
-#             result = _train_g(imb, z0mb, xer)
-#             g_cost += result[0]
-#             g_cost_d += result[2]
-#             gc_iter += 1
-#         else:
-#             # sample data from experience replay buffer
-#             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
-#             # compute discriminator cost and apply update
-#             result = _train_d(imb, z0mb, xer)
-#             d_cost += result[1]
-#             d_cost_real += result[3]
-#             dc_iter += 1
-#         n_updates += 1
-#         n_examples += len(imb)
-#         # update experience replay buffer (a better update schedule may be helpful)
-#         if ((n_updates % (min(25,epoch)*25)) == 0) and use_er:
-#             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
-#     str1 = "Epoch {}:".format(epoch)
-#     str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter))
-#     str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter))
-#     joint_str = "\n".join([str1, str2, str3])
-#     print(joint_str)
-#     out_file.write(joint_str+"\n")
-#     out_file.flush()
-#     # generate some samples from the model, for visualization
-#     samples = np.asarray(_gen(sample_z0mb))
-#     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
-#     n_epochs += 1
-#     if n_epochs > niter:
-#         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
-#     if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
-#         joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
-#         joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
+log_name = "{}/RESULTS.txt".format(sample_dir)
+out_file = open(log_name, 'wb')
+
+n_check = 0
+n_epochs = 0
+n_updates = 0
+n_examples = 0
+t = time()
+sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
+for epoch in range(1, niter+niter_decay+1):
+    Xtr = shuffle(Xtr)
+    epoch_cost = 0.
+    batch_count = 0.
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+        imb = train_transform(imb)
+        # compute model cost and apply update
+        result = train_func(imb)
+        epoch_cost += result[1]
+        batch_count += 1
+        n_updates += 1
+        n_examples += len(imb)
+    str1 = "Epoch {}:".format(epoch)
+    str2 = "    train_cost: {0:.4f}".format(epoch_cost/batch_count)
+    joint_str = "\n".join([str1, str2])
+    print(joint_str)
+    out_file.write(joint_str+"\n")
+    out_file.flush()
+    # generate some samples from the model, for visualization
+    samples = np.asarray(sample_func(sample_z0mb))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
+    n_epochs += 1
+    if n_epochs > niter:
+        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+    if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
+        joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
+        joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
