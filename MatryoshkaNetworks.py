@@ -21,8 +21,6 @@ from lib.costs import log_prob_gaussian, gaussian_kld
 #
 # Phil's business
 #
-from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule
 
 
 ####################################
