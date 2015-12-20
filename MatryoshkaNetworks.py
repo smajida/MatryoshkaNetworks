@@ -1,3 +1,4 @@
+import cPickle
 import numpy as np
 import numpy.random as npr
 import theano
@@ -20,10 +21,13 @@ from lib.costs import log_prob_gaussian, gaussian_kld
 #
 # Phil's business
 #
-from LogPDFs import log_prob_gaussian2, gaussian_kld
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
                               GenFCModule, BasicConvModule
 
+
+####################################
+# Generator network for use in GAN #
+####################################
 
 class GenNetworkGAN(object):
     """
@@ -55,6 +59,31 @@ class GenNetworkGAN(object):
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
         shapes = self.compute_rand_shapes(50)
         print("DONE.")
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file)
+        for param_dict, mod in zip(mod_param_dicts, self.modules):
+            mod.load_params(param_dict=param_dict)
+        pickle_file.close()
         return
 
     def apply(self, rand_vals=None, batch_size=None,
@@ -134,6 +163,91 @@ class GenNetworkGAN(object):
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
 
+
+########################################
+# Discriminator network for use in GAN #
+########################################
+
+class DiscNetworkGAN(object):
+    """
+    A deep convolutional discriminator network. This provides a wrapper around
+    a sequence of modules from MatryoshkaModules.py.
+
+    Params:
+        modules: a list of the modules that make up this DiscNetworkGAN. All but
+                 the last module should be instances of DiscConvModule. The
+                 last module should an instance of DiscFCModule.
+    """
+    def __init__(self, modules):
+        self.modules = [m for m in modules]
+        self.fc_module = self.modules[-1]
+        self.conv_modules = self.modules[:-1]
+        self.params = []
+        for module in self.modules:
+            self.params.extend(module.params)
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file)
+        for param_dict, mod in zip(mod_param_dicts, self.modules):
+            mod.load_params(param_dict=param_dict)
+        pickle_file.close()
+        return
+
+    def apply(self, input, ret_vals=None, app_sigm=True,
+              disc_noise=None):
+        """
+        Apply this DiscNetworkGAN to some input and return some subset of the
+        discriminator layer outputs from its underlying modules.
+        """
+        if ret_vals is None:
+            ret_vals = range(len(self.modules))
+        hs = [input]
+        ys = []
+        for i, module in enumerate(self.modules):
+            if i == (len(self.modules) - 1):
+                # final fc module takes 1d input
+                result = module.apply(T.flatten(hs[-1], 2),
+                                      noise_sigma=disc_noise)
+            else:
+                # other modules take 2d input
+                result = module.apply(hs[-1], noise_sigma=disc_noise)
+            if type(result) == type([1, 2, 3]):
+                hi = result[0]
+                yi = result[1]
+                if i in ret_vals:
+                    if app_sigm:
+                        ys.append(sigmoid(yi))
+                    else:
+                        ys.append(yi)
+            else:
+                hi = result
+            hs.append(hi)
+        return ys
+
+
+##############################################################
+# Model for doing mean-fieldish posterior inference in a GAN #
+##############################################################
+
 class VarInfModel(object):
     """
     Wrapper class for extracting variational estimates of log-likelihood from
@@ -156,7 +270,7 @@ class VarInfModel(object):
         self.Xg = self.gen_network.apply(rand_vals=self.rand_vals)
         # self.output_logvar modifies the output distribution
         self.output_logvar = sharedX(np.zeros((1,)), name='VIM.output_logvar')
-        self.bounded_logvar = 8.0 * T.tanh(self.output_logvar[0] / 8.0)
+        self.bounded_logvar = 6.0 * T.tanh((1.0/6.0) * self.output_logvar[0])
         # compute reconstruction/NLL cost using self.Xg
         self.nlls = self._construct_nlls(x=self.X, m=self.M, x_hat=self.Xg,
                                          out_logvar=self.bounded_logvar)
@@ -227,7 +341,7 @@ class VarInfModel(object):
         x = T.flatten(x, 2)
         m = T.flatten(m, 2)
         x_hat = T.flatten(x_hat, 2)
-        nll = -1.0 * log_prob_gaussian2(x, x_hat, log_vars=out_logvar, mask=m)
+        nll = -1.0 * log_prob_gaussian(x, x_hat, log_vars=out_logvar, mask=m)
         nll = nll.flatten()
         return nll
 
@@ -244,56 +358,6 @@ class VarInfModel(object):
             all_klds.append(T.sum(layer_kld, axis=1))
         obs_klds = sum(all_klds)
         return obs_klds
-
-class DiscNetworkGAN(object):
-    """
-    A deep convolutional discriminator network. This provides a wrapper around
-    a sequence of modules from MatryoshkaModules.py.
-
-    Params:
-        modules: a list of the modules that make up this DiscNetworkGAN. All but
-                 the last module should be instances of DiscConvModule. The
-                 last module should an instance of DiscFCModule.
-    """
-    def __init__(self, modules):
-        self.modules = [m for m in modules]
-        self.fc_module = self.modules[-1]
-        self.conv_modules = self.modules[:-1]
-        self.params = []
-        for module in self.modules:
-            self.params.extend(module.params)
-        return
-
-    def apply(self, input, ret_vals=None, app_sigm=True,
-              disc_noise=None):
-        """
-        Apply this DiscNetworkGAN to some input and return some subset of the
-        discriminator layer outputs from its underlying modules.
-        """
-        if ret_vals is None:
-            ret_vals = range(len(self.modules))
-        hs = [input]
-        ys = []
-        for i, module in enumerate(self.modules):
-            if i == (len(self.modules) - 1):
-                # final fc module takes 1d input
-                result = module.apply(T.flatten(hs[-1], 2),
-                                      noise_sigma=disc_noise)
-            else:
-                # other modules take 2d input
-                result = module.apply(hs[-1], noise_sigma=disc_noise)
-            if type(result) == type([1, 2, 3]):
-                hi = result[0]
-                yi = result[1]
-                if i in ret_vals:
-                    if app_sigm:
-                        ys.append(sigmoid(yi))
-                    else:
-                        ys.append(yi)
-            else:
-                hi = result
-            hs.append(hi)
-        return ys
 
 
 ########################################################################
@@ -348,6 +412,41 @@ class InfGenModel(object):
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
         shapes = self.compute_rand_shapes(50)
         print("DONE.")
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.bu_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump BU modules
+        mod_param_dicts = [m.dump_params() for m in self.td_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump TD modules
+        mod_param_dicts = [m.dump_params() for m in self.im_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump IM modules
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file) # load BU modules
+        for param_dict, mod in zip(mod_param_dicts, self.bu_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file) # load TD modules
+        for param_dict, mod in zip(mod_param_dicts, self.td_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file) # load IM modules
+        for param_dict, mod in zip(mod_param_dicts, self.im_modules):
+            mod.load_params(param_dict=param_dict)
+        pickle_file.close()
         return
 
     def apply_td(self, rand_vals=None, batch_size=None,
@@ -493,54 +592,3 @@ class InfGenModel(object):
         # variables used in the top-down generative model.
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
-
-
-# class InfGenModel(object):
-#     """
-#     A deep convolutional generator network. This provides a wrapper around a
-#     collection of bottom-up, top-down, and info merging Matryoshka modules.
-#
-#     Params:
-#         bu_modules: modules for computing bottom-up (inference) information.
-#         td_modules: modules for computing top-down (generative) information.
-#         im_modules: modules for merging bottom-up and top-down information
-#                     to put conditionals over Gaussian latent variables that
-#                     participate in the top-down computation.
-#         merge_info: dict of dicts describing how to compute the conditionals
-#                     required by the feedforward pass through top-down modules.
-#         output_transform: transform to apply to outputs of the top-down model.
-#     """
-#     def __init__(self,
-#                  bu_modules, td_modules, im_modules,
-#                  merge_info,
-#                  output_transform):
-#         # grab the bottom-up, top-down, and info merging modules
-#         self.bu_modules = [m for m in bu_modules]
-#         self.td_modules = [m for m in td_modules]
-#         self.im_modules = [m for m in im_modules]
-#         self.im_modules_dict = {m.mod_name: m for m in im_modules}
-#         # grab the full set of trainable parameters in these modules
-#         self.params = []
-#         for module in self.bu_modules:
-#             self.params.extend(module.params)
-#         for module in self.td_modules:
-#             self.params.extend(module.params)
-#         for module in self.im_modules:
-#             self.params.extend(module.params)
-#         # get instructions for how to merge bottom-up and top-down info
-#         self.merge_info = merge_info
-#         # keep a transform that we'll apply to generator output
-#         if output_transform == 'ident':
-#             self.output_transform = lambda x: x
-#         else:
-#             self.output_transform = output_transform
-#         # construct a theano function for drawing samples from this model
-#         print("Compiling sample generator...")
-#         self.generate_samples = self._construct_generate_samples()
-#         samps = self.generate_samples(50)
-#         print("DONE.")
-#         print("Compiling rand shape computer...")
-#         self.compute_rand_shapes = self._construct_compute_rand_shapes()
-#         shapes = self.compute_rand_shapes(50)
-#         print("DONE.")
-#         return

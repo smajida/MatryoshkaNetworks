@@ -26,7 +26,7 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvModule, \
+from MatryoshkaModules import BasicConvModule, \
                               GenConvDblResModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule
@@ -133,8 +133,7 @@ GenFCModule(
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn=True,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
 
@@ -424,7 +423,7 @@ for epoch in range(1, niter+niter_decay+1):
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/{}_gen.png".format(sample_dir, n_epochs))
     # sample some reconstructions from the model
-    test_recons = recon_func(Xtr_recs)
+    test_recons = recon_func(Xtr_rec)
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/{}_rec.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))

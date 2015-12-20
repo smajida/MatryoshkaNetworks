@@ -25,8 +25,8 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule, GenConvResModule, \
+from MatryoshkaModules import DiscFCModule, GenFCModule, \
+                              BasicConvModule, GenConvResModule, \
                               DiscConvResModule, GenConvDblResModule
 from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
@@ -184,8 +184,7 @@ GenFCModule(
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
-    apply_bn_1=True,
-    apply_bn_2=True,
+    apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
 
@@ -320,14 +319,15 @@ disc_params = disc_network.params
 ###########################################
 # Construct a VarInfModel for gen_network #
 ###########################################
-X_vim = Xtr[0:100,:]
-M_vim = floatX(np.ones(X_vim.shape))
+Xtr_rec = Xtr[0:200,:]
+Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
-VIM = VarInfModel(X_vim, M_vim, gen_network)
+VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network)
 print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
-Xg_vim = VIM.sample_Xg()
+test_recons = VIM.sample_Xg()
+color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
 
 
 ####################################
@@ -441,12 +441,14 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annea
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    g_cost = 0
-    g_cost_d = 0
-    d_cost = 0
-    d_cost_real = 0
+    g_cost = 0.
+    g_cost_d = 0.
+    d_cost = 0.
+    d_cost_real = 0.
     gc_iter = 0
     dc_iter = 0
+    rec_iter = 0
+    rec_cost = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         if epoch < gauss_blur_weights.shape[0]:
             w_x = gauss_blur_weights[epoch]
@@ -473,24 +475,33 @@ for epoch in range(1, niter+niter_decay+1):
             d_cost += result[1]
             d_cost_real += result[3]
             dc_iter += 1
+        if ((n_updates % 10) == 0):
+            # train the bootleg variational inference model
+            opt_cost, vfe_bounds = VIM.train(0.0005)
+            rec_cost += opt_cost
+            rec_iter += 1
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(25,epoch)*25)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}".format((g_cost/gc_iter),(d_cost/dc_iter))
-    str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format((g_cost_d/gc_iter),(d_cost_real/dc_iter))
+    str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
+            (g_cost/gc_iter), (d_cost/dc_iter), (rec_cost/rec_iter))
+    str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format( \
+            (g_cost_d/gc_iter), (d_cost_real/dc_iter))
     joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
+    n_epochs += 1
     # generate some samples from the model, for visualization
     samples = np.asarray(_gen(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}.png".format(sample_dir, n_epochs))
-    n_epochs += 1
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}_gen.png".format(sample_dir, n_epochs))
+    test_recons = VIM.sample_Xg()
+    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/{}_rec.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
-    if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
-        joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
-        joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
+    # if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
+    #     joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
+    #     joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
