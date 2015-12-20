@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_vae_10xKL'
+desc = 'test_resnet_vae_bern'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -344,8 +344,13 @@ Z0 = T.matrix()
 td_output, kld_dicts = inf_gen_model.apply_im(X)
 
 # reconstruction (i.e. NLL) part of cost
-obs_nlls = -1.0 * log_prob_gaussian(T.flatten(X, 2), T.flatten(td_output, 2),
-                                    log_vars=bounded_logvar[0])
+x_world = 0.495 * (T.flatten(X, 2) + 1.01)
+x_model = 0.495 * (T.flatten(td_output, 2) + 1.01)
+obs_nlls = -1.0 * log_prob_bernoulli(x_world, x_model)
+#x_world = T.flatten(X, 2)
+#x_model = T.flatten(td_output, 2)
+#obs_nlls = -1.0 * log_prob_gaussian(x_world, x_model,
+#                                    log_vars=bounded_logvar[0])
 nll_cost = T.mean(obs_nlls)
 # KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
@@ -394,7 +399,7 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(10.0, 1.0*epoch)
+    scale = min(1.0, 1.0*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
     epoch_costs = [0. for i in range(len(cost_outputs))]
     batch_count = 0.
