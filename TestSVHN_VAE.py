@@ -155,7 +155,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=use_rand,
+    use_rand=all_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_3'
@@ -179,7 +179,7 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=use_rand,
+    use_rand=all_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_5'
