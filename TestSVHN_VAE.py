@@ -155,7 +155,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_3'
@@ -179,7 +179,7 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_5'
@@ -310,10 +310,13 @@ im_modules = [im_module_3, im_module_5]
 # directly by the bu_module's output, and no merging (via an im_module) is
 # required.
 #
+# merge_info = {
+#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+#     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
+# }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules
