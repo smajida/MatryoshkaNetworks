@@ -16,7 +16,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.costs import log_prob_gaussian
+from lib.costs import log_prob_gaussian, log_prob_bernoulli
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX

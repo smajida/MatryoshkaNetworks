@@ -251,12 +251,13 @@ class VarInfModel(object):
     Wrapper class for extracting variational estimates of log-likelihood from
     a GenNetworkGAN. The VarInfModel will be specific to a given set of inputs.
     """
-    def __init__(self, X, M, gen_network):
+    def __init__(self, X, M, gen_network, post_logvar=None):
         # observations for which to perform variational inference
         self.X = sharedX(X, name='VIM.X')
         # masks for which components of each observation are "visible"
         self.M = sharedX(M, name='VIM.M')
         self.gen_network = gen_network
+        self.post_logvar = post_logvar
         self.obs_count = X.shape[0]
         self.mean_init_func = inits.Normal(loc=0., scale=0.02)
         self.logvar_init_func = inits.Normal(loc=0., scale=0.02)
@@ -327,7 +328,11 @@ class VarInfModel(object):
         rand_vals = []
         for rv_mean, rv_logvar in zip(rv_means, rv_logvars):
             zmuv_gauss = t_rng.normal(size=rv_mean.shape)
-            reparam_gauss = rv_mean + (T.exp(0.5*rv_logvar) * zmuv_gauss)
+            if self.post_logvar is None:
+                reparam_gauss = rv_mean + (T.exp(0.5*rv_logvar) * zmuv_gauss)
+            else:
+                fixed_logvar = (0.0 * rv_logvar) + self.post_logvar
+                reparam_gauss = rv_mean + (T.exp(0.5*fixed_logvar) * zmuv_gauss)
             rand_vals.append(reparam_gauss)
         return rv_means, rv_logvars, rand_vals
 

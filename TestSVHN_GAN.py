@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_unweighted_4'
+desc = 'test_resnet_convT_erT_unweighted_5'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -62,7 +62,7 @@ Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(4)     # seed for shared rngs
+set_seed(10)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
@@ -322,7 +322,7 @@ disc_params = disc_network.params
 Xtr_rec = Xtr[0:200,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
-VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network)
+VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)
 print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
