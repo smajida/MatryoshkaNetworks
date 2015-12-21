@@ -155,7 +155,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=use_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_3'
@@ -179,7 +179,7 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=use_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_5'
@@ -310,13 +310,10 @@ im_modules = [im_module_3, im_module_5]
 # directly by the bu_module's output, and no merging (via an im_module) is
 # required.
 #
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-#     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
-# }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+    'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules
@@ -409,8 +406,10 @@ for epoch in range(1, niter+niter_decay+1):
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         # compute model cost and apply update
-        result = train_func(imb)
-        epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
+        #result = train_func(imb)
+        #epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
+        result = recon_func(imb)
+        epoch_costs = [v1 for v1 in epoch_costs]
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
