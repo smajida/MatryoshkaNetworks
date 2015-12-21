@@ -79,7 +79,7 @@ niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 all_rand = True   # whether to use stochastic variables at multiple scales
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_conv = False   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -359,7 +359,7 @@ layer_klds = [T.mean(kld_i) for kld_i in obs_klds]       # mean KLd for each lat
 kld_cost = sum(layer_klds)                               # mean total KLd
 # parameter regularization part of cost
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
-total_cost = reg_cost #nll_cost + (lam_kld[0] * kld_cost) + reg_cost
+total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
 
 
 # compile a theano function strictly for sampling reconstructions

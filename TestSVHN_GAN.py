@@ -477,7 +477,7 @@ for epoch in range(1, niter+niter_decay+1):
             dc_iter += 1
         if ((n_updates % 10) == 0):
             # train the bootleg variational inference model
-            opt_cost, vfe_bounds = VIM.train(0.0005)
+            opt_cost, vfe_bounds = VIM.train(0.001)
             rec_cost += opt_cost
             rec_iter += 1
         n_updates += 1
