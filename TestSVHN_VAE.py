@@ -207,22 +207,22 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_6 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=nc,
     out_chans=(ngf*1),
     apply_bn=True,
-    stride='single',
+    stride='double',
     act_func='relu',
     mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 32, 32)
+) # output is (batch, ngf*1, 16, 16)
 
 bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
     conv_chans=ngf,
-    use_conv=use_conv,
-    stride='double',
+    use_conv=False,
+    stride='single',
     act_func='relu',
     mod_name='bu_mod_5'
 ) # output is (batch, ngf*2, 16, 16)
@@ -359,8 +359,7 @@ layer_klds = [T.mean(kld_i) for kld_i in obs_klds]       # mean KLd for each lat
 kld_cost = sum(layer_klds)                               # mean total KLd
 # parameter regularization part of cost
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
-#total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
-total_cost = (lam_kld[0] * kld_cost) + reg_cost
+total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
 
 # compile a theano function strictly for sampling reconstructions
 recon_func = theano.function([X], td_output)
