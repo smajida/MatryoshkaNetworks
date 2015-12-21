@@ -12,8 +12,8 @@ cu_rng = RandStream(seed)
 
 def set_seed(n):
     global seed, py_rng, np_rng, t_rng
-    
     seed = n
     py_rng = Random(seed)
     np_rng = RandomState(seed)
     t_rng = RandomStreams(seed)
+    cu_rng = RandStream(seed)

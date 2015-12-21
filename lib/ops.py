@@ -7,7 +7,7 @@ from theano.sandbox.cuda.basic_ops import (as_cuda_ndarray_variable,
 from theano.sandbox.cuda.dnn import GpuDnnConvDesc, GpuDnnConv, GpuDnnConvGradI, dnn_conv, dnn_pool
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-from rng import t_rng
+from rng import t_rng, cu_rng
 
 def l2normalize(x, axis=1, e=1e-8, keepdims=True):
     return x/l2norm(x, axis=axis, e=e, keepdims=keepdims)
@@ -54,7 +54,7 @@ def dropout(X, p=0.):
     """
     if p > 0:
         retain_prob = 1 - p
-        X *= t_rng.binomial(X.shape, p=retain_prob, dtype=theano.config.floatX)
+        X *= cu_rng.binomial(X.shape, p=retain_prob, dtype=theano.config.floatX)
         X /= retain_prob
     return X
 
@@ -83,7 +83,7 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8, n=None):
         X = (X - b_u) / T.sqrt(b_s + e)
         if not (n is None):
             # add noise in "normalized" space (i.e. prior to shift and rescale)
-            X = X + (n[0] * t_rng.normal(size=X.shape))
+            X = X + (n[0] * cu_rng.normal(size=X.shape))
         if g is not None and b is not None:
             X = X*g.dimshuffle('x', 0, 'x', 'x') + b.dimshuffle('x', 0, 'x', 'x')
     elif X.ndim == 2:
@@ -96,7 +96,7 @@ def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8, n=None):
         X = (X - u) / T.sqrt(s + e)
         if not (n is None):
             # add noise in "normalized" space (i.e. prior to shift and rescale)
-            X = X + (n[0] * t_rng.normal(size=X.shape))
+            X = X + (n[0] * cu_rng.normal(size=X.shape))
         if g is not None and b is not None:
             X = X*g + b
     else:
