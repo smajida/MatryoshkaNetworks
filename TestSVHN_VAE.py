@@ -384,7 +384,7 @@ print("Compiling sampling function...")
 sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
 cost_outputs = [total_cost, nll_cost, kld_cost, reg_cost] + layer_klds
-train_func = theano.function([X], cost_outputs, updates=model_updates)
+#train_func = theano.function([X], cost_outputs, updates=model_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
