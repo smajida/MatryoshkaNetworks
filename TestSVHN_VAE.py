@@ -87,12 +87,12 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
-    return X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3)
+    return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 def draw_transform(X):
     # transform vectorized observations into drawable images
     X = (X + 1.0) * 127.0
-    return X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1)
+    return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 def rand_gen(size, noise_type='normal'):
     if noise_type == 'normal':
@@ -359,7 +359,8 @@ layer_klds = [T.mean(kld_i) for kld_i in obs_klds]       # mean KLd for each lat
 kld_cost = sum(layer_klds)                               # mean total KLd
 # parameter regularization part of cost
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
-total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
+#total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
+total_cost = T.mean((x_world-x_model)**2.0) + reg_cost
 
 # compile a theano function strictly for sampling reconstructions
 recon_func = theano.function([X], td_output)
@@ -384,7 +385,7 @@ print("Compiling sampling function...")
 sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
 cost_outputs = [total_cost, nll_cost, kld_cost, reg_cost] + layer_klds
-#train_func = theano.function([X], cost_outputs, updates=model_updates)
+train_func = theano.function([X], cost_outputs, updates=model_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -406,10 +407,8 @@ for epoch in range(1, niter+niter_decay+1):
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
         # compute model cost and apply update
-        #result = train_func(imb)
-        #epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
-        result = recon_func(imb)
-        epoch_costs = [v1 for v1 in epoch_costs]
+        result = train_func(imb)
+        epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
