@@ -749,12 +749,16 @@ class GenConvDblResModule(object):
         # get shape for random values that we'll append to module input
         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
         if rand_vals is None:
-            # generate random values to append to module input
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
-                                      dtype=theano.config.floatX)
-        if not self.use_rand:
-            # mask out random values, so they won't get used
-            rand_vals = 0.0 * rand_vals
+            if self.use_rand:
+                # generate random values to append to module input
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
+                                          dtype=theano.config.floatX)
+            else:
+                rand_vals = T.alloc(0.0, *rand_shape)
+        else:
+            if not self.use_rand:
+                # mask out random values, so they won't get used
+                rand_vals = 0.0 * rand_vals
         rand_shape = rand_vals.shape # return vals must be theano vars
 
         # stack random values on top of input
@@ -895,10 +899,16 @@ class GenConvResModule(object):
         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
         # augment input with random channels
         if rand_vals is None:
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-                                      dtype=theano.config.floatX)
-        if not self.use_rand:
-            rand_vals = 0.0 * rand_vals
+            if self.use_rand:
+                # generate random values to append to module input
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
+                                          dtype=theano.config.floatX)
+            else:
+                rand_vals = T.alloc(0.0, *rand_shape)
+        else:
+            if not self.use_rand:
+                # mask out random values, so they won't get used
+                rand_vals = 0.0 * rand_vals
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 

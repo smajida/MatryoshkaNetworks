@@ -542,7 +542,7 @@ class InfGenModel(object):
                     # handle conditionals based purely on BU info
                     cond_mean = bu_res_dict[bu_mod_name][0]
                     cond_logvar = bu_res_dict[bu_mod_name][1]
-                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=cu_rng)
+                    rand_vals = cond_mean #reparametrize(cond_mean, cond_logvar, rng=cu_rng)
                     # feedforward through the top-most TD module
                     td_act_i = td_module.apply(rand_vals=rand_vals)
                 else:
@@ -552,7 +552,7 @@ class InfGenModel(object):
                     im_module = self.im_modules_dict[im_mod_name]
                     cond_mean, cond_logvar = \
                             im_module.apply(td_input=td_info, bu_input=bu_info)
-                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=cu_rng)
+                    rand_vals = cond_mean #reparametrize(cond_mean, cond_logvar, rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
