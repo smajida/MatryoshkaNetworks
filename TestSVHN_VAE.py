@@ -360,7 +360,7 @@ kld_cost = sum(layer_klds)                               # mean total KLd
 # parameter regularization part of cost
 reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in model_params])
 #total_cost = nll_cost + (lam_kld[0] * kld_cost) + reg_cost
-total_cost = T.mean((x_world-x_model)**2.0) + reg_cost
+total_cost = (lam_kld[0] * kld_cost) + reg_cost
 
 # compile a theano function strictly for sampling reconstructions
 recon_func = theano.function([X], td_output)
