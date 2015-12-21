@@ -384,8 +384,9 @@ model_updates = p_updater(model_params, total_cost)
 print("Compiling sampling function...")
 sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
+profile = theano.compile.ProfileStats()
 cost_outputs = [total_cost, nll_cost, kld_cost, reg_cost] + layer_klds
-train_func = theano.function([X], cost_outputs, updates=model_updates)
+train_func = theano.function([X], cost_outputs, updates=model_updates, profile=profile)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -412,6 +413,10 @@ for epoch in range(1, niter+niter_decay+1):
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
+        if batch_count == 50:
+            break
+    profile.print_summary()
+    break
     epoch_costs = [(c / batch_count) for c in epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     str2 = "    total_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
