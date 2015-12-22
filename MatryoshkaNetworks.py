@@ -269,7 +269,7 @@ class VarInfModel(object):
         self.Xg = self.gen_network.apply(rand_vals=self.rand_vals)
         # self.output_logvar modifies the output distribution
         self.output_logvar = sharedX(np.zeros((1,)), name='VIM.output_logvar')
-        self.bounded_logvar = 6.0 * T.tanh((1.0/6.0) * self.output_logvar[0])
+        self.bounded_logvar = 5.0 * T.tanh((1.0/5.0) * self.output_logvar[0])
         # compute reconstruction/NLL cost using self.Xg
         self.nlls = self._construct_nlls(x=self.X, m=self.M, x_hat=self.Xg,
                                          out_logvar=self.bounded_logvar)
@@ -520,7 +520,7 @@ class InfGenModel(object):
 
         This then computes the top-down pass using latent variables sampled
         from distributions determined by merging partial results of the BU pass
-        with results from the partially-completed TD pass.
+        with results from the partially-completreced TD pass.
         """
         # set aside a dict for recording KLd info at each layer where we use
         # conditional distributions over the latent variables.
