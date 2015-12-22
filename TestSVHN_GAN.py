@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_unweighted_6_faster_er_buffer'
+desc = 'test_resnet_convT_erT_unweighted_6_reweighted'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -379,7 +379,7 @@ g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.25, 0.75
+    a1, a2 = 0.6, 0.4
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
