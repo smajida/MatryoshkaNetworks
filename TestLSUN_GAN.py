@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_shallower_rewieghted'
+desc = 'test_resnet_convF_erT'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -91,8 +91,8 @@ nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
-ngf = 32          # # of gen filters in first conv layer
-ndf = 32          # # of discrim filters in first conv layer
+ngf = 64          # # of gen filters in first conv layer
+ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
@@ -102,7 +102,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 all_rand = True   # whether to use stochastic variables at all scales
 all_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_conv = False   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 use_weights = False # whether use different weights for discriminator costs
 
