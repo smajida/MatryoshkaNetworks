@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convT_erT_6'
+desc = 'test_resnet_convT_erT_shallower'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,15 +86,15 @@ nc = 3            # # of channels in image
 nld = 1           # # of layers in conv modules for discriminator
 nlg = 1           # # of layers in conv modules for generator
 nbatch = 128      # # of examples in batch
-npx = 32          # # of pixels width/height of images
+npx = 64          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
-ngf = 64          # # of gen filters in first conv layer
-ndf = 64          # # of discrim filters in first conv layer
+ngf = 32          # # of gen filters in first conv layer
+ndf = 32          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
+niter = 150       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
@@ -255,7 +255,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
-    use_conv=use_conv,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_6'
 ) # output is (batch, ngf*1, 64, 64)
@@ -271,7 +271,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4
+gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
@@ -285,7 +285,7 @@ gen_params = gen_network.params
 
 disc_module_1 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
@@ -354,6 +354,9 @@ disc_params = disc_network.params
 # Construct a VarInfModel for gen_network #
 ###########################################
 Xtr, Xtr_std = load_and_scale_data(data_files[0])
+
+print("Xtr.shape: {}".format(Xtr.shape))
+
 Xtr_rec = Xtr[0:200,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
@@ -414,7 +417,7 @@ g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.6, 0.4
+    a1, a2 = 0.5, 0.5
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
@@ -472,7 +475,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 35) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
