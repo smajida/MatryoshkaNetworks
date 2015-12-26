@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convF_erF_most_filters'
+desc = 'test_resnet_convF_erF_most_filters_short'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -191,24 +191,24 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
     num_layers=1,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*4, 2, 2)
+) # output is (batch, ngf*8, 4, 4)
 
-gen_module_2 = \
-GenConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    conv_chans=ngf,
-    rand_chans=nz1,
-    use_rand=False,
-    use_conv=use_conv,
-    us_stride=2,
-    mod_name='gen_mod_2'
-) # output is (batch, ngf*4, 4, 4)
+#gen_module_2 = \
+#GenConvResModule(
+#    in_chans=(ngf*8),
+#    out_chans=(ngf*8),
+#    conv_chans=ngf,
+#    rand_chans=nz1,
+#    use_rand=False,
+#    use_conv=use_conv,
+#    us_stride=2,
+#    mod_name='gen_mod_2'
+#) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -269,8 +269,8 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
-               gen_module_5, gen_module_7] #, gen_module_7]
+gen_modules = [gen_module_1, gen_module_3, gen_module_4, #gen_module_2,
+               gen_module_5, gen_module_7] #, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -322,27 +322,27 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*2, 4, 4)
 
-disc_module_5 = \
-DiscConvResModule(
-    in_chans=(ndf*8),
-    out_chans=(ndf*8),
-    conv_chans=ndf,
-    use_conv=False,
-    ds_stride=2,
-    mod_name='disc_mod_5'
-) # output is (batch, ndf*4, 2, 2)
+#disc_module_5 = \
+#DiscConvResModule(
+#    in_chans=(ndf*8),
+#    out_chans=(ndf*8),
+#    conv_chans=ndf,
+#    use_conv=False,
+#    ds_stride=2,
+#    mod_name='disc_mod_5'
+#) # output is (batch, ndf*4, 2, 2)
 
 disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*2*2),
+    in_dim=(ndf*8*4*4),
     num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5, disc_module_6]
+                disc_module_4, disc_module_6] #, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
