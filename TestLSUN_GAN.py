@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convF_erF'
+desc = 'test_resnet_convF_erF_more_filters'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -88,7 +88,7 @@ nz0 = 100          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
-ngf = 64          # # of gen filters in first conv layer
+ngf = 128          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
