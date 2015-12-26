@@ -32,7 +32,6 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
 
 
-
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
@@ -85,7 +84,7 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nld = 1           # # of layers in conv modules for discriminator
 nlg = 1           # # of layers in conv modules for generator
-nbatch = 128      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -195,7 +194,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    num_layers=2,
+    num_layers=1,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
@@ -206,7 +205,7 @@ GenConvResModule(
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_2'
@@ -230,7 +229,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
@@ -239,7 +238,7 @@ GenConvResModule(
 gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=all_rand,
@@ -248,31 +247,31 @@ GenConvResModule(
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*2, 32, 32)
 
-gen_module_6 = \
-GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    conv_chans=ngf,
-    rand_chans=nz1,
-    use_rand=all_rand,
-    use_conv=False,
-    us_stride=2,
-    mod_name='gen_mod_6'
-) # output is (batch, ngf*1, 64, 64)
+# gen_module_6 = \
+# GenConvResModule(
+#     in_chans=(ngf*2),
+#     out_chans=(ngf*1),
+#     conv_chans=ngf,
+#     rand_chans=nz1,
+#     use_rand=False,
+#     use_conv=False,
+#     us_stride=2,
+#     mod_name='gen_mod_6'
+# ) # output is (batch, ngf*1, 64, 64)
 
 gen_module_7 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
-    stride='single',
+    stride='half',
     act_func='ident',
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
 gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
-               gen_module_5, gen_module_6, gen_module_7]
+               gen_module_5, gen_module_7] #, gen_module_7]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -285,7 +284,7 @@ gen_params = gen_network.params
 
 disc_module_1 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
@@ -338,7 +337,7 @@ disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*2*2),
-    num_layers=nld,
+    num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
@@ -385,7 +384,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if all_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(1, len(disc_network.modules))
+    ret_vals = range(2, len(disc_network.modules))
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -417,7 +416,7 @@ g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.25, 0.75
+    a1, a2 = 0.5, 0.5
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \

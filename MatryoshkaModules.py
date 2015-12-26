@@ -387,19 +387,19 @@ class DiscConvResModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 3, 3),
+        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 5, 5),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize second conv layer parameters
-        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 5, 5),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, 3, 3),
+        self.w_prj = weight_ifn((self.out_chans, self.in_chans, 5, 5),
                                 "{}_w_prj".format(self.mod_name))
         self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
         self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
@@ -450,13 +450,13 @@ class DiscConvResModule(object):
         ss = self.ds_stride         # stride for "learned downsampling"
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(1, 1))
+            h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(2, 2))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = lrelu(h1)
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(2, 2))
             # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(2, 2))
 
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
@@ -464,7 +464,7 @@ class DiscConvResModule(object):
             output = lrelu(h4)
         else:
             # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(2, 2))
             h3 = batchnorm(h3, g=self.g_prj, b=self.b_prj)
             output = lrelu(h3)
 
@@ -838,19 +838,19 @@ class GenConvResModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 3, 3),
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 5, 5),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize second conv layer parameters
-        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 3, 3),
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, 5, 5),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), 3, 3),
+        self.w_prj = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), 5, 5),
                                 "{}_w_prj".format(self.mod_name))
         self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
         self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
@@ -917,18 +917,18 @@ class GenConvResModule(object):
 
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(2, 2))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = relu(h1)
             # apply second internal conv layer
-            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(1, 1))
+            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(2, 2))
             # apply direct input->output "projection" layer
-            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(2, 2))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
             # apply direct input->output "projection" layer
-            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(1, 1))
+            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(2, 2))
         h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
         output = relu(h4)
 
