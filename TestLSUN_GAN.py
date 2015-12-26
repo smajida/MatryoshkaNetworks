@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convF_erT'
+desc = 'test_resnet_convF_erF'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -59,9 +59,7 @@ def scale_to_tanh_range(X):
     """
     Scale the given 2d array to be in tanh range (i.e. -1...1).
     """
-    X = X - np.min(X)
-    X = X / np.max(X)
-    X = 2.0 * (X - 0.5)
+    X = (X / 127.5) - 1.0
     X_std = np.std(X, axis=0, keepdims=True)
     return X, X_std
 
@@ -86,7 +84,7 @@ nld = 1           # # of layers in conv modules for discriminator
 nlg = 1           # # of layers in conv modules for generator
 nbatch = 100      # # of examples in batch
 npx = 64          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
+nz0 = 100          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -98,12 +96,12 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
-all_rand = True   # whether to use stochastic variables at all scales
-all_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+multi_rand = False   # whether to use stochastic variables at multiple scales
+multi_disc = False   # whether to use discriminator guidance at multiple scales
+use_er = False     # whether to use experience replay
 use_conv = False   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to use "annealing" of the target distribution
-use_weights = False # whether use different weights for discriminator costs
+use_annealing = False # whether to use "annealing" of the target distribution
+use_weights = False   # whether use different weights for discriminator costs
 
 
 
@@ -203,7 +201,7 @@ gen_module_2 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=ngf,
     rand_chans=nz1,
     use_rand=False,
     use_conv=use_conv,
@@ -215,9 +213,9 @@ gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
@@ -229,7 +227,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
@@ -241,7 +239,7 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
@@ -327,7 +325,7 @@ disc_module_5 = \
 DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
-    conv_chans=(ndf*2),
+    conv_chans=ndf,
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_5'
@@ -382,7 +380,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 # feed real data and generated data through discriminator
 #   -- optimize with respect to discriminator output from a subset of the
 #      discriminator's modules.
-if all_disc:
+if multi_disc:
     # multi-scale discriminator guidance
     ret_vals = range(2, len(disc_network.modules))
 else:
