@@ -237,6 +237,8 @@ class BasicConvModule(object):
             h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
         if self.apply_bn:
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
+        else:
+            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
         if self.act_func == 'ident':
             pass # apply identity activation function...
         elif self.act_func == 'lrelu':
