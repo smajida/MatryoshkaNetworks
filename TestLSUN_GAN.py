@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convF_erF_most_filters_short'
+desc = 'test_resnet_short_anneal_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -99,9 +99,9 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = False   # whether to use stochastic variables at multiple scales
 multi_disc = False   # whether to use discriminator guidance at multiple scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
 use_conv = False   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = False # whether to use "annealing" of the target distribution
+use_annealing = True # whether to use "annealing" of the target distribution
 use_weights = False   # whether use different weights for discriminator costs
 
 
