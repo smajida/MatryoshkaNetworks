@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_convF_erF_more_filters'
+desc = 'test_resnet_convF_erF_most_filters'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -53,6 +53,7 @@ data_dir = "/NOBACKUP/lsun/bedroom_train_center_crop"
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
+data_files.sort()
 data_files = ["{}/{}".format(data_dir, file_name) for file_name in data_files]
 
 def scale_to_tanh_range(X):
@@ -88,7 +89,7 @@ nz0 = 100          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
-ngf = 128          # # of gen filters in first conv layer
+ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
@@ -190,7 +191,7 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 2, 2),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     num_layers=1,
     apply_bn=True,
@@ -199,8 +200,8 @@ GenFCModule(
 
 gen_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=False,
@@ -211,8 +212,8 @@ GenConvResModule(
 
 gen_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
+    in_chans=(ngf*8),
+    out_chans=(ngf*4),
     conv_chans=ngf,
     rand_chans=nz1,
     use_rand=False,
@@ -223,7 +224,7 @@ GenConvResModule(
 
 gen_module_4 = \
 GenConvResModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
@@ -304,7 +305,7 @@ DiscConvResModule(
 disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
-    out_chans=(ndf*2),
+    out_chans=(ndf*4),
     conv_chans=ndf,
     use_conv=False,
     ds_stride=2,
@@ -313,8 +314,8 @@ DiscConvResModule(
 
 disc_module_4 = \
 DiscConvResModule(
-    in_chans=(ndf*2),
-    out_chans=(ndf*4),
+    in_chans=(ndf*4),
+    out_chans=(ndf*8),
     conv_chans=ndf,
     use_conv=False,
     ds_stride=2,
@@ -323,8 +324,8 @@ DiscConvResModule(
 
 disc_module_5 = \
 DiscConvResModule(
-    in_chans=(ndf*4),
-    out_chans=(ndf*4),
+    in_chans=(ndf*8),
+    out_chans=(ndf*8),
     conv_chans=ndf,
     use_conv=False,
     ds_stride=2,
@@ -334,7 +335,7 @@ DiscConvResModule(
 disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*2*2),
+    in_dim=(ndf*8*2*2),
     num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_6'
@@ -351,6 +352,7 @@ disc_params = disc_network.params
 # Construct a VarInfModel for gen_network #
 ###########################################
 Xtr, Xtr_std = load_and_scale_data(data_files[0])
+print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
