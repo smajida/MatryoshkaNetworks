@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_short_multi_rand_multi_disc'
+desc = 'test_deep_3x3_multi_rand_multi_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -100,7 +100,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
-use_conv = False   # whether to use "internal" conv layers in gen/disc networks
+use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 use_weights = False   # whether use different weights for discriminator costs
 
@@ -215,8 +215,9 @@ GenConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
     conv_chans=ngf,
+    filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
@@ -227,6 +228,7 @@ GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=ngf,
+    filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
     use_conv=use_conv,
@@ -239,8 +241,9 @@ GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=ngf,
+    filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
@@ -297,6 +300,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -307,6 +311,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -317,6 +322,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
     conv_chans=ndf,
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
