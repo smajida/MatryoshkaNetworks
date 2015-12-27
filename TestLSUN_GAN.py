@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_short_anneal_er'
+desc = 'test_resnet_short_multi_rand_multi_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -92,13 +92,13 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter = 100       # # of iter at starting learning rate
+niter_decay = 150 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
-multi_rand = False   # whether to use stochastic variables at multiple scales
-multi_disc = False   # whether to use discriminator guidance at multiple scales
+multi_rand = True   # whether to use stochastic variables at multiple scales
+multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = False   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
@@ -384,7 +384,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if multi_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(2, len(disc_network.modules))
+    ret_vals = [ 2, (len(disc_network.modules)-1) ]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -474,7 +474,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 35) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
