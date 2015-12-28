@@ -83,7 +83,7 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nld = 1           # # of layers in conv modules for discriminator
 nlg = 1           # # of layers in conv modules for generator
-nbatch = 100      # # of examples in batch
+nbatch = 64      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 nz0 = 100          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -252,8 +252,8 @@ GenConvResModule(
 gen_module_6 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=ngf,
+    out_chans=32, #(ngf*1),
+    conv_chans=32, #ngf,
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
@@ -265,7 +265,7 @@ GenConvResModule(
 gen_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=32, #(ngf*1),
     out_chans=nc,
     apply_bn=False,
     stride='single',
