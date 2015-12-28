@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_deep_3x3_uni_rand_multi_disc'
+desc = 'test_deeper_3x3_multi_rand_multi_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -97,7 +97,7 @@ niter_decay = 150 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
-multi_rand = False   # whether to use stochastic variables at multiple scales
+multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
@@ -249,31 +249,32 @@ GenConvResModule(
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*2, 32, 32)
 
-# gen_module_6 = \
-# GenConvResModule(
-#     in_chans=(ngf*2),
-#     out_chans=(ngf*1),
-#     conv_chans=ngf,
-#     rand_chans=nz1,
-#     use_rand=False,
-#     use_conv=False,
-#     us_stride=2,
-#     mod_name='gen_mod_6'
-# ) # output is (batch, ngf*1, 64, 64)
+gen_module_6 = \
+GenConvResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=ngf,
+    filt_shape=(3,3),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='gen_mod_6'
+) # output is (batch, ngf*1, 64, 64)
 
 gen_module_7 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
-    stride='half',
+    stride='single',
     act_func='ident',
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
 gen_modules = [gen_module_1, gen_module_3, gen_module_4, #gen_module_2,
-               gen_module_5, gen_module_7] #, gen_module_6]
+               gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
