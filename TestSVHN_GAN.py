@@ -179,25 +179,25 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 4, 4),
+    out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
     num_layers=2,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*4, 4, 4)
+) # output is (batch, ngf*4, 2, 2)
 
-# gen_module_2 = \
-# GenConvResModule(
-#     in_chans=(ngf*4),
-#     out_chans=(ngf*4),
-#     conv_chans=(ngf*2),
-#     rand_chans=nz1,
-#     filt_shape=(3,3),
-#     use_rand=multi_rand,
-#     use_conv=use_conv,
-#     us_stride=2,
-#     mod_name='gen_mod_3'
-# ) # output is (batch, ngf*4, 4, 4)
+gen_module_2 = \
+GenConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='gen_mod_3'
+) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -249,7 +249,7 @@ BasicConvModule(
     mod_name='gen_mod_6'
 ) # output is (batch, c, 32, 32)
 
-gen_modules = [gen_module_1, gen_module_3, # gen_module_2,
+gen_modules = [gen_module_1, gen_module_2, gen_module_3,
                gen_module_4, gen_module_5, gen_module_6]
 
 # Initialize the generator network
