@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_uni_rand_multi_3x3_disc'
+desc = 'test_multi_rand_more_3x3_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -81,7 +81,7 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
-multi_rand = False   # whether to use stochastic variables at all scales
+multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
@@ -263,7 +263,7 @@ gen_params = gen_network.params
 
 disc_module_1 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
@@ -352,7 +352,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if multi_disc:
     # multi-scale discriminator guidance
-    ret_vals = [ 2, (len(disc_network.modules)-1) ]
+    ret_vals = [ range(1,len(disc_network.modules)) ]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
