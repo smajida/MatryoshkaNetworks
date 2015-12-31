@@ -68,7 +68,7 @@ set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.9          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 128      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -78,9 +78,8 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-all_rand = True   # whether to use stochastic variables at multiple scales
+multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 
@@ -103,16 +102,6 @@ def rand_gen(size, noise_type='normal'):
         assert False, "unrecognized noise type!"
     return r_vals
 
-def gauss_blur(x, x_std, w_x, w_g):
-    """
-    Add gaussian noise to x, with rescaling to keep variance constant w.r.t.
-    the initial variance of x (in x_var). w_x and w_g should be weights for
-    a convex combination.
-    """
-    g_std = np.sqrt( (x_std * (1. - w_x)**2.) / (w_g**2. + 1e-4) )
-    g_noise = g_std * np_rng.normal(size=x.shape)
-    x_blurred = w_x*x + w_g*g_noise
-    return floatX(x_blurred)
 
 # draw some examples from training set
 color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_dir))
@@ -132,7 +121,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    num_layers=2,
+    num_layers=1,
     apply_bn=True,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
@@ -143,6 +132,7 @@ GenConvResModule(
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
     rand_chans=nz1,
+    filt_shape=(3,3),
     use_rand=False,
     use_conv=use_conv,
     us_stride=2,
@@ -155,7 +145,8 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_3'
@@ -167,6 +158,7 @@ GenConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     rand_chans=nz1,
+    filt_shape=(3,3),
     use_rand=False,
     use_conv=use_conv,
     us_stride=2,
@@ -179,7 +171,8 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=ngf,
     rand_chans=nz1,
-    use_rand=all_rand,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_5'
@@ -265,7 +258,7 @@ InfFCModule(
     bu_chans=(ngf*4*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,
-    use_fc=True,
+    use_fc=False,
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -283,7 +276,7 @@ InfConvMergeModule(
     bu_chans=(ngf*4),
     rand_chans=nz1,
     conv_chans=(ngf*2),
-    use_conv=use_conv,
+    use_conv=False,
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -294,7 +287,7 @@ InfConvMergeModule(
     bu_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*1),
-    use_conv=use_conv,
+    use_conv=False,
     mod_name='im_mod_5'
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
   # over the rand_vals used in td_mod_5.
@@ -308,7 +301,7 @@ im_modules = [im_module_3, im_module_5]
 # generate its own random variables (unconditionally). When a "bu_module" is
 # provided and an "im_module" is not, the conditional distribution is specified
 # directly by the bu_module's output, and no merging (via an im_module) is
-# required.
+# required. This probably only happens at the "top" of the generator.
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
@@ -386,7 +379,7 @@ sample_func = theano.function([Z0], XIZ0)
 print("Compiling training function...")
 #profile = theano.compile.ProfileStats()
 cost_outputs = [total_cost, nll_cost, kld_cost, reg_cost] + layer_klds
-train_func = theano.function([X], cost_outputs, updates=model_updates) #, profile=profile)
+train_func = theano.function([X], cost_outputs, updates=model_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -413,10 +406,6 @@ for epoch in range(1, niter+niter_decay+1):
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
-    #     if batch_count == 50:
-    #         break
-    # profile.print_summary()
-    # break
     epoch_costs = [(c / batch_count) for c in epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     str2 = "    total_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
@@ -438,6 +427,13 @@ for epoch in range(1, niter+niter_decay+1):
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/{}_rec.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
-    # if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
-    #     joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
-    #     joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
+
+
+
+
+
+
+
+##############
+# EYE BUFFER #
+##############

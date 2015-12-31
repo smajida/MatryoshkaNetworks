@@ -352,7 +352,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if multi_disc:
     # multi-scale discriminator guidance
-    ret_vals = [ range(1,len(disc_network.modules)) ]
+    ret_vals = range(1,len(disc_network.modules))
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -507,6 +507,12 @@ for epoch in range(1, niter+niter_decay+1):
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
-    # if n_epochs in [1, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 150, 200, 250, 300]:
-    #     joblib.dump([p.get_value() for p in gen_params], "{}/{}_gen_params.jl".format(model_dir, n_epochs))
-    #     joblib.dump([p.get_value() for p in disc_params], "{}/{}_disc_params.jl".format(model_dir, n_epochs))
+
+
+
+
+
+
+##############
+# EYE BUFFER #
+##############
