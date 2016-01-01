@@ -390,6 +390,8 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 log_name = "{}/RESULTS.txt".format(sample_dir)
 out_file = open(log_name, 'wb')
 
+print("EXPERIMENT: {}".format(desc.upper()))
+
 n_check = 0
 n_epochs = 0
 n_updates = 0

@@ -517,6 +517,8 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 log_name = "{}/RESULTS.txt".format(sample_dir)
 out_file = open(log_name, 'wb')
 
+print("EXPERIMENT: {}".format(desc.upper()))
+
 n_check = 0
 n_epochs = 0
 n_updates = 0
@@ -530,7 +532,7 @@ for epoch in range(1, niter+niter_decay+1):
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=1000): #total=ntrain/nbatch):
         imb = train_transform(imb)
         z0 = rand_gen(size=(nbatch, nz0))
         # compute model cost and apply update
@@ -541,9 +543,6 @@ for epoch in range(1, niter+niter_decay+1):
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
-        if (batch_count == 1000):
-            print(" ")
-            break
     g_epoch_costs = [(c / batch_count) for c in g_epoch_costs]
     d_epoch_costs = [(c / batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
