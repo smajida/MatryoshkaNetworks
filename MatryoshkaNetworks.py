@@ -211,7 +211,7 @@ class DiscNetworkGAN(object):
         return
 
     def apply(self, input, ret_vals=None, app_sigm=True,
-              disc_noise=None):
+              disc_noise=None, ret_acts=False):
         """
         Apply this DiscNetworkGAN to some input and return some subset of the
         discriminator layer outputs from its underlying modules.
@@ -239,7 +239,11 @@ class DiscNetworkGAN(object):
             else:
                 hi = result
             hs.append(hi)
-        return ys
+        if ret_acts:
+            result = [hs, ys]
+        else:
+            result = ys
+        return result
 
 
 ##############################################################
