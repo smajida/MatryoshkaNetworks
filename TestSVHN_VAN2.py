@@ -389,10 +389,10 @@ disc_network = DiscNetworkGAN(modules=disc_modules)
 d_params = disc_network.params
 
 
-
 ####################################
 # Setup the optimization objective #
 ####################################
+lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 6.0 * tanh((1.0/6.0) * obs_logvar)
@@ -414,9 +414,9 @@ Xd = T.tensor4()  # symbolic var for inputs to discriminator
 Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
-##############################################
-# CONSTRUCT COST VARIABLES FOR THE GENERATOR #
-##############################################
+##########################################################
+# CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
+##########################################################
 # run an inference and reconstruction pass through the generative stuff
 Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
 # feed reconstructions and their instigators into the discriminator.
@@ -425,36 +425,29 @@ Hg_recon, Yg_recon = disc_network.apply(input=Xg_recon, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
 Hg_world, Yg_world = disc_network.apply(input=Xg, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
-if use_vae_cost:
-    print("Using VAE-style distribution matching.")
-    # VAE-style distribution matching tries to reconstruct the particular
-    # distribution over discriminator bits for a given world input
-    pass
-else:
-    print("Using GAN-style distribution matching.")
-    # VAE-style distribution matching tries to reconstruct a generic (all ones)
-    # distribution over discriminator bits for a given world input
-    Yg_world = [T.ones_like(yg_recon) for yg_recon in Yg_recon]
 
-g_layer_nlls = [T.mean(-1.0 * log_prob_bernoulli(yg_world, yg_recon, do_sum=False)) \
-                for (yg_world, yg_recon) in zip(Yg_world, Yg_recon)]
-g_nll_cost = sum(g_layer_nlls)
+vae_layer_nlls = []
+for hg_world, hg_recon in zip(Hg_world, Hg_recon):
+    lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
+                                   log_vars=bounded_logvar[0], do_sum=False)
+    vae_layer_nlls.append(T.mean(T.sum(lnll, axis=1)))
+vae_nll_cost = vae_layer_nlls[0] #sum(vae_layer_nlls)
 
 # KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
 obs_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples]  # per-obs KLd for each latent layer
-g_layer_klds = [T.mean(kld_i) for kld_i in obs_klds]        # mean KLd for each latent layer
-g_kld_cost = sum(g_layer_klds)                              # mean total KLd
+vae_layer_klds = [T.mean(kld_i) for kld_i in obs_klds]    # mean KLd for each latent layer
+vae_kld_cost = sum(vae_layer_klds)                        # mean total KLd
 # parameter regularization part of cost
-g_reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
-g_cost = g_nll_cost + (lam_kld[0] * g_kld_cost) + g_reg_cost
+vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
 
 
-##################################################
-# CONSTRUCT COST VARIABLES FOR THE DISCRIMINATOR #
-##################################################
-# run an un-grounded pass through generative stuff (i.e. sample from model)
+##########################################################
+# CONSTRUCT COST VARIABLES FOR THE GAN PART OF OBJECTIVE #
+##########################################################
+# run an un-grounded pass through generative stuff for GAN-style training
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 # feed "world-generated" data and "model-generated" data into the discriminator
@@ -462,24 +455,35 @@ Hd_model, Yd_model = disc_network.apply(input=Xd_model, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
 Hd_world, Yd_world = disc_network.apply(input=Xd, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
-# compute classification parts of discriminator cost
-d_layer_nlls_world = [T.mean(-1.0 * log_prob_bernoulli(T.ones_like(yd_world), yd_world, do_sum=False)) \
-                      for yd_world in Yd_world]
-d_nll_cost_world = sum(d_layer_nlls_world)
-d_layer_nlls_model = [T.mean(-1.0 * log_prob_bernoulli(T.zeros_like(yd_model), yd_model, do_sum=False)) \
-                      for yd_model in Yd_model]
-d_nll_cost_model = sum(d_layer_nlls_model)
-# parameter regularization part of cost
-d_reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in d_params])
-# compute full discriminator cost
-d_cost = d_nll_cost_model + d_nll_cost_world + d_reg_cost
+# compute classification parts of GAN cost (for generator and discriminator)
+gan_layer_nlls_world = []
+gan_layer_nlls_model = []
+gan_layer_nlls_gnrtr = []
+weights = [1. for yd_world in Yd_world]
+for yd_world, yd_model, w in zip(Yd_world, Yd_model, weights):
+    lnll_world = bce(yd_world, T.ones_like(yd_world))
+    lnll_model = bce(yd_model, T.zeros_like(yd_model))
+    lnll_gnrtr = bce(yd_model, T.ones_like(yd_model))
+    gan_layer_nlls_world.append(w * T.mean(lnll_world))
+    gan_layer_nlls_model.append(w * T.mean(lnll_model))
+    gan_layer_nlls_gnrtr.append(w * T.mean(lnll_gnrtr))
+gan_nll_cost_world = sum(gan_layer_nlls_world)
+gan_nll_cost_model = sum(gan_layer_nlls_model)
+gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
-# compile a theano function strictly for sampling reconstructions
-recon_func = theano.function([Xg], Xg_recon)
-# TEMP TEST FOR MODEL ARCHITECTURE
-Xtr_rec = train_transform(Xtr[0:200,:])
-test_recons = recon_func(Xtr_rec)
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
+# parameter regularization parts of GAN cost
+gan_reg_cost_d = 1e-6 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_g = 1e-6 * sum([T.sum(p**2.0) for p in g_params])
+# compute GAN cost for discriminator
+gan_cost_d = gan_nll_cost_world + gan_nll_cost_model + gan_reg_cost_d
+# compute GAN cost for generator
+gan_cost_g = gan_nll_cost_gnrtr + gan_reg_cost_g
+
+#################################################################
+# COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
+#################################################################
+full_cost_d = gan_cost_d
+full_cost_g = gan_cost_g + (lam_vae[0] * vae_cost)
 
 # stuff for performing updates
 lrt = sharedX(lr)
@@ -489,26 +493,28 @@ g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-d_updates = d_updater(d_params, d_cost)
-g_updates = g_updater(g_params, g_cost)
+d_updates = d_updater(d_params, full_cost_d)
+g_updates = g_updater(g_params, full_cost_g)
 updates = d_updates + g_updates
-print("Compiling sampling function...")
+print("Compiling sampling and reconstruction functions...")
+Xtr_rec = train_transform(Xtr[0:200,:])
+color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
+recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
+test_recons = recon_func(Xtr_rec) # cheeky model implementation test
 print("Compiling training functions...")
-# collect costs for generative stuff
-g_basic_costs = [g_cost, g_nll_cost, g_kld_cost, g_reg_cost]
-g_cost_outputs = g_basic_costs + g_layer_klds + g_layer_nlls
-g_basic_costs_idx = [0, len(g_basic_costs)]
-g_layer_klds_idx = [g_basic_costs_idx[1], (g_basic_costs_idx[1] + len(g_layer_klds))]
-g_layer_nlls_idx = [g_layer_klds_idx[1], (g_layer_klds_idx[1] + len(g_layer_nlls))]
+# collect costs for generator parameters
+g_basic_costs = [full_cost_g, gan_cost_g, vae_cost, vae_nll_cost, vae_kld_cost]
+g_bc_idx = range(0, len(g_basic_costs))
+g_bc_names = ['full_cost_g', 'gan_cost_g', 'vae_cost', 'vae_nll_cost', 'vae_kld_cost']
+g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
-# collect costs for discriminator stuff
-d_basic_costs = [d_cost, d_nll_cost_world, d_nll_cost_model, d_reg_cost]
-d_cost_outputs = d_basic_costs + d_layer_nlls_world + d_layer_nlls_model
-d_basic_costs_idx = [0, len(d_basic_costs)]
-d_layer_nlls_world_idx = [d_basic_costs_idx[1], (d_basic_costs_idx[1] + len(d_layer_nlls_world))]
-d_layer_nlls_model_idx = [d_layer_nlls_world_idx[1], (d_layer_nlls_world_idx[1] + len(d_layer_nlls_model))]
+g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)
+# collect costs for discriminator parameters
+d_basic_costs = [full_cost_d, gan_cost_d, gan_nll_cost_world, gan_nll_cost_model]
+d_bc_idx = range(0, len(d_basic_costs))
+d_bc_names = ['full_cost_d', 'gan_cost_d', 'gan_nll_cost_world', 'gan_nll_cost_model']
+d_cost_outputs = d_basic_costs
 # compile function for computing discriminator costs and updates
 d_train_func = theano.function([Xd, Z0], d_cost_outputs, updates=d_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
@@ -527,17 +533,20 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(0.01, 0.001*epoch)
-    lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
+    vae_scale = 0.001
+    kld_scale = min(0.1, 0.01*epoch)
+    lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
+    lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=1000): #total=ntrain/nbatch):
         imb = train_transform(imb)
-        z0 = rand_gen(size=(nbatch, nz0))
         # compute model cost and apply update
-        g_result = g_train_func(imb)
+        z0 = rand_gen(size=(nbatch, nz0))
+        g_result = g_train_func(imb, z0)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+        z0 = rand_gen(size=(nbatch, nz0))
         d_result = d_train_func(imb, z0)
         d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
         batch_count += 1
@@ -549,25 +558,14 @@ for epoch in range(1, niter+niter_decay+1):
     g_epoch_costs = [(c / batch_count) for c in g_epoch_costs]
     d_epoch_costs = [(c / batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    g_cost: {0:.2f}, nll_cost: {1:.2f}, kld_cost: {2:.2f}, reg_cost: {3:.2f}".format( \
-            g_epoch_costs[0], g_epoch_costs[1], g_epoch_costs[2], g_epoch_costs[3])
-    layer_strs = ["    -- kld -- "]
-    for i, kld_i in enumerate(g_epoch_costs[g_layer_klds_idx[0]:g_layer_klds_idx[1]]):
-        layer_strs.append("r{0:d}: {1:.2f},".format(i, kld_i))
-    layer_strs.append(" -- nll -- ")
-    for i, nll_i in enumerate(g_epoch_costs[g_layer_nlls_idx[0]:g_layer_nlls_idx[1]]):
-        layer_strs.append("d{0:d}: {1:.4f},".format(i, nll_i))
-    str3 = " ".join(layer_strs)
-    str4 = "    d_cost: {0:.2f}, nll_cost_world: {1:.2f}, nll_cost_model: {2:.2f}".format( \
-            d_epoch_costs[0], d_epoch_costs[1], d_epoch_costs[2])
-    layer_strs = ["    -- world -- "]
-    for i, nll_i in enumerate(d_epoch_costs[d_layer_nlls_world_idx[0]:d_layer_nlls_world_idx[1]]):
-        layer_strs.append("d{0:d}: {1:.2f},".format(i, nll_i))
-    layer_strs.append(" -- model -- ")
-    for i, nll_i in enumerate(d_epoch_costs[d_layer_nlls_model_idx[0]:d_layer_nlls_model_idx[1]]):
-        layer_strs.append("d{0:d}: {1:.2f},".format(i, nll_i))
-    str5 = " ".join(layer_strs)
-    joint_str = "\n".join([str1, str2, str3, str4, str5])
+    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(g_bc_idx, g_bc_names)]
+    str2 = " ".join(g_bc_strs)
+    d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
+    str3 = " ".join(d_bc_strs)
+
+    joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
