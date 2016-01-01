@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_multi_rand_more_3x3_disc'
+desc = 'test_gan_best_model'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -67,7 +67,7 @@ k = 1             # # of discrim updates for each gen update
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -294,28 +294,28 @@ DiscConvResModule(
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
 
-# disc_module_4 = \
-# DiscConvResModule(
-#     in_chans=(ndf*4),
-#     out_chans=(ndf*4),
-#     conv_chans=(ndf*2),
-#     filt_shape=(3,3),
-#     use_conv=False,
-#     ds_stride=2,
-#     mod_name='disc_mod_4'
-# ) # output is (batch, ndf*4, 2, 2)
+disc_module_4 = \
+DiscConvResModule(
+    in_chans=(ndf*4),
+    out_chans=(ndf*4),
+    conv_chans=(ndf*2),
+    filt_shape=(3,3),
+    use_conv=False,
+    ds_stride=2,
+    mod_name='disc_mod_4'
+) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*4*4),
+    in_dim=(ndf*4*2*2),
     num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_5] #, disc_module_5]
+                disc_module_4, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
