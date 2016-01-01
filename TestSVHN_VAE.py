@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_vae_40xKL_deep_merge'
+desc = 'test_resnet_vae_20xKL_deep_merge'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -398,7 +398,7 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(40.0, 2.0*epoch)
+    scale = min(20.0, 1.0*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
     epoch_costs = [0. for i in range(len(cost_outputs))]
     batch_count = 0.
@@ -425,10 +425,10 @@ for epoch in range(1, niter+niter_decay+1):
     n_epochs += 1
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/{}_gen.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
     # sample some reconstructions from the model
     test_recons = recon_func(Xtr_rec)
-    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/{}_rec.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
 

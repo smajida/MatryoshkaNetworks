@@ -53,7 +53,7 @@ def studentt(x, v):
 # Funcs for temporary backwards compatibilit while refactoring #
 ################################################################
 
-def log_prob_bernoulli(p_true, p_approx, mask=None):
+def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
     """
     Compute log probability of some binary variables with probabilities
     given by p_true, for probability estimates given by p_approx. We'll
@@ -64,10 +64,13 @@ def log_prob_bernoulli(p_true, p_approx, mask=None):
     log_prob_1 = p_true * T.log(p_approx+1e-8)
     log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx)+1e-8)
     log_prob_01 = log_prob_1 + log_prob_0
-    row_log_probs = T.sum((log_prob_01 * mask), axis=1, keepdims=True)
-    return row_log_probs
+    if do_sum:
+        result = T.sum((log_prob_01 * mask), axis=1, keepdims=True)
+    else:
+        result = log_prob_01 * mask
+    return T.cast(result, 'floatX')
 
-def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, mask=None):
+def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, mask=None, do_sum=True):
     """
     Compute log probability of some continuous variables with values given
     by mu_true, w.r.t. gaussian distributions with means given by mu_approx
@@ -77,8 +80,11 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, mask=None):
         mask = T.ones((1, mu_approx.shape[1]))
     ind_log_probs = C - (0.5 * log_vars)  - \
             ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
-    row_log_probs = T.sum((ind_log_probs * mask), axis=1, keepdims=True)
-    return T.cast(row_log_probs, 'floatX')
+    if do_sum:
+        result = T.sum((ind_log_probs * mask), axis=1, keepdims=True)
+    else:
+        result = ind_log_probs * mask
+    return T.cast(result, 'floatX')
 
 def gaussian_kld(mu_left, logvar_left, mu_right, logvar_right):
     """
@@ -89,7 +95,7 @@ def gaussian_kld(mu_left, logvar_left, mu_right, logvar_right):
     gauss_klds = 0.5 * (logvar_right - logvar_left + \
             (T.exp(logvar_left) / T.exp(logvar_right)) + \
             ((mu_left - mu_right)**2.0 / T.exp(logvar_right)) - 1.0)
-    return gauss_klds
+    return T.cast(gauss_klds, 'floatX')
 
 def gaussian_ent(mu, logvar):
 	"""
