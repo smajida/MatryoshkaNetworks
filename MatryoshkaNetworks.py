@@ -233,7 +233,7 @@ class DiscNetworkGAN(object):
                 yi = result[1]
                 if i in ret_vals:
                     if app_sigm:
-                        ys.append(sigmoid(yi))
+                        ys.append(T.nnet.sigmoid(yi))
                     else:
                         ys.append(yi)
             else:

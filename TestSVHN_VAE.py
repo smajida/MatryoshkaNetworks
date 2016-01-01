@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_resnet_vae_40xKL'
+desc = 'test_resnet_vae_40xKL_deep_merge'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -280,7 +280,7 @@ InfConvMergeModule(
     bu_chans=(ngf*4),
     rand_chans=nz1,
     conv_chans=(ngf*2),
-    use_conv=False,
+    use_conv=True,
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -291,7 +291,7 @@ InfConvMergeModule(
     bu_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*1),
-    use_conv=False,
+    use_conv=True,
     mod_name='im_mod_5'
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
   # over the rand_vals used in td_mod_5.

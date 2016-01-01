@@ -29,8 +29,9 @@ from load import load_svhn
 from MatryoshkaModules import BasicConvModule, \
                               GenConvDblResModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule
-from MatryoshkaNetworks import InfGenModel
+                              InfFCModule, BasicConvResModule, \
+                              DiscConvResModule, DiscFCModule
+from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
@@ -462,18 +463,16 @@ Hd_model, Yd_model = disc_network.apply(input=Xd_model, ret_vals=ret_vals,
 Hd_world, Yd_world = disc_network.apply(input=Xd, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
 # compute classification parts of discriminator cost
-d_layer_nlls_world = [(-1.0 * log_prob_bernoulli(yd_world, T.ones_like(yd_world)) \
+d_layer_nlls_world = [(-1.0 * log_prob_bernoulli(T.ones_like(yd_world), yd_world)) \
                       for yd_world in Yd_world]
 d_nll_cost_world = sum([T.mean(lnll) for lnll in d_layer_nlls_world])
-d_layer_nlls_model = [(-1.0 * log_prob_bernoulli(yd_model, T.zeros_like(yd_model)) \
+d_layer_nlls_model = [(-1.0 * log_prob_bernoulli(T.zeros_like(yd_model), yd_model)) \
                       for yd_model in Yd_model]
 d_nll_cost_model = sum([T.mean(lnll) for lnll in d_layer_nlls_model])
 # parameter regularization part of cost
 d_reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in d_params])
 # compute full discriminator cost
 d_cost = d_nll_cost_model + d_nll_cost_world + d_reg_cost
-
-# TODO: finish writing cost-computing code and start debugging the kooky variational adversarial network
 
 # compile a theano function strictly for sampling reconstructions
 recon_func = theano.function([Xg], Xg_recon)
@@ -516,25 +515,31 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     scale = min(0.1, 0.02*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
-    epoch_costs = [0. for i in range(len(cost_outputs))]
+    g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
+    d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         imb = train_transform(imb)
+        z0 = rand_gen(size=(nbatch, nz0))
         # compute model cost and apply update
-        result = g_train_func(imb)
-        epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
+        g_result = g_train_func(imb)
+        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+        d_result = d_train_func(imb, z0)
+        d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
-    epoch_costs = [(c / batch_count) for c in epoch_costs]
+    g_epoch_costs = [(c / batch_count) for c in g_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    total_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
-            epoch_costs[0], epoch_costs[1], epoch_costs[2], epoch_costs[3])
+    str2 = "    g_cost: {0:.4f}, nll_cost: {1:.4f}, kld_cost: {2:.4f}, reg_cost: {3:.4f}".format( \
+            g_epoch_costs[0], g_epoch_costs[1], g_epoch_costs[2], g_epoch_costs[3])
     kld_strs = ["       "]
-    for i, kld_i in enumerate(epoch_costs[4:]):
+    for i, kld_i in enumerate(g_epoch_costs[4:]):
         kld_strs.append("{0:s}: {1:.4f},".format(kld_tuples[i][0], kld_i))
     str3 = " ".join(kld_strs)
-    joint_str = "\n".join([str1, str2, str3])
+    str4 = "    d_cost: {0:.4f}, nll_cost_world: {1:.4f}, nll_cost_model: {2:.4f}".format( \
+            d_epoch_costs[0], d_epoch_costs[1], d_epoch_costs[2])
+    joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
