@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_pure_gan'
+desc = 'test_van_vae_style'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -121,7 +121,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    num_layers=1,
+    num_layers=2,
     apply_bn=True,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
@@ -262,7 +262,7 @@ InfFCModule(
     bu_chans=(ngf*4*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,
-    use_fc=False,
+    use_fc=True,
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -376,7 +376,7 @@ disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*2*2),
-    num_layers=2,
+    num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
@@ -404,7 +404,7 @@ g_params = [obs_logvar] + inf_gen_model.params
 
 if multi_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(1,len(disc_network.modules))
+    ret_vals = [ 2, (len(disc_network.modules)-1) ]
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -527,7 +527,7 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(10., 10.*epoch)
+    scale = min(0.01, 0.001*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
