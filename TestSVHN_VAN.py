@@ -527,7 +527,7 @@ t = time()
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    scale = min(0.01, 0.001*epoch)
+    scale = min(0.005, 0.001*epoch)
     lam_kld.set_value(np.asarray([scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
@@ -543,6 +543,9 @@ for epoch in range(1, niter+niter_decay+1):
         batch_count += 1
         n_updates += 1
         n_examples += len(imb)
+        if batch_count == 1000:
+            print(" ")
+            break
     g_epoch_costs = [(c / batch_count) for c in g_epoch_costs]
     d_epoch_costs = [(c / batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
