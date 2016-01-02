@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_annealed'
+desc = 'test_van_vae_gan'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -84,7 +84,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to anneal the target distribution while training
+use_annealing = False # whether to anneal the target distribution while training
 
 ntrain = Xtr.shape[0]
 
@@ -545,8 +545,8 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annea
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    vae_scale = 0.001
-    kld_scale = min(0.1, 0.01*epoch)
+    vae_scale = 0.0003
+    kld_scale = min(0.2, 0.02*epoch)
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
