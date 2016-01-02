@@ -397,13 +397,15 @@ class InfGenModel(object):
         self.im_modules = [m for m in im_modules]
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         # grab the full set of trainable parameters in these modules
-        self.params = []
-        for module in self.bu_modules:
-            self.params.extend(module.params)
-        for module in self.td_modules:
-            self.params.extend(module.params)
-        for module in self.im_modules:
-            self.params.extend(module.params)
+        self.gen_parms = []
+        self.inf_params = []
+        for module in self.td_modules: # top-down is the generator
+            self.gen_params.extend(module.params)
+        for module in self.bu_modules: # bottom-up is part of inference
+            self.inf_params.extend(module.params)
+        for module in self.im_modules: # info merge is part of inference
+            self.inf_params.extend(module.params)
+        self.params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # keep a transform that we'll apply to generator output

@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan'
+desc = 'test_van_no_vae_gan'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -409,7 +409,9 @@ lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
-g_params = [obs_logvar, dist_scale] + inf_gen_model.params
+gen_params = [obs_lovar] + inf_gen_model.gen_params
+inf_params = [dist_scale] + inf_gen_model.inf_params
+g_params = gen_params + inf_params
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
@@ -452,7 +454,7 @@ obs_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples]  # per-obs KLd for each
 vae_layer_klds = [T.mean(kld_i) for kld_i in obs_klds]    # mean KLd for each latent layer
 vae_kld_cost = sum(vae_layer_klds)                        # mean total KLd
 # parameter regularization part of cost
-vae_reg_cost = 1e-6 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
 
@@ -485,8 +487,8 @@ gan_nll_cost_model = sum(gan_layer_nlls_model)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 1e-6 * sum([T.sum(p**2.0) for p in d_params])
-gan_reg_cost_g = 1e-6 * sum([T.sum(p**2.0) for p in g_params])
+gan_reg_cost_d = 1e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 gan_cost_d = gan_nll_cost_world + gan_nll_cost_model + gan_reg_cost_d
 # compute GAN cost for generator
@@ -496,23 +498,23 @@ gan_cost_g = gan_nll_cost_gnrtr + gan_reg_cost_g
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 full_cost_d = gan_cost_d
-#full_cost_g = gan_cost_g + (lam_vae[0] * vae_cost)
-full_cost_g_gan = gan_cost_g
-full_cost_g_vae = vae_cost
+#full_cost_gen = gan_cost_g + (lam_vae[0] * vae_cost)
+full_cost_gen = gan_cost_g
+full_cost_inf = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-#g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-g_updater_gan = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-g_updater_vae = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
 d_updates = d_updater(d_params, full_cost_d)
-g_updates = g_updater(g_params, full_cost_g)
-updates = d_updates + g_updates
+gen_updates = gen_updater(gen_params, full_cost_gen)
+inf_updates = inf_updater(inf_params, full_cost_inf)
+g_updates = gen_updates + inf_updates
 print("Compiling sampling and reconstruction functions...")
 Xtr_rec = train_transform(Xtr[0:200,:])
 color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
