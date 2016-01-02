@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan'
+desc = 'test_van_vae_gan_annealed'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -84,7 +84,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = False # whether to anneal the target distribution while training
+use_annealing = True # whether to anneal the target distribution while training
 
 ntrain = Xtr.shape[0]
 
