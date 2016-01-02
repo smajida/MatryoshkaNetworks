@@ -539,7 +539,6 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_epochs = 0
 n_updates = 0
-n_examples = 0
 t = time()
 gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
@@ -551,8 +550,9 @@ for epoch in range(1, niter+niter_decay+1):
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
-    batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=1000): #total=ntrain/nbatch):
+    g_batch_count = 0.
+    d_batch_count = 0.
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         if epoch < gauss_blur_weights.shape[0]:
             w_x = gauss_blur_weights[epoch]
         else:
@@ -561,21 +561,22 @@ for epoch in range(1, niter+niter_decay+1):
         if use_annealing and (w_x < 0.999):
             imb = gauss_blur(imb, Xtr_std, w_x, w_g)
         imb = train_transform(imb)
+        z0 = rand_gen(size=(nbatch, nz0))
         # compute model cost and apply update
-        z0 = rand_gen(size=(nbatch, nz0))
-        g_result = g_train_func(imb, z0)
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
-        z0 = rand_gen(size=(nbatch, nz0))
-        d_result = d_train_func(imb, z0)
-        d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
-        batch_count += 1
+        if (n_updates % 2) == 0:
+            g_result = g_train_func(imb, z0)
+            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+            g_batch_count += 1
+        else:
+            d_result = d_train_func(imb, z0)
+            d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
+            d_batch_count += 1
         n_updates += 1
-        n_examples += len(imb)
-        if batch_count == 1000:
-            print(" ")
-            break
-    g_epoch_costs = [(c / batch_count) for c in g_epoch_costs]
-    d_epoch_costs = [(c / batch_count) for c in d_epoch_costs]
+        # if batch_count == 1000:
+        #     print(" ")
+        #     break
+    g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(g_bc_idx, g_bc_names)]
@@ -583,7 +584,6 @@ for epoch in range(1, niter+niter_decay+1):
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
     str3 = " ".join(d_bc_strs)
-
     joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
