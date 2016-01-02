@@ -330,7 +330,8 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=tanh
+    output_transform=tanh,
+    dist_scale=0.1
 )
 
 #####################################

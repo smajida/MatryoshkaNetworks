@@ -385,11 +385,12 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
+        dist_scale: initial rescaling for reparametrization outputs
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
-                 merge_info,
-                 output_transform):
+                 merge_info, output_transform,
+                 dist_scale=0.1):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -410,6 +411,8 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
+        # record rescaling factor for reparametrization outputs
+        self.dist_scale = dist_scale
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -546,7 +549,9 @@ class InfGenModel(object):
                     # handle conditionals based purely on BU info
                     cond_mean = bu_res_dict[bu_mod_name][0]
                     cond_logvar = bu_res_dict[bu_mod_name][1]
-                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=cu_rng)
+                    rand_vals = reparametrize((self.dist_scale * cond_mean),
+                                              (self.dist_scale * cond_logvar),
+                                              rng=cu_rng)
                     # feedforward through the top-most TD module
                     td_act_i = td_module.apply(rand_vals=rand_vals)
                 else:
@@ -556,7 +561,9 @@ class InfGenModel(object):
                     im_module = self.im_modules_dict[im_mod_name]
                     cond_mean, cond_logvar = \
                             im_module.apply(td_input=td_info, bu_input=bu_info)
-                    rand_vals = reparametrize(cond_mean, cond_logvar, rng=cu_rng)
+                    rand_vals = reparametrize((self.dist_scale * cond_mean),
+                                              (self.dist_scale * cond_logvar),
+                                              rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
