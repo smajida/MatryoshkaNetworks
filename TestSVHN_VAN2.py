@@ -69,14 +69,14 @@ set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngfc = 256        # # of filters in fully connected layers of generative stuff
 ngf = 64          # base # of filters for conv layers in generative stuff
-ndfc = 256        # # of filters in fully connected layers of discriminator
 ndf = 64          # base # of filters for conv layers in discriminator
+ndfc = 256        # # of filters in fully connected layers of discriminator
+ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero

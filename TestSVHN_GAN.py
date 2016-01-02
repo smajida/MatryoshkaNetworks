@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model'
+desc = 'test_gan_like_van'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -64,17 +64,16 @@ Xtr_var = Xtr_std**2.0
 
 set_seed(1)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
-l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngfc = 256        # # of gen units for fully connected layers
-ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
+ngfc = 256        # # of gen units for fully connected layers
+ndfc = 256        # # of discrim units for fully connected layers
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
@@ -83,10 +82,9 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+use_er = False     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to use "annealing" of the target distribution
-use_weights = False # whether use different weights for discriminator costs
+use_annealing = False # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 
@@ -367,14 +365,10 @@ d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-if use_weights:
-    weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-    scale = sum(weights)
-    weights = [w/scale for w in weights]
-else:
-    weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-    scale = sum(weights)
-    weights = [w/scale for w in weights]
+weights = [1.0 for i in range(1,len(p_gen)+1)]
+scale = sum(weights)
+#weights = [w/scale for w in weights]
+
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
@@ -394,8 +388,8 @@ g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
-g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
+d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates
