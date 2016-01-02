@@ -324,7 +324,7 @@ merge_info = {
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
-dist_scale = sharedX( floatX(0.1) )
+dist_scale = sharedX( floatX([0.1]) )
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
@@ -332,7 +332,7 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale
+    dist_scale=dist_scale[0]
 )
 
 #####################################
@@ -496,12 +496,16 @@ gan_cost_g = gan_nll_cost_gnrtr + gan_reg_cost_g
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 full_cost_d = gan_cost_d
-full_cost_g = gan_cost_g + (lam_vae[0] * vae_cost)
+#full_cost_g = gan_cost_g + (lam_vae[0] * vae_cost)
+full_cost_g_gan = gan_cost_g
+full_cost_g_vae = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+#g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+g_updater_gan = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+g_updater_vae = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 
 # build training cost and update functions
 t = time()
