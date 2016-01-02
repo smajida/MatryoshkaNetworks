@@ -409,7 +409,7 @@ lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
-gen_params = [obs_lovar] + inf_gen_model.gen_params
+gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = [dist_scale] + inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
@@ -523,9 +523,9 @@ sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(Xtr_rec) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_basic_costs = [full_cost_g, gan_cost_g, vae_cost, vae_nll_cost, vae_kld_cost]
+g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost, vae_nll_cost, vae_kld_cost]
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost_g', 'gan_cost_g', 'vae_cost', 'vae_nll_cost', 'vae_kld_cost']
+g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost', 'vae_nll_cost', 'vae_kld_cost']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)

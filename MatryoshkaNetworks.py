@@ -397,7 +397,7 @@ class InfGenModel(object):
         self.im_modules = [m for m in im_modules]
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         # grab the full set of trainable parameters in these modules
-        self.gen_parms = []
+        self.gen_params = []
         self.inf_params = []
         for module in self.td_modules: # top-down is the generator
             self.gen_params.extend(module.params)
