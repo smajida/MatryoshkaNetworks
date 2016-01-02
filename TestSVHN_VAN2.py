@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan'
+desc = 'test_van_vae_gan_annealed'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -84,7 +84,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_vae_cost = True # whether to use VAE-style or GAN-style distribution matching
+use_annealing = True # whether to anneal the target distribution while training
 
 ntrain = Xtr.shape[0]
 
@@ -106,6 +106,17 @@ def rand_gen(size, noise_type='normal'):
     else:
         assert False, "unrecognized noise type!"
     return r_vals
+
+def gauss_blur(x, x_std, w_x, w_g):
+    """
+    Add gaussian noise to x, with rescaling to keep variance constant w.r.t.
+    the initial variance of x (in x_var). w_x and w_g should be weights for
+    a convex combination.
+    """
+    g_std = np.sqrt( (x_std * (1. - w_x)**2.) / (w_g**2. + 1e-4) )
+    g_noise = g_std * np_rng.normal(size=x.shape)
+    x_blurred = w_x*x + w_g*g_noise
+    return floatX(x_blurred)
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -530,7 +541,8 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
+gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
+sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     vae_scale = 0.001
@@ -541,6 +553,13 @@ for epoch in range(1, niter+niter_decay+1):
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=1000): #total=ntrain/nbatch):
+        if epoch < gauss_blur_weights.shape[0]:
+            w_x = gauss_blur_weights[epoch]
+        else:
+            w_x = 1.0
+        w_g = 1.0 - w_x
+        if use_annealing and (w_x < 0.999):
+            imb = gauss_blur(imb, Xtr_std, w_x, w_g)
         imb = train_transform(imb)
         # compute model cost and apply update
         z0 = rand_gen(size=(nbatch, nz0))
