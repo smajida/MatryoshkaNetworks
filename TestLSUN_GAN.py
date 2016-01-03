@@ -433,8 +433,8 @@ g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
-g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, regularizer=updates.Regularizer(l2=l2))
+d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates

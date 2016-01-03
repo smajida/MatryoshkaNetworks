@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_like_van_mean_cost'
+desc = 'test_gan_like_van_mean_cost_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,7 +82,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
+use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = False # whether to use "annealing" of the target distribution
 

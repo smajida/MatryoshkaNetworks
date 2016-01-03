@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_no_vae_gan'
+desc = 'test_van_vae_gan'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -498,23 +498,25 @@ gan_cost_g = gan_nll_cost_gnrtr + gan_reg_cost_g
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 full_cost_d = gan_cost_d
-#full_cost_gen = gan_cost_g + (lam_vae[0] * vae_cost)
-full_cost_gen = gan_cost_g
+full_cost_gen = gan_cost_g + (lam_vae[0] * vae_cost)
+#full_cost_gen = gan_cost_g
 full_cost_inf = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
+inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-d_updates = d_updater(d_params, full_cost_d)
-gen_updates = gen_updater(gen_params, full_cost_gen)
-inf_updates = inf_updater(inf_params, full_cost_inf)
+d_updates, d_grads = d_updater(d_params, full_cost_d)
+gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen)
+inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf)
 g_updates = gen_updates + inf_updates
+gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
+inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 Xtr_rec = train_transform(Xtr[0:200,:])
 color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
@@ -523,9 +525,11 @@ sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(Xtr_rec) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost, vae_nll_cost, vae_kld_cost]
+g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
+                 vae_nll_cost, vae_kld_cost, gen_grad_norm, inf_grad_norm]
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost', 'vae_nll_cost', 'vae_kld_cost']
+g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost',
+              'vae_nll_cost', 'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)
@@ -558,6 +562,8 @@ for epoch in range(1, niter+niter_decay+1):
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
+    gen_grad_norms = []
+    inf_grad_norms = []
     g_batch_count = 0.
     d_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
@@ -574,6 +580,8 @@ for epoch in range(1, niter+niter_decay+1):
         if (n_updates % 2) == 0:
             g_result = g_train_func(imb, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+            gen_grad_norms.append(1.*g_result[-2])
+            inf_grad_norms.append(1.*g_result[-1])
             g_batch_count += 1
         else:
             d_result = d_train_func(imb, z0)
@@ -583,16 +591,24 @@ for epoch in range(1, niter+niter_decay+1):
         # if batch_count == 1000:
         #     print(" ")
         #     break
+    gen_grad_norms = np.asarray(gen_grad_norms)
+    inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx, g_bc_names)]
+                 for (c_idx, c_name) in zip(g_bc_idx[:-2], g_bc_names[:-2])]
     str2 = " ".join(g_bc_strs)
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
     str3 = " ".join(d_bc_strs)
-    joint_str = "\n".join([str1, str2, str3])
+    ggn_qtiles = np.percentile(gen_grad_norms, [0.5, 0.8, 0.9, 0.95])
+    str4 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
+            ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
+    ign_qtiles = np.percentile(inf_grad_norms, [0.5, 0.8, 0.9, 0.95])
+    str5 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
+            ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
+    joint_str = "\n".join([str1, str2, str3, str4, str5])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
