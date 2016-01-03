@@ -121,7 +121,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    num_layers=1,
+    use_fc=False,
     apply_bn=True,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 2, 2)

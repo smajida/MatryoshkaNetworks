@@ -193,7 +193,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    num_layers=1,
+    use_fc=False,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
@@ -343,7 +343,7 @@ disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*8*4*4),
-    num_layers=1,
+    use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
@@ -503,7 +503,8 @@ for epoch in range(1, niter+niter_decay+1):
             w_x = 1.0
         w_g = 1.0 - w_x
         if use_annealing and (w_x < 0.999):
-            imb = gauss_blur(imb, Xtr_std, w_x, w_g)
+            imb = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
+                          a_min=-1.0, a_max=1.0)
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:

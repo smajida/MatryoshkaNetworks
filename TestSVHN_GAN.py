@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_like_van_short_disc'
+desc = 'test_gan_like_van'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,8 +82,8 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
-use_er = False     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_er = False     # whether to use experience replay
 use_annealing = False # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
@@ -179,7 +179,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    num_layers=2,
+    use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
@@ -191,8 +191,8 @@ GenConvResModule(
     conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
+    use_rand=False,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*4, 4, 4)
@@ -217,8 +217,8 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
+    use_rand=False,
+    use_conv=False,
     us_stride=2,
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
@@ -307,7 +307,7 @@ disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*4*4),
-    num_layers=1,
+    use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
@@ -436,7 +436,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 10) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
@@ -455,7 +455,8 @@ for epoch in range(1, niter+niter_decay+1):
             w_x = 1.0
         w_g = 1.0 - w_x
         if use_annealing and (w_x < 0.999):
-            imb = gauss_blur(imb, Xtr_std, w_x, w_g)
+            imb = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
+                          a_min=-1.0, a_max=1.0)
         imb = train_transform(imb)
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:

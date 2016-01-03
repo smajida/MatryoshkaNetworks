@@ -272,18 +272,16 @@ class DiscFCModule(object):
     Params:
         fc_dim: dimension of the fully connected layer
         in_dim: dimension of the inputs to the module
-        num_layers: 1 or 2, 1 uses no hidden layer and 2 uses a hidden layer
+        use_fc: whether or not to use the hidden layer
         apply_bn: whether to apply batch normalization at fc layer
         mod_name: text name for identifying module in theano graph
     """
-    def __init__(self, fc_dim, in_dim, num_layers,
+    def __init__(self, fc_dim, in_dim, use_fc,
                  apply_bn=True, init_func=None,
                  mod_name='dm_fc'):
-        assert ((num_layers == 1) or (num_layers == 2)), \
-                "num_layers must be 1 or 2."
         self.fc_dim = fc_dim
         self.in_dim = in_dim
-        self.num_layers = num_layers
+        self.use_fc = use_fc
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         self._init_params() # initialize parameters
@@ -339,14 +337,14 @@ class DiscFCModule(object):
         """
         # flatten input to 1d per example
         input = T.flatten(input, 2)
-        if self.num_layers == 2:
+        if self.use_fc:
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
             h1 = lrelu(h1)
-            # feedforward to discriminator outputs
-            h2 = T.dot(h1, self.w2)
+            # compute discriminator output from fc layer and input
+            h2 = T.dot(h1, self.w2) + T.dot(input, self.w2)
             y = h2
         else:
             h2 = T.dot(input, self.w3)
@@ -499,19 +497,16 @@ class GenFCModule(object):
     """
     def __init__(self,
                  rand_dim, fc_dim, out_shape,
-                 num_layers,
-                 apply_bn=True,
+                 use_fc, apply_bn=True,
                  mod_name='dm_fc'):
-        assert ((num_layers == 1) or (num_layers == 2)), \
-                "num_layers must be 1 or 2."
         assert (len(out_shape) == 3), \
                 "out_shape should describe the input to a conv layer."
         self.rand_dim = rand_dim
         self.out_shape = out_shape
         self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
         self.fc_dim = fc_dim
+        self.use_fc = use_fc
         self.apply_bn = apply_bn
-        self.num_layers = num_layers
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -591,20 +586,17 @@ class GenFCModule(object):
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape
-        if self.num_layers == 2:
+        if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
             if self.apply_bn:
                 h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = relu(h1)
-            h2 = T.dot(h1, self.w2)
-            if self.apply_bn:
-                h2 = batchnorm(h2, g=self.g2, b=self.b2)
-            h2 = relu(h2)
+            h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
-            if self.apply_bn:
-                h2 = batchnorm(h2, g=self.g3, b=self.b3)
-            h2 = relu(h2)
+        if self.apply_bn:
+            h2 = batchnorm(h2, g=self.g3, b=self.b3)
+        h2 = relu(h2)
         # reshape vector outputs for use as conv layer inputs
         h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
                          self.out_shape[1], self.out_shape[2]))
