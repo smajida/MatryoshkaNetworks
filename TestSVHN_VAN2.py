@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_more_kld'
+desc = 'test_van_vae_gan_more_kld_fixed_logvar'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -332,7 +332,8 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale[0]
+    dist_scale=dist_scale[0],
+    dist_logvar=-2.0
 )
 
 #####################################

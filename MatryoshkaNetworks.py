@@ -386,11 +386,12 @@ class InfGenModel(object):
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
         dist_scale: initial rescaling for reparametrization outputs
+        dist_logvar: optional, fixed logvar for reparametrized Gaussians
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
                  merge_info, output_transform,
-                 dist_scale=0.1):
+                 dist_scale=0.1, dist_logvar=None):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -415,6 +416,8 @@ class InfGenModel(object):
             self.output_transform = output_transform
         # record rescaling factor for reparametrization outputs
         self.dist_scale = dist_scale
+        # record (optional) fixed logvar for "approximate posteriors"
+        self.dist_logvar = dist_logvar
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -551,6 +554,8 @@ class InfGenModel(object):
                     # handle conditionals based purely on BU info
                     cond_mean = bu_res_dict[bu_mod_name][0]
                     cond_logvar = bu_res_dict[bu_mod_name][1]
+                    if self.dist_logvar:
+                        cond_logvar = (0. * cond_logvar) + self.dist_logvar
                     rand_vals = reparametrize((self.dist_scale * cond_mean),
                                               (self.dist_scale * cond_logvar),
                                               rng=cu_rng)
@@ -563,6 +568,8 @@ class InfGenModel(object):
                     im_module = self.im_modules_dict[im_mod_name]
                     cond_mean, cond_logvar = \
                             im_module.apply(td_input=td_info, bu_input=bu_info)
+                    if self.dist_logvar:
+                        cond_logvar = (0. * cond_logvar) + self.dist_logvar
                     rand_vals = reparametrize((self.dist_scale * cond_mean),
                                               (self.dist_scale * cond_logvar),
                                               rng=cu_rng)
