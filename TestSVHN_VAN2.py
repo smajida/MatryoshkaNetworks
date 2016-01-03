@@ -565,6 +565,8 @@ for epoch in range(1, niter+niter_decay+1):
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     gen_grad_norms = []
     inf_grad_norms = []
+    vae_nlls = []
+    vae_klds = []
     g_batch_count = 0.
     d_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
@@ -581,6 +583,8 @@ for epoch in range(1, niter+niter_decay+1):
         if (n_updates % 2) == 0:
             g_result = g_train_func(imb, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+            vae_nlls.append(1.*g_result[4])
+            vae_klds.append(1.*g_result[5])
             gen_grad_norms.append(1.*g_result[-2])
             inf_grad_norms.append(1.*g_result[-1])
             g_batch_count += 1
@@ -609,7 +613,13 @@ for epoch in range(1, niter+niter_decay+1):
     ign_qtiles = np.percentile(inf_grad_norms, [0.5, 0.8, 0.9, 0.95])
     str5 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
-    joint_str = "\n".join([str1, str2, str3, str4, str5])
+    nll_qtiles = np.percentile(vae_nlls, [0.5, 0.8, 0.9, 0.95])
+    str6 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
+            nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
+    kld_qtiles = np.percentile(vae_klds, [0.5, 0.8, 0.9, 0.95])
+    str7 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
+            kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
