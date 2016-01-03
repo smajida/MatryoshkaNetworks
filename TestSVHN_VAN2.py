@@ -504,16 +504,16 @@ full_cost_inf = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
-inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, return_grads=True)
+d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-d_updates, d_grads = d_updater(d_params, full_cost_d)
-gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen)
-inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf)
+d_updates, d_grads = d_updater(d_params, full_cost_d, return_grads=True)
+gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
+inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
