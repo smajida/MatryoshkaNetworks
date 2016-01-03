@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_like_van_mean_cost_er'
+desc = 'test_gan_like_van_short_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,7 +82,7 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
+use_er = False     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = False # whether to use "annealing" of the target distribution
 
@@ -292,28 +292,28 @@ DiscConvResModule(
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
 
-disc_module_4 = \
-DiscConvResModule(
-    in_chans=(ndf*4),
-    out_chans=(ndf*4),
-    conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=False,
-    ds_stride=2,
-    mod_name='disc_mod_4'
-) # output is (batch, ndf*4, 2, 2)
+# disc_module_4 = \
+# DiscConvResModule(
+#     in_chans=(ndf*4),
+#     out_chans=(ndf*4),
+#     conv_chans=(ndf*2),
+#     filt_shape=(3,3),
+#     use_conv=False,
+#     ds_stride=2,
+#     mod_name='disc_mod_4'
+# ) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*2*2),
+    in_dim=(ndf*4*4*4),
     num_layers=1,
     apply_bn=True,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5]
+                disc_module_5] #, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -367,7 +367,7 @@ g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 weights = [1.0 for i in range(1,len(p_gen)+1)]
 scale = sum(weights)
-weights = [w/scale for w in weights]
+#weights = [w/scale for w in weights]
 
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
