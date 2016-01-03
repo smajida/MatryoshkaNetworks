@@ -145,8 +145,8 @@ class Adam(Update):
 
     def __call__(self, params, cost, return_grads=False):
         updates = []
-        grads = T.grad(cost, params)
-        grads = clip_norms(grads, self.clipnorm)
+        grads_pre_clip = T.grad(cost, params)
+        grads = clip_norms(grads_pre_clip, self.clipnorm)
         t = theano.shared(floatX(1.))
         b1_t = self.b1*self.l**(t-1)
 
@@ -166,7 +166,7 @@ class Adam(Update):
             updates.append((p, p_t))
         updates.append((t, t + 1.))
         if return_grads:
-            result = [updates, grads]
+            result = [updates, grads_pre_clip]
         else:
             result = updates
         return result

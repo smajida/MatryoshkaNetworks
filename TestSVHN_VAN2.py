@@ -505,8 +505,8 @@ full_cost_inf = vae_cost
 # stuff for performing updates
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=50.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=500.0)
 
 # build training cost and update functions
 t = time()
