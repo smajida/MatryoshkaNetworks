@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan'
+desc = 'test_van_vae_gan_more_kld'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -557,7 +557,7 @@ sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samp
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     vae_scale = 0.0002
-    kld_scale = 0.2
+    kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
