@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_more_kld_fixed_logvar'
+desc = 'test_van_vae_gan_hi_lo_rand'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -71,8 +71,8 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz0 = 128         # # of dim for Z0
+nz1 = 32          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
@@ -84,7 +84,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = False # whether to anneal the target distribution while training
+use_annealing = True # whether to anneal the target distribution while training
 
 ntrain = Xtr.shape[0]
 
@@ -145,7 +145,7 @@ GenConvResModule(
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=False,
-    use_conv=False,
+    use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_2'
 ) # output is (batch, ngf*4, 4, 4)
@@ -171,7 +171,7 @@ GenConvResModule(
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=False,
-    use_conv=False,
+    use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
@@ -216,7 +216,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=True,
     stride='single',
-    act_func='relu',
+    act_func='lrelu',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 32, 32)
 
@@ -228,7 +228,7 @@ BasicConvResModule(
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
-    act_func='relu',
+    act_func='lrelu',
     mod_name='bu_mod_5'
 ) # output is (batch, ngf*2, 16, 16)
 
@@ -238,9 +238,9 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=ngf,
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     stride='double',
-    act_func='relu',
+    act_func='lrelu',
     mod_name='bu_mod_4'
 ) # output is (batch, ngf*2, 8, 8)
 
@@ -252,7 +252,7 @@ BasicConvResModule(
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
-    act_func='relu',
+    act_func='lrelu',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 4, 4)
 
@@ -262,9 +262,9 @@ BasicConvResModule(
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     stride='double',
-    act_func='relu',
+    act_func='lrelu',
     mod_name='bu_mod_2'
 ) # output is (batch, ngf*4, 2, 2)
 
@@ -333,7 +333,7 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=tanh,
     dist_scale=dist_scale[0],
-    dist_logvar=-2.0
+    dist_logvar=None
 )
 
 #####################################
@@ -476,6 +476,8 @@ gan_layer_nlls_world = []
 gan_layer_nlls_model = []
 gan_layer_nlls_gnrtr = []
 weights = [1. for yd_world in Yd_world]
+scale = sum(weights)
+weights = [w/scale for w in weights]
 for yd_world, yd_model, w in zip(Yd_world, Yd_model, weights):
     lnll_world = bce(yd_world, T.ones_like(yd_world))
     lnll_model = bce(yd_model, T.zeros_like(yd_model))
@@ -553,11 +555,11 @@ n_check = 0
 n_epochs = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 10) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    vae_scale = 0.0002
+    vae_scale = 0.0001
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
