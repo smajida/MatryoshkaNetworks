@@ -916,7 +916,7 @@ class GenConvResModule(object):
                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
                                           dtype=theano.config.floatX)
             else:
-                rand_vals = T.alloc(0.0, *rand_shape)
+                rand_vals = T.zeros(rand_shape)
         else:
             if not self.use_rand:
                 # mask out random values, so they won't get used
