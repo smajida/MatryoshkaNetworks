@@ -581,7 +581,7 @@ class GenFCModule(object):
         if rand_vals is None:
             rand_shape = (batch_size, self.rand_dim)
             rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-                                        dtype=theano.config.floatX)
+                                      dtype=theano.config.floatX)
         else:
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
@@ -763,7 +763,7 @@ class GenConvDblResModule(object):
                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
                                           dtype=theano.config.floatX)
             else:
-                rand_vals = T.alloc(0.0, *rand_shape)
+                rand_vals = T.zeros(rand_shape)
         else:
             if not self.use_rand:
                 # mask out random values, so they won't get used
