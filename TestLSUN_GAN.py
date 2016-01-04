@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_deeper_3x3_multi_rand_multi_disc'
+desc = 'test_gan_no_anneal'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -101,8 +101,7 @@ multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to use "annealing" of the target distribution
-use_weights = False   # whether use different weights for discriminator costs
+use_annealing = False # whether to use "annealing" of the target distribution
 
 
 
@@ -191,30 +190,30 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 4, 4),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=use_conv,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8, 4, 4)
+) # output is (batch, ngf*8, 2, 2)
 
-#gen_module_2 = \
-#GenConvResModule(
-#    in_chans=(ngf*8),
-#    out_chans=(ngf*8),
-#    conv_chans=ngf,
-#    rand_chans=nz1,
-#    use_rand=False,
-#    use_conv=use_conv,
-#    us_stride=2,
-#    mod_name='gen_mod_2'
-#) # output is (batch, ngf*4, 4, 4)
+gen_module_2 = \
+GenConvResModule(
+   in_chans=(ngf*8),
+   out_chans=(ngf*8),
+   conv_chans=(ngf*4),
+   rand_chans=nz1,
+   use_rand=multi_rand,
+   use_conv=use_conv,
+   us_stride=2,
+   mod_name='gen_mod_2'
+) # output is (batch, ngf*4, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
@@ -249,32 +248,32 @@ GenConvResModule(
     mod_name='gen_mod_5'
 ) # output is (batch, ngf*2, 32, 32)
 
-gen_module_6 = \
-GenConvResModule(
-    in_chans=(ngf*1),
-    out_chans=32, #(ngf*1),
-    conv_chans=32, #ngf,
-    filt_shape=(3,3),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    us_stride=2,
-    mod_name='gen_mod_6'
-) # output is (batch, ngf*1, 64, 64)
+# gen_module_6 = \
+# GenConvResModule(
+#     in_chans=(ngf*1),
+#     out_chans=32, #(ngf*1),
+#     conv_chans=32, #ngf,
+#     filt_shape=(3,3),
+#     rand_chans=nz1,
+#     use_rand=multi_rand,
+#     use_conv=use_conv,
+#     us_stride=2,
+#     mod_name='gen_mod_6'
+# ) # output is (batch, ngf*1, 64, 64)
 
 gen_module_7 = \
 BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=32, #(ngf*1),
+    filt_shape=(5,5),
+    in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
-    stride='single',
+    stride='double',
     act_func='ident',
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_3, gen_module_4, #gen_module_2,
-               gen_module_5, gen_module_6, gen_module_7]
+gen_modules = [gen_module_1, gen_module_3, gen_module_4, gen_module_2,
+               gen_module_5, gen_module_7] #, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -391,7 +390,7 @@ XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 #      discriminator's modules.
 if multi_disc:
     # multi-scale discriminator guidance
-    ret_vals = range(1, len(disc_network.modules)) #[ 2, (len(disc_network.modules)-1) ]
+    ret_vals = range(1, len(disc_network.modules))
 else:
     # full-scale discriminator guidance only
     ret_vals = [ (len(disc_network.modules)-1) ]
@@ -406,14 +405,9 @@ d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-if use_weights:
-    weights = [float(i)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-    scale = sum(weights)
-    weights = [w/scale for w in weights]
-else:
-    weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
-    scale = sum(weights)
-    weights = [w/scale for w in weights]
+weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+scale = sum(weights)
+weights = [w/scale for w in weights]
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
@@ -481,7 +475,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
