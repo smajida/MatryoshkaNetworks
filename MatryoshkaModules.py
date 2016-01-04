@@ -922,7 +922,8 @@ class GenConvResModule(object):
                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
                                           dtype=theano.config.floatX)
             else:
-                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
+                # FASTER THAN ALLOCATING 0s, WTF?
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=0.01,
                                           dtype=theano.config.floatX)
         else:
             if not self.use_rand:

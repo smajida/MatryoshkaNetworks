@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_TEMP'
+desc = 'test_gan_best_model_small_rands'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -69,7 +69,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz1 = 8           # # of dim for Z1
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 ngfc = 256        # # of gen units for fully connected layers
@@ -436,7 +436,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 10) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)

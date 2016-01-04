@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_like_van_mid_rand'
+desc = 'test_gan_like_van_hi_lo_rand'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -68,8 +68,8 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
-nz0 = 64         # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz0 = 128         # # of dim for Z0
+nz1 = 32          # # of dim for Z1
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 ngfc = 256        # # of gen units for fully connected layers
@@ -204,7 +204,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
@@ -217,7 +217,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=multi_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
@@ -230,7 +230,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
