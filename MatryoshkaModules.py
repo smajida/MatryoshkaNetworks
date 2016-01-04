@@ -651,6 +651,9 @@ class GenConvDblResModule(object):
         self.use_conv = use_conv
         self.us_stride = us_stride
         self.mod_name = mod_name
+        # use small dummy rand size if we won't use random vars
+        if not self.use_rand:
+            self.rand_chans = 4
         self._init_params() # initialize parameters
         return
 
@@ -836,6 +839,9 @@ class GenConvResModule(object):
         self.use_conv = use_conv
         self.us_stride = us_stride
         self.mod_name = mod_name
+        # use small dummy rand size if we won't use random vars
+        if not self.use_rand:
+            self.rand_chans = 4
         self._init_params() # initialize parameters
         return
 
