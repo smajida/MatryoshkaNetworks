@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_like_van_annealed_er'
+desc = 'test_gan_like_van_mid_rand'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -68,8 +68,8 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz0 = 128         # # of dim for Z0
+nz1 = 32          # # of dim for Z1
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 ngfc = 256        # # of gen units for fully connected layers
@@ -179,7 +179,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    use_fc=True,
+    use_fc=use_conv,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
@@ -192,7 +192,7 @@ GenConvResModule(
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=False,
-    use_conv=False,
+    use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
 ) # output is (batch, ngf*4, 4, 4)
@@ -204,7 +204,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=multi_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
@@ -217,8 +217,8 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=False,
-    use_conv=False,
+    use_rand=multi_rand,
+    use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
@@ -230,7 +230,7 @@ GenConvResModule(
     conv_chans=ngf,
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=multi_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
@@ -292,28 +292,28 @@ DiscConvResModule(
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
 
-# disc_module_4 = \
-# DiscConvResModule(
-#     in_chans=(ndf*4),
-#     out_chans=(ndf*4),
-#     conv_chans=(ndf*2),
-#     filt_shape=(3,3),
-#     use_conv=False,
-#     ds_stride=2,
-#     mod_name='disc_mod_4'
-# ) # output is (batch, ndf*4, 2, 2)
+disc_module_4 = \
+DiscConvResModule(
+    in_chans=(ndf*4),
+    out_chans=(ndf*4),
+    conv_chans=(ndf*2),
+    filt_shape=(3,3),
+    use_conv=False,
+    ds_stride=2,
+    mod_name='disc_mod_4'
+) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*4*4),
+    in_dim=(ndf*4*2*2),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_5] #, disc_module_5]
+                disc_module_4, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -367,14 +367,13 @@ g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 weights = [1.0 for i in range(1,len(p_gen)+1)]
 scale = sum(weights)
-#weights = [w/scale for w in weights]
+weights = [w/scale for w in weights]
 
 print("Discriminator signal weights {}...".format(weights))
 d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
 g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
-
 
 # switch costs based on use of experience replay
 if use_er:
@@ -436,7 +435,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 10) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
