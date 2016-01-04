@@ -179,7 +179,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 2, 2),
     fc_dim=ngfc,
-    use_fc=True,
+    use_fc=use_conv,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
