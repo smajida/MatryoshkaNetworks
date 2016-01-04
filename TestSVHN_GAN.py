@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_small_rands'
+desc = 'test_gan_best_model_no_er'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -69,7 +69,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
-nz1 = 8           # # of dim for Z1
+nz1 = 16           # # of dim for Z1
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 ngfc = 256        # # of gen units for fully connected layers
@@ -83,7 +83,7 @@ dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_er = True     # whether to use experience replay
+use_er = False     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
