@@ -203,6 +203,7 @@ GenConvResModule(
    out_chans=(ngf*8),
    conv_chans=(ngf*4),
    rand_chans=nz1,
+   filt_shape=(3,3),
    use_rand=multi_rand,
    use_conv=use_conv,
    us_stride=2,
@@ -267,12 +268,12 @@ BasicConvModule(
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
-    stride='double',
+    stride='half',
     act_func='ident',
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_3, gen_module_4, gen_module_2,
+gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
                gen_module_5, gen_module_7] #, gen_module_6]
 
 # Initialize the generator network

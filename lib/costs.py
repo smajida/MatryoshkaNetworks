@@ -93,7 +93,7 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
         mask = T.ones((1, mu_approx.shape[1]))
     if use_huber:
         ind_log_probs = C - (0.5 * log_vars)  - \
-                (Huber(mu_true - mu_approx) / (2.0 * T.exp(log_vars)))
+                (Huber(mu_true, mu_approx) / (2.0 * T.exp(log_vars)))
     else:
         ind_log_probs = C - (0.5 * log_vars)  - \
                 ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
