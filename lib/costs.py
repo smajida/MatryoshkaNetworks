@@ -20,6 +20,18 @@ def SquaredHinge(y_true, y_pred):
 def Hinge(y_true, y_pred):
     return T.maximum(1. - y_true * y_pred, 0.).mean()
 
+def Huber(y_true, y_pred):
+    """Compute Huberized loss for predicting y_pred instead of y_true."""
+    abs_res = T.abs_(y_true - y_pred)
+    M_quad = abs_res < 0.5   # residuals that suffer quadratic cost...
+    M_line = abs_res >= 0.5  # residuals that suffer linear cost...
+    # don't backprop through the "loss region" masks! (no valid grads anyways)
+    M_quad = theano.gradient.disconnected_grad(M_quad)
+    M_line = theano.gradient.disconnected_grad(M_line)
+    # compute Huberized regression loss
+    loss = (M_quad * abs_res**2.) + (M_line * (abs_res - 0.25))
+    return loss
+
 cce = CCE = CategoricalCrossEntropy
 bce = BCE = BinaryCrossEntropy
 mse = MSE = MeanSquaredError
@@ -70,7 +82,8 @@ def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
         result = log_prob_01 * mask
     return T.cast(result, 'floatX')
 
-def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, mask=None, do_sum=True):
+def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
+                      use_huber=False, mask=None):
     """
     Compute log probability of some continuous variables with values given
     by mu_true, w.r.t. gaussian distributions with means given by mu_approx
@@ -78,8 +91,12 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, mask=None, do_sum=True):
     """
     if mask is None:
         mask = T.ones((1, mu_approx.shape[1]))
-    ind_log_probs = C - (0.5 * log_vars)  - \
-            ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
+    if use_huber:
+        ind_log_probs = C - (0.5 * log_vars)  - \
+                (Huber(mu_true - mu_approx) / (2.0 * T.exp(log_vars)))
+    else:
+        ind_log_probs = C - (0.5 * log_vars)  - \
+                ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
     if do_sum:
         result = T.sum((ind_log_probs * mask), axis=1, keepdims=True)
     else:

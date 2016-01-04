@@ -209,52 +209,14 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 # -- these do inference                  #
 ##########################################
 
-bu_module_6 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=nc,
-    out_chans=(ngf*1),
-    apply_bn=True,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 32, 32)
-
-bu_module_5 = \
-BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    conv_chans=ngf,
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
-    mod_name='bu_mod_5'
-) # output is (batch, ngf*2, 16, 16)
-
-bu_module_4 = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=ngf,
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
-    mod_name='bu_mod_4'
-) # output is (batch, ngf*2, 8, 8)
-
-bu_module_3 = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    conv_chans=ngf,
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
-    mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 4, 4)
+bu_module_1 = \
+InfFCModule(
+    bu_chans=(ngf*4*2*2),
+    fc_chans=ngfc,
+    rand_chans=nz0,
+    use_fc=True,
+    mod_name='bu_mod_1'
+) # output is (batch, nz0), (batch, nz0)
 
 bu_module_2 = \
 BasicConvResModule(
@@ -268,14 +230,52 @@ BasicConvResModule(
     mod_name='bu_mod_2'
 ) # output is (batch, ngf*4, 2, 2)
 
-bu_module_1 = \
-InfFCModule(
-    bu_chans=(ngf*4*2*2),
-    fc_chans=ngfc,
-    rand_chans=nz0,
-    use_fc=True,
-    mod_name='bu_mod_1'
-) # output is (batch, nz0), (batch, nz0)
+bu_module_3 = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*4),
+    conv_chans=ngf,
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='double',
+    act_func='lrelu',
+    mod_name='bu_mod_3'
+) # output is (batch, ngf*4, 4, 4)
+
+bu_module_4 = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=ngf,
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='double',
+    act_func='lrelu',
+    mod_name='bu_mod_4'
+) # output is (batch, ngf*2, 8, 8)
+
+bu_module_5 = \
+BasicConvResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*2),
+    conv_chans=ngf,
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='double',
+    act_func='lrelu',
+    mod_name='bu_mod_5'
+) # output is (batch, ngf*2, 16, 16)
+
+bu_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=nc,
+    out_chans=(ngf*1),
+    apply_bn=True,
+    stride='single',
+    act_func='lrelu',
+    mod_name='bu_mod_6'
+) # output is (batch, ngf*1, 32, 32)
 
 # modules must be listed in "evaluation order"
 bu_modules = [bu_module_6, bu_module_5, bu_module_4,
@@ -445,7 +445,8 @@ Hg_world, Yg_world = disc_network.apply(input=Xg, ret_vals=ret_vals,
 vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
-                                   log_vars=bounded_logvar[0], do_sum=False)
+                                   log_vars=bounded_logvar[0], do_sum=False,
+                                   use_huber=True)
     vae_layer_nlls.append(T.mean(T.sum(lnll, axis=1)))
 vae_nll_cost = vae_layer_nlls[0] #sum(vae_layer_nlls)
 
@@ -508,8 +509,8 @@ full_cost_inf = vae_cost
 # stuff for performing updates
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=50.0)
-inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=500.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=100.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
