@@ -482,6 +482,7 @@ else:
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xd = T.tensor4()  # symbolic var for inputs to discriminator
 Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xr = T.tensor4()  # symbolic var for inputs to discriminator, from er buffer
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -526,29 +527,40 @@ Hd_model, Yd_model = disc_network.apply(input=Xd_model, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
 Hd_world, Yd_world = disc_network.apply(input=Xd, ret_vals=ret_vals,
                                         ret_acts=True, app_sigm=True)
+Hd_exrep, Yd_exrep = disc_network.apply(input=Xr, ret_vals=ret_vals,
+                                        ret_acts=True, app_sigm=True)
 # compute classification parts of GAN cost (for generator and discriminator)
 gan_layer_nlls_world = []
 gan_layer_nlls_model = []
+gan_layer_nlls_exrep = []
 gan_layer_nlls_gnrtr = []
 weights = [1. for yd_world in Yd_world]
 scale = sum(weights)
 weights = [w/scale for w in weights]
-for yd_world, yd_model, w in zip(Yd_world, Yd_model, weights):
+for yd_world, yd_model, yd_exrep, w in zip(Yd_world, Yd_model, Yd_exrep, weights):
     lnll_world = bce(yd_world, T.ones_like(yd_world))
     lnll_model = bce(yd_model, T.zeros_like(yd_model))
+    lnll_exrep = bce(yd_exrep, T.zeros_like(yd_exrep))
     lnll_gnrtr = bce(yd_model, T.ones_like(yd_model))
     gan_layer_nlls_world.append(w * T.mean(lnll_world))
     gan_layer_nlls_model.append(w * T.mean(lnll_model))
+    gan_layer_nlls_exrep.append(w * T.mean(lnll_exrep))
     gan_layer_nlls_gnrtr.append(w * T.mean(lnll_gnrtr))
 gan_nll_cost_world = sum(gan_layer_nlls_world)
 gan_nll_cost_model = sum(gan_layer_nlls_model)
+gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
 gan_reg_cost_d = 1e-5 * sum([T.sum(p**2.0) for p in d_params])
 gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
-gan_cost_d = gan_nll_cost_world + gan_nll_cost_model + gan_reg_cost_d
+if use_er:
+    adv_cost = (0.5 * gan_nll_cost_model) + (0.5 * gan_nll_cost_exrep)
+    gan_cost_d = gan_nll_cost_world + adv_cost + gan_reg_cost_d
+else:
+    gan_cost_d = gan_nll_cost_world + gan_nll_cost_model + gan_reg_cost_d
+
 # compute GAN cost for generator
 gan_cost_g = gan_nll_cost_gnrtr + gan_reg_cost_g
 
@@ -597,7 +609,10 @@ d_bc_idx = range(0, len(d_basic_costs))
 d_bc_names = ['full_cost_d', 'gan_cost_d', 'gan_nll_cost_world', 'gan_nll_cost_model']
 d_cost_outputs = d_basic_costs
 # compile function for computing discriminator costs and updates
-d_train_func = theano.function([Xd, Z0], d_cost_outputs, updates=d_updates)
+if use_er:
+    d_train_func = theano.function([Xd, Z0, Xr], d_cost_outputs, updates=d_updates)
+else:
+    d_train_func = theano.function([Xd, Z0], d_cost_outputs, updates=d_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # initialize an experience replay buffer
@@ -666,9 +681,9 @@ for epoch in range(1, niter+niter_decay+1):
             g_batch_count += 1
         else:
             if use_er:
-                # combine replay buffer samples with current model samples
-                imb = np.concatenate([imb, xer], axis=0)
-            d_result = d_train_func(imb, z0)
+                d_result = d_train_func(imb, z0, xer)
+            else:
+                d_result = d_train_func(imb, z0)
             d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
             d_batch_count += 1
         n_updates += 1
