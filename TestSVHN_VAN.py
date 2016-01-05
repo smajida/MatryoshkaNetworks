@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand'
+desc = 'test_van_vae_gan_all_rand_5x5_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -412,8 +412,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=use_conv,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -423,8 +423,8 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=use_conv,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
@@ -434,8 +434,8 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)

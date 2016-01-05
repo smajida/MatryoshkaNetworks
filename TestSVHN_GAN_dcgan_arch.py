@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_shallow_arch_uni_rand_uni_disc'
+desc = 'test_gan_shallow_arch_uni_rand_uni_disc_no_er_no_anneal'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,8 +82,8 @@ er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = False   # whether to use stochastic variables at all scales
 multi_disc = False   # whether to use discriminator guidance at all scales
-use_er = True     # whether to use experience replay
-use_annealing = True # whether to use "annealing" of the target distribution
+use_er = False     # whether to use experience replay
+use_annealing = False # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 
