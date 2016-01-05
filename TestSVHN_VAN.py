@@ -31,7 +31,7 @@ from MatryoshkaModules import BasicConvModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
-from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN
+from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"

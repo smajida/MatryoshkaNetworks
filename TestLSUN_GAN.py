@@ -235,7 +235,7 @@ GenConvResModule(
 gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=32, #(ngf*1),
+    out_chans=16, #(ngf*1),
     conv_chans=32, #(ngf*1),
     filt_shape=(3,3),
     rand_chans=nz1,
@@ -247,8 +247,8 @@ GenConvResModule(
 
 gen_module_6 = \
 BasicConvModule(
-    filt_shape=(5,5),
-    in_chans=(ngf*1),
+    filt_shape=(3,3),
+    in_chans=16,
     out_chans=nc,
     apply_bn=False,
     stride='single',
@@ -257,7 +257,7 @@ BasicConvModule(
 ) # output is (batch, c, 64, 64)
 
 gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-               gen_module_4, gen_module_4, gen_module_6]
+               gen_module_4, gen_module_5, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
