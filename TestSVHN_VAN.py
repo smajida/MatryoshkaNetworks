@@ -387,6 +387,8 @@ inf_gen_model = InfGenModel(
     dist_scale=dist_scale[0],
     dist_logvar=None
 )
+# create a model of just the generator
+gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
 
 #####################################
 #####################################

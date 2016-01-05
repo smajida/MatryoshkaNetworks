@@ -75,17 +75,13 @@ def load_and_scale_data(npy_file_name):
     return X, X_std
 
 
-
 set_seed(1)     # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
-l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nld = 1           # # of layers in conv modules for discriminator
-nlg = 1           # # of layers in conv modules for generator
-nbatch = 64      # # of examples in batch
+nbatch = 64       # # of examples in batch
 npx = 64          # # of pixels width/height of images
-nz0 = 100          # # of dim for Z0
+nz0 = 128         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -190,30 +186,30 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=use_conv,
+    use_fc=False,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8, 2, 2)
+) # output is (batch, ngf*8, 4, 4)
 
 gen_module_2 = \
 GenConvResModule(
-   in_chans=(ngf*8),
-   out_chans=(ngf*8),
-   conv_chans=(ngf*4),
-   rand_chans=nz1,
-   filt_shape=(3,3),
-   use_rand=multi_rand,
-   use_conv=use_conv,
-   us_stride=2,
-   mod_name='gen_mod_2'
-) # output is (batch, ngf*4, 4, 4)
+    in_chans=(ngf*8),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
+    filt_shape=(3,3),
+    rand_chans=nz1,
+    use_rand=False,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='gen_mod_2'
+) # output is (batch, ngf*4, 8, 8)
 
 gen_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*4),
+    in_chans=(ngf*4),
+    out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     rand_chans=nz1,
@@ -221,60 +217,47 @@ GenConvResModule(
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_3'
-) # output is (batch, ngf*4, 8, 8)
+) # output is (batch, ngf*2, 16, 16)
 
 gen_module_4 = \
 GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
-    conv_chans=ngf,
+    in_chans=(ngf*2),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
-) # output is (batch, ngf*2, 16, 16)
+) # output is (batch, ngf*2, 32, 32)
 
 gen_module_5 = \
 GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    conv_chans=ngf,
+    in_chans=(ngf*1),
+    out_chans=32, #(ngf*1),
+    conv_chans=32, #(ngf*1),
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
-) # output is (batch, ngf*2, 32, 32)
+) # output is (batch, ngf*1, 64, 64)
 
-# gen_module_6 = \
-# GenConvResModule(
-#     in_chans=(ngf*1),
-#     out_chans=32, #(ngf*1),
-#     conv_chans=32, #ngf,
-#     filt_shape=(3,3),
-#     rand_chans=nz1,
-#     use_rand=multi_rand,
-#     use_conv=use_conv,
-#     us_stride=2,
-#     mod_name='gen_mod_6'
-# ) # output is (batch, ngf*1, 64, 64)
-
-gen_module_7 = \
+gen_module_6 = \
 BasicConvModule(
     filt_shape=(5,5),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
-    stride='half',
+    stride='single',
     act_func='ident',
-    mod_name='gen_mod_7'
+    mod_name='gen_mod_6'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
-               gen_module_5, gen_module_7] #, gen_module_6]
+gen_modules = [gen_module_1, gen_module_2, gen_module_3,
+               gen_module_4, gen_module_4, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -329,27 +312,17 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*2, 4, 4)
 
-#disc_module_5 = \
-#DiscConvResModule(
-#    in_chans=(ndf*8),
-#    out_chans=(ndf*8),
-#    conv_chans=ndf,
-#    use_conv=False,
-#    ds_stride=2,
-#    mod_name='disc_mod_5'
-#) # output is (batch, ndf*4, 2, 2)
-
-disc_module_6 = \
+disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
-    mod_name='disc_mod_6'
+    mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_6] #, disc_module_5]
+                disc_module_4, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
