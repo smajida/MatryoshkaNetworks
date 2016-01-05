@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand_5x5_disc'
+desc = 'test_van_vae_gan_all_rand_deep_dm2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -86,9 +86,9 @@ multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
-er_buffer_size = 250000
-
-
+use_carry = True     # whether to carry difficult VAE inputs to the next batch
+carry_count = 8         # number of stubborn VAE inputs to carry to next batch
+er_buffer_size = 250000 # size of the "experience replay" buffer
 ntrain = Xtr.shape[0]
 
 
@@ -412,8 +412,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(5,5),
-    use_conv=False,
+    filt_shape=(3,3),
+    use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -423,7 +423,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -434,7 +434,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -502,18 +502,22 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
                                    use_huber=True)
-    vae_layer_nlls.append(T.mean(T.sum(lnll, axis=1)))
-vae_nll_cost = vae_layer_nlls[0] #sum(vae_layer_nlls)
+    # NLLs are recorded for each observation in the batch
+    vae_layer_nlls.append(T.sum(lnll, axis=1))
+vae_obs_nlls = vae_layer_nlls[0] #sum(vae_layer_nlls)
+vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
-obs_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples]  # per-obs KLd for each latent layer
-vae_layer_klds = [T.mean(kld_i) for kld_i in obs_klds]    # mean KLd for each latent layer
-vae_kld_cost = sum(vae_layer_klds)                        # mean total KLd
+vae_layer_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples] # per-obs KLd for each latent layer
+vae_obs_klds = sum(vae_layer_klds) # per-observation total KLd
+vae_kld_cost = T.mean(vae_obs_klds)
+
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
+vae_obs_costs = vae_obs_nlls + vae_obs_klds
 
 
 ##########################################################
@@ -596,10 +600,12 @@ test_recons = recon_func(Xtr_rec) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
-                 vae_nll_cost, vae_kld_cost, gen_grad_norm, inf_grad_norm]
+                 vae_nll_cost, vae_kld_cost, gen_grad_norm, inf_grad_norm,
+                 vae_obs_costs]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost',
-              'vae_nll_cost', 'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm']
+              'vae_nll_cost', 'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
+              'vae_obs_costs']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)
@@ -628,6 +634,8 @@ while start_idx < er_buffer_size:
     start_idx += 1000
     end_idx += 1000
 print("DONE.")
+# initialize a buffer holding VAE inputs to carry to next batch
+carry_buffer = train_transform(Xtr[0:carry_count,:])
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(sample_dir)
@@ -672,12 +680,19 @@ for epoch in range(1, niter+niter_decay+1):
         xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
         # compute model cost and apply update
         if (n_updates % 2) == 0:
+            if use_carry:
+                # add examples from the carry buffer to this batch
+                imb = np.concatenate([imb, carry_buffer], axis=0)
             g_result = g_train_func(imb, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
-            gen_grad_norms.append(1.*g_result[-2])
-            inf_grad_norms.append(1.*g_result[-1])
+            gen_grad_norms.append(1.*g_result[-3])
+            inf_grad_norms.append(1.*g_result[-2])
+            # load the most difficult VAE inputs into the carry buffer
+            vae_cost_rank = np.argsort(-1.0 * g_result[-1])
+            for i in range(carry_count):
+                carry_buffer[i,:,:,:] = imb[vae_cost_rank[i],:,:,:]
             g_batch_count += 1
         else:
             if use_er:
@@ -696,7 +711,7 @@ for epoch in range(1, niter+niter_decay+1):
     d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx[:-2], g_bc_names[:-2])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:-3], g_bc_names[:-3])]
     str2 = " ".join(g_bc_strs)
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
