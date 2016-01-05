@@ -413,7 +413,7 @@ DiscConvResModule(
     out_chans=(ndf*2),
     conv_chans=ndf,
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -424,7 +424,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=ndf,
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
@@ -435,7 +435,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)
