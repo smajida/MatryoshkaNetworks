@@ -87,7 +87,7 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
-carry_count = 8         # number of stubborn VAE inputs to carry to next batch
+carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
 ntrain = Xtr.shape[0]
 
@@ -592,7 +592,7 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-Xtr_rec = train_transform(Xtr[0:200,:])
+Xtr_rec = train_transform(Xtr[0:200,:].copy())
 color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
@@ -635,7 +635,7 @@ while start_idx < er_buffer_size:
     end_idx += 1000
 print("DONE.")
 # initialize a buffer holding VAE inputs to carry to next batch
-carry_buffer = train_transform(Xtr[0:carry_count,:])
+carry_buffer = train_transform(Xtr[0:carry_count,:].copy())
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(sample_dir)
@@ -659,6 +659,7 @@ for epoch in range(1, niter+niter_decay+1):
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     gen_grad_norms = []
     inf_grad_norms = []
+    carry_costs = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
@@ -685,14 +686,16 @@ for epoch in range(1, niter+niter_decay+1):
                 imb = np.concatenate([imb, carry_buffer], axis=0)
             g_result = g_train_func(imb, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
+            batch_obs_costs = g_epoch_costs[-1]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
             gen_grad_norms.append(1.*g_result[-3])
             inf_grad_norms.append(1.*g_result[-2])
             # load the most difficult VAE inputs into the carry buffer
-            vae_cost_rank = np.argsort(-1.0 * g_result[-1])
+            vae_cost_rank = np.argsort(-1.0 * batch_obs_costs)
             for i in range(carry_count):
                 carry_buffer[i,:,:,:] = imb[vae_cost_rank[i],:,:,:]
+                carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
         else:
             if use_er:
@@ -728,7 +731,9 @@ for epoch in range(1, niter+niter_decay+1):
     kld_qtiles = np.percentile(vae_klds, [0.5, 0.8, 0.9, 0.95])
     str7 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7])
+    str8 = "    [min, mean, max](carry_costs): {0:.2f}, {1:.2f}, {2:.2f}".format( \
+            min(carry_costs), sum(carry_costs)/len(carry_costs), max(carry_costs))
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
@@ -737,7 +742,8 @@ for epoch in range(1, niter+niter_decay+1):
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
     # sample some reconstructions from the model
-    test_recons = recon_func(Xtr_rec)
+    rec_batch = np.concatenate([carry_buffer, Xtr_rec[carry_buffer.shape[0]:,:,:,:]], axis=0)
+    test_recons = recon_func(rec_batch)
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
