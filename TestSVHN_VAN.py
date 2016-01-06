@@ -703,8 +703,9 @@ for epoch in range(1, niter+niter_decay+1):
             inf_grad_norms.append(1.*g_result[-2])
             # load the most difficult VAE inputs into the carry buffer
             vae_cost_rank = np.argsort(-1.0 * batch_obs_costs)
+            full_batch = np.concatenate([imb, carry_buffer], axis=0)
             for i in range(carry_count):
-                carry_buffer[i,:] = imb[vae_cost_rank[i],:]
+                carry_buffer[i,:] = full_batch[vae_cost_rank[i],:]
                 carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
         else:
