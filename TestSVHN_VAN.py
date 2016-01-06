@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand_deep_dm2'
+desc = 'test_van_vae_gan_all_rand_basic_more_vae'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -413,7 +413,7 @@ DiscConvResModule(
     out_chans=(ndf*2),
     conv_chans=ndf,
     filt_shape=(3,3),
-    use_conv=True,
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -651,11 +651,11 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annea
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    vae_scale = 0.001
+    vae_scale = 0.005
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
-    g_epoch_costs = [0. for i in range(len(g_cost_outputs))]
+    g_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     gen_grad_norms = []
     inf_grad_norms = []
@@ -684,7 +684,7 @@ for epoch in range(1, niter+niter_decay+1):
                 # add examples from the carry buffer to this batch
                 imb = np.concatenate([imb, carry_buffer], axis=0)
             g_result = g_train_func(imb, z0)
-            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
             gen_grad_norms.append(1.*g_result[-3])
