@@ -22,6 +22,13 @@ from lib.costs import log_prob_gaussian, gaussian_kld
 # Phil's business
 #
 
+def tanh_clip(x, bound=10.0):
+    """
+    Do soft "tanh" clipping to put data in range -scale....+scale.
+    """
+    x = bound * tanh((1.0 / bound) * x)
+    return x
+
 
 ####################################
 # Generator network for use in GAN #
@@ -386,12 +393,15 @@ class InfGenModel(object):
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
         dist_scale: initial rescaling for reparametrization outputs
-        dist_logvar: optional, fixed logvar for reparametrized Gaussians
+        dist_logvar: optional, fixed value for posterior logvars
+        dist_mean_bound: optional tanh clipping bound for poterior means
+        dist_logvar_bound: optional tanh clipping bound for poterior logvars
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
                  merge_info, output_transform,
-                 dist_scale=0.1, dist_logvar=None):
+                 dist_scale=0.1, dist_logvar=None,
+                 dist_mean_bound=None, dist_logvar_bound=None):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -416,8 +426,10 @@ class InfGenModel(object):
             self.output_transform = output_transform
         # record rescaling factor for reparametrization outputs
         self.dist_scale = dist_scale
-        # record (optional) fixed logvar for "approximate posteriors"
+        # record (optional) params for "approximate posteriors"
         self.dist_logvar = dist_logvar
+        self.dist_mean_bound = dist_mean_bound
+        self.dist_logvar_bound = dist_logvar_bound
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -554,8 +566,16 @@ class InfGenModel(object):
                     # handle conditionals based purely on BU info
                     cond_mean = bu_res_dict[bu_mod_name][0]
                     cond_logvar = bu_res_dict[bu_mod_name][1]
+                    if self.dist_mean_bound:
+                        # bound the conditional means if desired
+                        cond_mean = tanh_clip(cond_mean, bound=self.dist_mean_bound)
                     if self.dist_logvar:
+                        # use a fixed value for conditional logvars, if
+                        # one was provided
                         cond_logvar = (0. * cond_logvar) + self.dist_logvar
+                    elif self.dist_logvar_bound:
+                        # bound the conditional logvars if desired
+                        cond_logvar = tanh_clip(cond_logvar, bound=self.dist_logvar_bound)
                     rand_vals = reparametrize((self.dist_scale * cond_mean),
                                               (self.dist_scale * cond_logvar),
                                               rng=cu_rng)
@@ -568,8 +588,16 @@ class InfGenModel(object):
                     im_module = self.im_modules_dict[im_mod_name]
                     cond_mean, cond_logvar = \
                             im_module.apply(td_input=td_info, bu_input=bu_info)
+                    if self.dist_mean_bound:
+                        # bound the conditional means if desired
+                        cond_mean = tanh_clip(cond_mean, bound=self.dist_mean_bound)
                     if self.dist_logvar:
+                        # use a fixed value for conditional logvars, if
+                        # one was provided
                         cond_logvar = (0. * cond_logvar) + self.dist_logvar
+                    elif self.dist_logvar_bound:
+                        # bound the conditional logvars if desired
+                        cond_logvar = tanh_clip(cond_logvar, bound=self.dist_logvar_bound)
                     rand_vals = reparametrize((self.dist_scale * cond_mean),
                                               (self.dist_scale * cond_logvar),
                                               rng=cu_rng)

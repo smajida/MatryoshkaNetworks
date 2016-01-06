@@ -385,7 +385,9 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=tanh,
     dist_scale=dist_scale[0],
-    dist_logvar=None
+    dist_logvar=None,
+    dist_logvar_bound=None,
+    dist_mean_bound=None
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -635,7 +637,7 @@ while start_idx < er_buffer_size:
     end_idx += 1000
 print("DONE.")
 # initialize a buffer holding VAE inputs to carry to next batch
-carry_buffer = train_transform(Xtr[0:carry_count,:].copy())
+carry_buffer = Xtr[0:carry_count,:].copy()
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(sample_dir)
@@ -651,7 +653,7 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annea
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    vae_scale = 0.005
+    vae_scale = 0.002
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
@@ -671,20 +673,28 @@ for epoch in range(1, niter+niter_decay+1):
             w_x = 1.0
         w_g = 1.0 - w_x
         if use_annealing and (w_x < 0.999):
-            imb = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
-                          a_min=-1.0, a_max=1.0)
-        # transform training batch to "image format"
-        imb = train_transform(imb)
+            # add noise to both the current batch and the carry buffer
+            imb_fuzz = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
+                               a_min=-1.0, a_max=1.0)
+            cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
+                              a_min=-1.0, a_max=1.0)
+        else:
+            # use noiseless versions of the current batch and the carry buffer
+            imb_fuzz = imb.copy()
+            cb_fuzz = carry_buffer.copy()
+        # transform noisy training batch and carry buffer to "image format"
+        imb_fuzz = train_transform(imb_fuzz)
+        cb_fuzz = train_transform(cb_fuzz)
         # sample random noise for top of generator
         z0 = rand_gen(size=(nbatch, nz0))
         # sample data from experience replay buffer
-        xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
+        xer = train_transform(sample_exprep_buffer(er_buffer, imb.shape[0]))
         # compute model cost and apply update
         if (n_updates % 2) == 0:
             if use_carry:
                 # add examples from the carry buffer to this batch
-                imb = np.concatenate([imb, carry_buffer], axis=0)
-            g_result = g_train_func(imb, z0)
+                imb_fuzz = np.concatenate([imb_fuzz, cb_fuzz], axis=0)
+            g_result = g_train_func(imb_fuzz, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
             batch_obs_costs = g_result[-1]
             vae_nlls.append(1.*g_result[4])
@@ -694,14 +704,14 @@ for epoch in range(1, niter+niter_decay+1):
             # load the most difficult VAE inputs into the carry buffer
             vae_cost_rank = np.argsort(-1.0 * batch_obs_costs)
             for i in range(carry_count):
-                carry_buffer[i,:,:,:] = imb[vae_cost_rank[i],:,:,:]
+                carry_buffer[i,:] = imb[vae_cost_rank[i],:]
                 carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
         else:
             if use_er:
-                d_result = d_train_func(imb, z0, xer)
+                d_result = d_train_func(imb_fuzz, z0, xer)
             else:
-                d_result = d_train_func(imb, z0)
+                d_result = d_train_func(imb_fuzz, z0)
             d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
             d_batch_count += 1
         n_updates += 1

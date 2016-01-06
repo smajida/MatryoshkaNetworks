@@ -14,6 +14,14 @@ relu = activations.Rectify()
 sigmoid = activations.Sigmoid()
 lrelu = activations.LeakyRectify()
 bce = T.nnet.binary_crossentropy
+tanh = activations.Tanh()
+
+def tanh_clip(x, scale=10.0):
+    """
+    Do soft "tanh" clipping to put data in range -scale....+scale.
+    """
+    x = scale * tanh((1.0 / scale) * x)
+    return x
 
 #####################################
 # BASIC DOUBLE CONVOLUTIONAL MODULE #
