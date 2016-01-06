@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand_5x5'
+desc = 'test_van_vae_gan_all_rand_basic'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -412,7 +412,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -423,7 +423,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -434,7 +434,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -686,7 +686,7 @@ for epoch in range(1, niter+niter_decay+1):
                 imb = np.concatenate([imb, carry_buffer], axis=0)
             g_result = g_train_func(imb, z0)
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
-            batch_obs_costs = g_epoch_costs[-1]
+            batch_obs_costs = g_result[-1]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
             gen_grad_norms.append(1.*g_result[-3])
