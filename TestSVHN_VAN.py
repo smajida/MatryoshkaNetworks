@@ -594,11 +594,12 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-Xtr_rec = train_transform(Xtr[0:200,:].copy())
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
+Xtr_rec = Xtr[0:200,:].copy()
+color_grid_vis(draw_transform(train_transform(Xtr_rec)), \
+               (10, 20), "{}/Xtr_rec.png".format(sample_dir))
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(Xtr_rec) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr_rec)) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
@@ -753,7 +754,22 @@ for epoch in range(1, niter+niter_decay+1):
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
     # sample some reconstructions from the model
-    rec_batch = np.concatenate([carry_buffer, Xtr_rec[carry_buffer.shape[0]:,:,:,:]], axis=0)
+    if epoch < gauss_blur_weights.shape[0]:
+        w_x = gauss_blur_weights[epoch]
+    else:
+        w_x = 1.0
+    w_g = 1.0 - w_x
+    if use_annealing and (w_x < 0.999):
+        # add noise to both the current batch and the carry buffer
+        xr_fuzz = np.clip(gauss_blur(Xtr_rec, Xtr_std, w_x, w_g),
+                           a_min=-1.0, a_max=1.0)
+        cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
+                          a_min=-1.0, a_max=1.0)
+    else:
+        # use noiseless versions of the current batch and the carry buffer
+        xr_fuzz = Xtr_rec
+        cb_fuzz = carry_buffer
+    rec_batch = train_transform(np.concatenate([cb_fuzz, xr_fuzz[carry_buffer.shape[0]:,:]], axis=0))
     test_recons = recon_func(rec_batch)
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
     if n_epochs > niter:

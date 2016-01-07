@@ -22,6 +22,8 @@ from lib.costs import log_prob_gaussian, gaussian_kld
 # Phil's business
 #
 
+tanh = activations.Tanh()
+
 def tanh_clip(x, bound=10.0):
     """
     Do soft "tanh" clipping to put data in range -scale....+scale.
