@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_no_anneal'
+desc = 'test_gan_long_anneal'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -97,7 +97,7 @@ multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = False # whether to use "annealing" of the target distribution
+use_annealing = True # whether to use "annealing" of the target distribution
 
 
 
@@ -449,7 +449,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 30) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
