@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand_basic'
+desc = 'test_van_vae_gan_all_rand_new_scaling'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -56,14 +56,15 @@ ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
 data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
-# stack data into a single array and rescale it into [-1,1]
+# stack data into a single array and rescale it into [-1,1] (per observation)
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
 del data_dict
-Xtr = Xtr - np.min(Xtr)
-Xtr = Xtr / np.max(Xtr)
+Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
 Xtr = 2.0 * (Xtr - 0.5)
+Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
-Xtr_var = Xtr_std**2.0
+
 
 set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
@@ -386,8 +387,8 @@ inf_gen_model = InfGenModel(
     output_transform=tanh,
     dist_scale=dist_scale[0],
     dist_logvar=None,
-    dist_logvar_bound=None,
-    dist_mean_bound=None
+    dist_logvar_bound=4.0,
+    dist_mean_bound=4.0
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
