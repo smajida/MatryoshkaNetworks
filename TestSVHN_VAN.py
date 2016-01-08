@@ -35,10 +35,10 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
-DATA_SIZE = 250000
+DATA_SIZE = 500000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_all_rand_new_scaling_deep_dm2'
+desc = 'test_van_vae_gan_softer_huber_deep_dm2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -57,13 +57,16 @@ ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
 data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
 # stack data into a single array and rescale it into [-1,1] (per observation)
-Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
+Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xex']], axis=0)
 del data_dict
 Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
 Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
+# split into training and validation sets (for checking VAE overfitting)
+Xtr = Xtr[:-10000,:]
+Xva = Xtr[-10000:,:]
 
 
 set_seed(1)       # seed for shared rngs
@@ -504,7 +507,7 @@ vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=True)
+                                   use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 vae_obs_nlls = vae_layer_nlls[0] #sum(vae_layer_nlls)
@@ -651,15 +654,17 @@ n_check = 0
 n_epochs = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 20) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 12) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
+    Xva = shuffle(Xva)
     vae_scale = 0.002
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
+    v_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
     d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
     gen_grad_norms = []
     inf_grad_norms = []
@@ -667,6 +672,7 @@ for epoch in range(1, niter+niter_decay+1):
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
+    v_batch_count = 0.
     d_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         if epoch < gauss_blur_weights.shape[0]:
@@ -674,18 +680,28 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             w_x = 1.0
         w_g = 1.0 - w_x
+        # grab a validation batch, if required
+        if v_batch_count < 25:
+            start_idx = int(v_batch_count)*100
+            vmb = Xva[start_idx:(start_idx+100),:]
+        else:
+            vmb = Xva[0:100,:]
         if use_annealing and (w_x < 0.999):
             # add noise to both the current batch and the carry buffer
             imb_fuzz = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
+                               a_min=-1.0, a_max=1.0)
+            vmb_fuzz = np.clip(gauss_blur(vmb, Xtr_std, w_x, w_g),
                                a_min=-1.0, a_max=1.0)
             cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
                               a_min=-1.0, a_max=1.0)
         else:
             # use noiseless versions of the current batch and the carry buffer
             imb_fuzz = imb.copy()
+            vmb_fuzz = vmb.copy()
             cb_fuzz = carry_buffer.copy()
         # transform noisy training batch and carry buffer to "image format"
         imb_fuzz = train_transform(imb_fuzz)
+        vmb_fuzz = train_transform(vmb_fuzz)
         cb_fuzz = train_transform(cb_fuzz)
         # sample random noise for top of generator
         z0 = rand_gen(size=(nbatch, nz0))
@@ -710,6 +726,11 @@ for epoch in range(1, niter+niter_decay+1):
                 carry_buffer[i,:] = full_batch[vae_cost_rank[i],:]
                 carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
+            # process a validation batch
+            if v_batch_count < 25:
+                v_result = g_train_func(vmb_fuzz, z0)
+                v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:-1], v_epoch_costs)]
+                v_batch_count += 1
         else:
             if use_er:
                 d_result = d_train_func(imb_fuzz, z0, xer)
@@ -724,6 +745,7 @@ for epoch in range(1, niter+niter_decay+1):
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
@@ -746,7 +768,9 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     str8 = "    [min, mean, max](carry_costs): {0:.2f}, {1:.2f}, {2:.2f}".format( \
             min(carry_costs), sum(carry_costs)/len(carry_costs), max(carry_costs))
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    str9 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
+            v_epoch_costs[4], v_epoch_costs[5])
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8, str9])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()

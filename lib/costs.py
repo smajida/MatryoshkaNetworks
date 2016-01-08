@@ -20,16 +20,16 @@ def SquaredHinge(y_true, y_pred):
 def Hinge(y_true, y_pred):
     return T.maximum(1. - y_true * y_pred, 0.).mean()
 
-def Huber(y_true, y_pred):
+def Huber(y_true, y_pred, t=0.5):
     """Compute Huberized loss for predicting y_pred instead of y_true."""
     abs_res = T.abs_(y_true - y_pred)
-    M_quad = abs_res < 0.5   # residuals that suffer quadratic cost...
-    M_line = abs_res >= 0.5  # residuals that suffer linear cost...
+    M_quad = abs_res < thresh   # residuals that suffer quadratic cost...
+    M_line = abs_res >= thresh  # residuals that suffer linear cost...
     # don't backprop through the "loss region" masks! (no valid grads anyways)
     M_quad = theano.gradient.disconnected_grad(M_quad)
     M_line = theano.gradient.disconnected_grad(M_line)
-    # compute Huberized regression loss
-    loss = (M_quad * abs_res**2.) + (M_line * (abs_res - 0.25))
+    # compute Huberized regression loss, with linear/quadratic switch at "t"
+    loss = (M_quad * abs_res**2.) + ((2. * t * M_line * abs_res) - t**2.)
     return loss
 
 cce = CCE = CategoricalCrossEntropy
@@ -93,7 +93,7 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
         mask = T.ones((1, mu_approx.shape[1]))
     if use_huber:
         ind_log_probs = C - (0.5 * log_vars)  - \
-                (Huber(mu_true, mu_approx) / (2.0 * T.exp(log_vars)))
+                (Huber(mu_true, mu_approx, t=use_huber) / (2.0 * T.exp(log_vars)))
     else:
         ind_log_probs = C - (0.5 * log_vars)  - \
                 ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
