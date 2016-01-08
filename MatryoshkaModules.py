@@ -982,17 +982,24 @@ class InfConvMergeModule(object):
         rand_chans: number of latent channels that we want conditionals for
         conv_chans: number of channels in the "internal" convolution layer
         use_conv: flag for whether to use "internal" convolution layer
+        act_func: in ['ident', 'relu', 'lrelu']
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  td_chans, bu_chans, rand_chans, conv_chans,
-                 use_conv=True,
+                 use_conv=True, act_func='relu',
                  mod_name='gm_conv'):
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
         self.use_conv = use_conv
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1058,7 +1065,7 @@ class InfConvMergeModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
-            h1 = relu(h1)
+            h1 = self.act_func(h1)
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
             # apply direct input->output conv layer
@@ -1090,15 +1097,22 @@ class InfFCModule(object):
         fc_chans: dimension of the fully connected layer
         rand_chans: dimension of the Gaussian latent vars of interest
         use_fc: flag for whether to use the hidden fully connected layer
+        act_func: in ['ident', 'relu', 'lrelu']
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, bu_chans, fc_chans, rand_chans,
-                 use_fc=True,
+                 use_fc=True, act_func='relu',
                  mod_name='dm_fc'):
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
         self.rand_chans = rand_chans
         self.use_fc = use_fc
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1163,7 +1177,7 @@ class InfFCModule(object):
             # feedforward to fc layer
             h1 = T.dot(bu_input, self.w1)
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
-            h1 = relu(h1)
+            h1 = self.act_func(h1)
             # feedforward to from fc layer to output
             h2 = T.dot(h1, self.w2)
             # feedforward directly from bu_input to output

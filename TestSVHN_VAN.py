@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_softer_huber_deep_dm2'
+desc = 'test_van_vae_gan_softer_huber_deep_disc_ndf32'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -78,7 +78,7 @@ npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
-ndf = 64          # base # of filters for conv layers in discriminator
+ndf = 32          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -259,6 +259,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    act_func='lrelu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -336,6 +337,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    act_func='lrelu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -347,6 +349,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
+    act_func='lrelu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -358,6 +361,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
+    act_func='lrelu',
     mod_name='im_mod_5'
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
   # over the rand_vals used in td_mod_5.
@@ -430,7 +434,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=ndf,
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
@@ -441,7 +445,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)
