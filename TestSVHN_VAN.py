@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_softer_huber_deep_disc_ndf32'
+desc = 'test_van_vae_gan_softer_huber_5x5_disc'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -78,7 +78,7 @@ npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
-ndf = 32          # base # of filters for conv layers in discriminator
+ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -422,8 +422,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -433,8 +433,8 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
@@ -444,8 +444,8 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)
