@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_softer_huber_5x5_disc'
+desc = 'test_van_vae_gan_deep_dm2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -422,8 +422,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(5,5),
-    use_conv=False,
+    filt_shape=(3,3),
+    use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -433,7 +433,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -444,7 +444,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -511,7 +511,7 @@ vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.25)
+                                   use_huber=0.5)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 vae_obs_nlls = vae_layer_nlls[0] #sum(vae_layer_nlls)
@@ -524,7 +524,7 @@ vae_obs_klds = sum(vae_layer_klds) # per-observation total KLd
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
-vae_reg_cost = 5e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
@@ -566,8 +566,8 @@ gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 5e-5 * sum([T.sum(p**2.0) for p in d_params])
-gan_reg_cost_g = 5e-5 * sum([T.sum(p**2.0) for p in gen_params])
+gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_g = 2e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
     adv_cost = (0.5 * gan_nll_cost_model) + (0.5 * gan_nll_cost_exrep)
