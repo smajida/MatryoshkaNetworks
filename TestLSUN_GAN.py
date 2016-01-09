@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_long_anneal'
+desc = 'test_gan_long_anneal_24bf'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -76,12 +76,12 @@ def load_and_scale_data(npy_file_name):
 
 
 set_seed(1)     # seed for shared rngs
-k = 1             # # of discrim updates for each gen update
-b1 = 0.5          # momentum term of adam
-nc = 3            # # of channels in image
-nbatch = 64       # # of examples in batch
-npx = 64          # # of pixels width/height of images
-nz0 = 128         # # of dim for Z0
+k = 1            # # of discrim updates for each gen update
+b1 = 0.5         # momentum term of adam
+nc = 3           # # of channels in image
+nbatch = 64      # # of examples in batch
+npx = 64         # # of pixels width/height of images
+nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -200,7 +200,7 @@ GenConvResModule(
     conv_chans=(ngf*4),
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_2'
@@ -235,7 +235,7 @@ GenConvResModule(
 gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=16, #(ngf*1),
+    out_chans=24, #(ngf*1),
     conv_chans=32, #(ngf*1),
     filt_shape=(3,3),
     rand_chans=nz1,
@@ -248,7 +248,7 @@ GenConvResModule(
 gen_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=16,
+    in_chans=24,
     out_chans=nc,
     apply_bn=False,
     stride='single',
