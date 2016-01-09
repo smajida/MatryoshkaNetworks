@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_vae_gan_deep_dm2'
+desc = 'test_van_vae_gan_deep_dm2_dm3'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -434,7 +434,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=ndf,
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*2, 4, 4)
