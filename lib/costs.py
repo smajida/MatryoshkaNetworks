@@ -29,7 +29,7 @@ def Huber(y_true, y_pred, t=0.5):
     M_quad = theano.gradient.disconnected_grad(M_quad)
     M_line = theano.gradient.disconnected_grad(M_line)
     # compute Huberized regression loss, with linear/quadratic switch at "t"
-    loss = (M_quad * abs_res**2.) + ((2. * t * M_line * abs_res) - t**2.)
+    loss = (M_quad * abs_res**2.) + (M_line * (2. * t * abs_res - t**2.))
     return loss
 
 cce = CCE = CategoricalCrossEntropy

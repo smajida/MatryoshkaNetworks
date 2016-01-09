@@ -35,7 +35,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
-DATA_SIZE = 400000
+DATA_SIZE = 200000
 
 # setup paths for dumping diagnostic info
 desc = 'test_van_vae_gan_deep_dm2_dm3'
@@ -316,7 +316,7 @@ BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
-    apply_bn=True,
+    apply_bn=False,
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
@@ -394,8 +394,8 @@ inf_gen_model = InfGenModel(
     output_transform=tanh,
     dist_scale=dist_scale[0],
     dist_logvar=None,
-    dist_logvar_bound=4.0,
-    dist_mean_bound=4.0
+    dist_logvar_bound=3.0,
+    dist_mean_bound=3.0
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -602,12 +602,9 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-Xtr_rec = Xtr[0:200,:].copy()
-color_grid_vis(draw_transform(train_transform(Xtr_rec)), \
-               (10, 20), "{}/Xtr_rec.png".format(sample_dir))
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr_rec)) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
@@ -685,7 +682,7 @@ for epoch in range(1, niter+niter_decay+1):
             w_x = 1.0
         w_g = 1.0 - w_x
         # grab a validation batch, if required
-        if v_batch_count < 25:
+        if v_batch_count < 50:
             start_idx = int(v_batch_count)*100
             vmb = Xva[start_idx:(start_idx+100),:]
         else:
@@ -731,7 +728,7 @@ for epoch in range(1, niter+niter_decay+1):
                 carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
             # process a validation batch
-            if v_batch_count < 25:
+            if v_batch_count < 50:
                 v_result = g_train_func(vmb_fuzz, z0)
                 v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:-1], v_epoch_costs)]
                 v_batch_count += 1
@@ -746,6 +743,11 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
+    if n_epochs > niter:
+        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+    ##################################
+    # QUANTITATIVE DIAGNOSTICS STUFF #
+    ##################################
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
@@ -779,30 +781,49 @@ for epoch in range(1, niter+niter_decay+1):
     out_file.write(joint_str+"\n")
     out_file.flush()
     n_epochs += 1
+    #################################
+    # QUALITATIVE DIAGNOSTICS STUFF #
+    #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
-    # sample some reconstructions from the model
+    # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
     else:
         w_x = 1.0
     w_g = 1.0 - w_x
+    tr_rec_batch = np.concatenate([carry_buffer, Xtr[0:100,:]], axis=0)
+    tr_rec_batch = tr_rec_batch[0:100,:]
+    va_rec_batch = Xva[0:100,:]
     if use_annealing and (w_x < 0.999):
-        # add noise to both the current batch and the carry buffer
-        xr_fuzz = np.clip(gauss_blur(Xtr_rec, Xtr_std, w_x, w_g),
-                           a_min=-1.0, a_max=1.0)
-        cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
-                          a_min=-1.0, a_max=1.0)
+        # add noise to reconstruction targets (if we trained with noise)
+        tr_rb_fuzz = np.clip(gauss_blur(tr_rec_batch, Xtr_std, w_x, w_g),
+                             a_min=-1.0, a_max=1.0)
+        va_rb_fuzz = np.clip(gauss_blur(va_rec_batch, Xtr_std, w_x, w_g),
+                             a_min=-1.0, a_max=1.0)
     else:
-        # use noiseless versions of the current batch and the carry buffer
-        xr_fuzz = Xtr_rec
-        cb_fuzz = carry_buffer
-    rec_batch = train_transform(np.concatenate([cb_fuzz, xr_fuzz[carry_buffer.shape[0]:,:]], axis=0))
-    test_recons = recon_func(rec_batch)
-    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
-    if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+        # otherwise, use noise-free reconstruction targets
+        tr_rb_fuzz = tr_rec_batch
+        va_rb_fuzz = va_rec_batch
+    # get the model reconstructions
+    tr_rb_fuzz = train_transform(tr_rb_fuzz)
+    va_rb_fuzz = train_transform(va_rb_fuzz)
+    tr_recons = recon_func(tr_rb_fuzz)
+    va_recons = recon_func(va_rb_fuzz)
+    # stripe data for nice display (each reconstruction next to its target)
+    tr_vis_batch = np.zeros((200, nc, npx, npx))
+    va_vis_batch = np.zeros((200, nc, npx, npx))
+    for rec_pair in range(100):
+        idx_in = 2*rec_pair
+        idx_out = 2*rec_pair + 1
+        tr_vis_batch[idx_in,:,:,:] = tr_rb_fuzz[rec_pair,:,:,:]
+        tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
+        va_vis_batch[idx_in,:,:,:] = va_rb_fuzz[rec_pair,:,:,:]
+        va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
+    # draw images...
+    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(sample_dir, n_epochs))
 
 
 
