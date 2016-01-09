@@ -437,7 +437,7 @@ DiscConvResModule(
     use_conv=True,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*2, 4, 4)
+) # output is (batch, ndf*4, 4, 4)
 
 disc_module_4 = \
 DiscConvResModule(
