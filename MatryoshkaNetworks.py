@@ -609,8 +609,8 @@ class InfGenModel(object):
                 # record TD info produced by current module
                 td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
-                kld_i = gaussian_kld(T.flatten(cond_mean, 2),
-                                     T.flatten(cond_logvar, 2),
+                kld_i = gaussian_kld(T.flatten((self.dist_scale * cond_mean), 2),
+                                     T.flatten((self.dist_scale * cond_logvar), 2),
                                      0.0, 0.0)
                 kld_dict[td_mod_name] = kld_i
             else:

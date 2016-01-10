@@ -35,7 +35,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
-DATA_SIZE = 200000
+DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
 desc = 'test_van_vae_gan_deep_dm2_dm3'
@@ -760,16 +760,16 @@ for epoch in range(1, niter+niter_decay+1):
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
     str3 = " ".join(d_bc_strs)
-    ggn_qtiles = np.percentile(gen_grad_norms, [0.5, 0.8, 0.9, 0.95])
+    ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str4 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
-    ign_qtiles = np.percentile(inf_grad_norms, [0.5, 0.8, 0.9, 0.95])
+    ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
     str5 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
-    nll_qtiles = np.percentile(vae_nlls, [0.5, 0.8, 0.9, 0.95])
+    nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str6 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
-    kld_qtiles = np.percentile(vae_klds, [0.5, 0.8, 0.9, 0.95])
+    kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
     str7 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     str8 = "    [min, mean, max](carry_costs): {0:.2f}, {1:.2f}, {2:.2f}".format( \
