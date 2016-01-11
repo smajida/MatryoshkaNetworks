@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_no_td_cond_match_dm2'
+desc = 'test_van_deep_dm2_dm3_yes_td_cond'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -88,7 +88,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_td_cond = False # whether to use top-down conditioning in generator
+use_td_cond = True # whether to use top-down conditioning in generator
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
@@ -472,7 +472,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 4.0 * tanh((1.0/4.0) * obs_logvar)
+bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -514,8 +514,8 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
-#vae_obs_nlls = vae_layer_nlls[0]
-vae_obs_nlls = vae_layer_nlls[2]
+vae_obs_nlls = vae_layer_nlls[0]
+#vae_obs_nlls = vae_layer_nlls[2]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
