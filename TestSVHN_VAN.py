@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_yes_td_cond'
+desc = 'test_van_deep_dm2_dm3_no_td_cond_match_dm2'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -513,7 +513,8 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
                                    use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
-vae_obs_nlls = vae_layer_nlls[0] #sum(vae_layer_nlls)
+print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
+vae_obs_nlls = vae_layer_nlls[2] #vae_layer_nlls[0]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
