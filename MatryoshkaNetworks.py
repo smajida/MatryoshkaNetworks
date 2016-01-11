@@ -394,15 +394,10 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
-        dist_scale: initial rescaling for reparametrization outputs
-        dist_mean_bound: optional tanh clipping bound for poterior means
-        dist_logvar_bound: optional tanh clipping bound for poterior logvars
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
-                 merge_info, output_transform,
-                 dist_scale=0.1,
-                 dist_mean_bound=None, dist_logvar_bound=None):
+                 merge_info, output_transform):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -425,11 +420,6 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
-        # record rescaling factor for reparametrization outputs
-        self.dist_scale = dist_scale
-        # record (optional) params for "approximate posteriors"
-        self.dist_mean_bound = dist_mean_bound
-        self.dist_logvar_bound = dist_logvar_bound
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -518,7 +508,6 @@ class InfGenModel(object):
             if td_mod_name in self.merge_info:
                 # handle computation for a TD module that requires
                 # sampling some stochastic latent variables.
-                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 if im_mod_name is None:
                     # feedforward through the top-most generator module.
@@ -537,14 +526,6 @@ class InfGenModel(object):
                         # use top-down conditioning
                         cond_mean_td, cond_logvar_td = \
                                 im_module.apply_td(td_acts[-1])
-                        cond_mean_td = self.dist_scale * cond_mean_td
-                        cond_logvar_td = self.dist_scale * cond_logvar_td
-                        if self.dist_mean_bound:
-                            # bound the conditional means if desired
-                            cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
-                        if self.dist_logvar_bound:
-                            # bound the conditional logvars if desired
-                            cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
                         cond_rvs = reparametrize(cond_mean_td,
                                                  cond_logvar_td,
                                                  rvs=rvs)
@@ -615,22 +596,12 @@ class InfGenModel(object):
                     # -- This only happens for the top-most module.
                     cond_mean_im = bu_res_dict[bu_mod_name][0]
                     cond_logvar_im = bu_res_dict[bu_mod_name][1]
-                    cond_mean_im = self.dist_scale * cond_mean_im
-                    cond_logvar_im = self.dist_scale * cond_logvar_im
                     cond_mean_td = 0.0 * cond_mean_im
                     cond_logvar_td = 0.0 * cond_logvar_im
-                    if self.dist_mean_bound:
-                        # bound the conditional means if desired
-                        cond_mean_im = tanh_clip(cond_mean_im, bound=self.dist_mean_bound)
-                        cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
-                    if self.dist_logvar_bound:
-                        # bound the conditional logvars if desired
-                        cond_logvar_im = tanh_clip(cond_logvar_im, bound=self.dist_logvar_bound)
-                        cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
-                    td_act_i = td_module.apply(rand_vals=rand_vals)
+                    td_act = td_module.apply(rand_vals=rand_vals)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]              # info from TD pass
@@ -639,46 +610,34 @@ class InfGenModel(object):
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info, bu_input=bu_info)
-                    cond_mean_im = self.dist_scale * cond_mean_im
-                    cond_logvar_im = self.dist_scale * cond_logvar_im
                     # get the model distribution
                     if im_module.use_td_cond:
                         # use top-down conditioning
                         cond_mean_td, cond_logvar_td = \
                                 im_module.apply_td(td_info)
-                        cond_mean_td = self.dist_scale * cond_mean_td
-                        cond_logvar_td = self.dist_scale * cond_logvar_td
                     else:
                         # use a fixed ZMUV Gaussian prior
                         cond_mean_td = 0.0 * cond_mean_im
                         cond_logvar_td = 0.0 * cond_logvar_im
-                    if self.dist_mean_bound:
-                        # bound the conditional means if desired
-                        cond_mean_im = tanh_clip(cond_mean_im, bound=self.dist_mean_bound)
-                        cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
-                    if self.dist_logvar_bound:
-                        # bound the conditional logvars if desired
-                        cond_logvar_im = tanh_clip(cond_logvar_im, bound=self.dist_logvar_bound)
-                        cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the current TD module
-                    td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=rand_vals)
+                    td_act = td_module.apply(input=td_info,
+                                             rand_vals=rand_vals)
                 # record TD info produced by current module
-                td_acts.append(td_act_i)
+                td_acts.append(td_act)
                 # record KLd info for the relevant conditional distribution
-                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
-                                     T.flatten(cond_logvar_im, 2),
-                                     T.flatten(cond_mean_td, 2),
-                                     T.flatten(cond_logvar_td, 2))
-                kld_dict[td_mod_name] = kld_i
+                kld = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                   T.flatten(cond_logvar_im, 2),
+                                   T.flatten(cond_mean_td, 2),
+                                   T.flatten(cond_logvar_td, 2))
+                kld_dict[td_mod_name] = kld
             else:
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules (no rands)
                 td_info = td_acts[-1] # incoming info from TD pass
-                td_act_i = td_module.apply(input=td_info, rand_vals=None)
-                td_acts.append(td_act_i)
+                td_act = td_module.apply(input=td_info, rand_vals=None)
+                td_acts.append(td_act)
         td_output = self.output_transform(td_acts[-1])
         return td_output, kld_dict
 

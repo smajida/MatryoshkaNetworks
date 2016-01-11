@@ -88,6 +88,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_td_cond = False # whether to use top-down conditioning in generator
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
@@ -337,6 +338,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -349,6 +351,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
+    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -361,6 +364,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
+    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_5'
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
@@ -384,17 +388,13 @@ merge_info = {
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
-dist_scale = sharedX( floatX([0.1]) )
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=tanh,
-    dist_scale=dist_scale[0],
-    dist_logvar_bound=5.0,
-    dist_mean_bound=5.0
+    output_transform=tanh
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -472,9 +472,9 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 4.0 * tanh((1.0/4.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
-inf_params = [dist_scale] + inf_gen_model.inf_params
+inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -510,7 +510,7 @@ vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.5)
+                                   use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 vae_obs_nlls = vae_layer_nlls[0] #sum(vae_layer_nlls)
