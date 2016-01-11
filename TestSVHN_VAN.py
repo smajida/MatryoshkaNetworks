@@ -393,9 +393,8 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=tanh,
     dist_scale=dist_scale[0],
-    dist_logvar=None,
-    dist_logvar_bound=3.0,
-    dist_mean_bound=3.0
+    dist_logvar_bound=5.0,
+    dist_mean_bound=5.0
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)

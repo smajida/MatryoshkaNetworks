@@ -395,14 +395,13 @@ class InfGenModel(object):
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
         dist_scale: initial rescaling for reparametrization outputs
-        dist_logvar: optional, fixed value for posterior logvars
         dist_mean_bound: optional tanh clipping bound for poterior means
         dist_logvar_bound: optional tanh clipping bound for poterior logvars
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
                  merge_info, output_transform,
-                 dist_scale=0.1, dist_logvar=None,
+                 dist_scale=0.1,
                  dist_mean_bound=None, dist_logvar_bound=None):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
@@ -429,7 +428,6 @@ class InfGenModel(object):
         # record rescaling factor for reparametrization outputs
         self.dist_scale = dist_scale
         # record (optional) params for "approximate posteriors"
-        self.dist_logvar = dist_logvar
         self.dist_mean_bound = dist_mean_bound
         self.dist_logvar_bound = dist_logvar_bound
         # construct a theano function for drawing samples from this model
@@ -439,7 +437,7 @@ class InfGenModel(object):
         print("DONE.")
         print("Compiling rand shape computer...")
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
-        shapes = self.compute_rand_shapes(50)
+        self.rand_shapes = self.compute_rand_shapes(32)
         print("DONE.")
         return
 
@@ -478,8 +476,28 @@ class InfGenModel(object):
         pickle_file.close()
         return
 
-    def apply_td(self, rand_vals=None, batch_size=None,
-                 rand_shapes=False):
+    def infer_rand_shapes(self, batch_size):
+        """
+        Helper function for inferring rand val shapes for gen layers.
+        """
+        acts = []
+        r_shapes = []
+        for i, td_module in enumerate(self.td_modules):
+            if i == 0:
+                # feedforward through the top-most, fully-connected module
+                res = td_module.apply(rand_vals=None,
+                                      batch_size=batch_size,
+                                      rand_shapes=True)
+            else:
+                # feedforward through a convolutional module
+                res = td_module.apply(acts[-1],
+                                      rand_vals=None,
+                                      rand_shapes=True)
+            acts.append(res[0])
+            r_shapes.append(res[1])
+        return r_shapes
+
+    def apply_td(self, rand_vals=None, batch_size=None):
         """
         Apply this generator network using the given random values.
         """
@@ -494,28 +512,56 @@ class InfGenModel(object):
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
         acts = []
-        r_shapes = []
-        res = None
-        for i, rvs in enumerate(rand_vals):
-            if i == 0:
-                # feedforward through the top-most, fully-connected module
-                res = self.td_modules[i].apply(rand_vals=rvs,
-                                               batch_size=batch_size,
-                                               rand_shapes=rand_shapes)
+        for rvs, td_module, rvs_shape in zip(rand_vals, self.td_modules, self.rand_shapes):
+            td_mod_name = td_module.mod_name
+            td_act = None # this will be set to the output of td_module
+            if td_mod_name in self.merge_info:
+                # handle computation for a TD module that requires
+                # sampling some stochastic latent variables.
+                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                if im_mod_name is None:
+                    # feedforward through the top-most generator module.
+                    # this module has a fixed ZMUV Gaussian prior.
+                    td_act = td_module.apply(rand_vals=rvs,
+                                             batch_size=batch_size)
+                else:
+                    # feedforward through a convolutional module
+                    im_module = self.im_modules_dict[im_mod_name]
+                    if rvs is None:
+                        # sample values to reparametrize, if none given
+                        b_size = td_acts[-1].shape[0]
+                        rvs_size = (b_size, rvs_shape[1], rvs_shape[2], rvs_shape[3])
+                        rvs = cu_rng.normal(size=rvs_size, dtype=theano.config.floatX)
+                    if im_module.use_td_cond:
+                        # use top-down conditioning
+                        cond_mean_td, cond_logvar_td = \
+                                im_module.apply_td(td_acts[-1])
+                        cond_mean_td = self.dist_scale * cond_mean_td
+                        cond_logvar_td = self.dist_scale * cond_logvar_td
+                        if self.dist_mean_bound:
+                            # bound the conditional means if desired
+                            cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
+                        if self.dist_logvar_bound:
+                            # bound the conditional logvars if desired
+                            cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
+                        cond_rvs = reparametrize(cond_mean_td,
+                                                 cond_logvar_td,
+                                                 rvs=rvs)
+                    else:
+                        # use samples without reparametrizing
+                        cond_rvs = rvs
+                    # feedforward using the reparametrized stochastic
+                    # variables and incoming activations.
+                    td_act = td_module.apply(td_acts[-1],
+                                             rand_vals=cond_rvs)
             else:
-                # feedforward through a convolutional module
-                res = self.td_modules[i].apply(acts[-1],
-                                               rand_vals=rvs,
-                                               rand_shapes=rand_shapes)
-            if not rand_shapes:
-                acts.append(res)
-            else:
-                acts.append(res[0])
-                r_shapes.append(res[1])
+                # handle computation for a TD module that only requires
+                # information from preceding TD modules (no rand input)
+                td_act = td_module.apply(input=td_acts[-1], rand_vals=None)
+            td_acts.append(td_act)
         # apply some transform (e.g. tanh or sigmoid) to final activations
-        result = self.output_transform(acts[-1])
-        if rand_shapes:
-            result = r_shapes
+        result = self.output_transform(td_acts[-1])
         return result
 
     def apply_bu(self, input):
@@ -565,21 +611,23 @@ class InfGenModel(object):
                 bu_mod_name = self.merge_info[td_mod_name]['bu_module']
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 if im_mod_name is None:
-                    # handle conditionals based purely on BU info
-                    cond_mean = bu_res_dict[bu_mod_name][0]
-                    cond_logvar = bu_res_dict[bu_mod_name][1]
+                    # handle conditionals based purely on BU info.
+                    # -- This only happens for the top-most module.
+                    cond_mean_im = bu_res_dict[bu_mod_name][0]
+                    cond_logvar_im = bu_res_dict[bu_mod_name][1]
+                    cond_mean_im = self.dist_scale * cond_mean_im
+                    cond_logvar_im = self.dist_scale * cond_logvar_im
+                    cond_mean_td = 0.0 * cond_mean_im
+                    cond_logvar_td = 0.0 * cond_logvar_im
                     if self.dist_mean_bound:
                         # bound the conditional means if desired
-                        cond_mean = tanh_clip(cond_mean, bound=self.dist_mean_bound)
-                    if self.dist_logvar:
-                        # use a fixed value for conditional logvars, if
-                        # one was provided
-                        cond_logvar = (0. * cond_logvar) + self.dist_logvar
-                    elif self.dist_logvar_bound:
+                        cond_mean_im = tanh_clip(cond_mean_im, bound=self.dist_mean_bound)
+                        cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
+                    if self.dist_logvar_bound:
                         # bound the conditional logvars if desired
-                        cond_logvar = tanh_clip(cond_logvar, bound=self.dist_logvar_bound)
-                    rand_vals = reparametrize((self.dist_scale * cond_mean),
-                                              (self.dist_scale * cond_logvar),
+                        cond_logvar_im = tanh_clip(cond_logvar_im, bound=self.dist_logvar_bound)
+                        cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
+                    rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
                     td_act_i = td_module.apply(rand_vals=rand_vals)
@@ -588,20 +636,31 @@ class InfGenModel(object):
                     td_info = td_acts[-1]              # info from TD pass
                     bu_info = bu_res_dict[bu_mod_name] # info from BU pass
                     im_module = self.im_modules_dict[im_mod_name]
-                    cond_mean, cond_logvar = \
-                            im_module.apply(td_input=td_info, bu_input=bu_info)
+                    # get the inference distribution
+                    cond_mean_im, cond_logvar_im = \
+                            im_module.apply_im(td_input=td_info, bu_input=bu_info)
+                    cond_mean_im = self.dist_scale * cond_mean_im
+                    cond_logvar_im = self.dist_scale * cond_logvar_im
+                    # get the model distribution
+                    if im_module.use_td_cond:
+                        # use top-down conditioning
+                        cond_mean_td, cond_logvar_td = \
+                                im_module.apply_td(td_info)
+                        cond_mean_td = self.dist_scale * cond_mean_td
+                        cond_logvar_td = self.dist_scale * cond_logvar_td
+                    else:
+                        # use a fixed ZMUV Gaussian prior
+                        cond_mean_td = 0.0 * cond_mean_im
+                        cond_logvar_td = 0.0 * cond_logvar_im
                     if self.dist_mean_bound:
                         # bound the conditional means if desired
-                        cond_mean = tanh_clip(cond_mean, bound=self.dist_mean_bound)
-                    if self.dist_logvar:
-                        # use a fixed value for conditional logvars, if
-                        # one was provided
-                        cond_logvar = (0. * cond_logvar) + self.dist_logvar
-                    elif self.dist_logvar_bound:
+                        cond_mean_im = tanh_clip(cond_mean_im, bound=self.dist_mean_bound)
+                        cond_mean_td = tanh_clip(cond_mean_td, bound=self.dist_mean_bound)
+                    if self.dist_logvar_bound:
                         # bound the conditional logvars if desired
-                        cond_logvar = tanh_clip(cond_logvar, bound=self.dist_logvar_bound)
-                    rand_vals = reparametrize((self.dist_scale * cond_mean),
-                                              (self.dist_scale * cond_logvar),
+                        cond_logvar_im = tanh_clip(cond_logvar_im, bound=self.dist_logvar_bound)
+                        cond_logvar_td = tanh_clip(cond_logvar_td, bound=self.dist_logvar_bound)
+                    rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
@@ -609,13 +668,14 @@ class InfGenModel(object):
                 # record TD info produced by current module
                 td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
-                kld_i = gaussian_kld(T.flatten((self.dist_scale * cond_mean), 2),
-                                     T.flatten((self.dist_scale * cond_logvar), 2),
-                                     0.0, 0.0)
+                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                     T.flatten(cond_logvar_im, 2),
+                                     T.flatten(cond_mean_td, 2),
+                                     T.flatten(cond_logvar_td, 2))
                 kld_dict[td_mod_name] = kld_i
             else:
                 # handle computation for a TD module that only requires
-                # information from preceding TD modules
+                # information from preceding TD modules (no rands)
                 td_info = td_acts[-1] # incoming info from TD pass
                 td_act_i = td_module.apply(input=td_info, rand_vals=None)
                 td_acts.append(td_act_i)
@@ -640,7 +700,7 @@ class InfGenModel(object):
         """
         batch_size = T.lscalar()
         # feedforward through the model with batch size "batch_size"
-        sym_shapes = self.apply_td(batch_size=batch_size, rand_shapes=True)
+        sym_shapes = self.infer_rand_shapes(batch_size)
         # compile a theano function for computing shapes of the Gaussian latent
         # variables used in the top-down generative model.
         shape_func = theano.function([batch_size], sym_shapes)
