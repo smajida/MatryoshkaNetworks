@@ -421,13 +421,13 @@ class InfGenModel(object):
         else:
             self.output_transform = output_transform
         # construct a theano function for drawing samples from this model
-        print("Compiling sample generator...")
-        self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(50)
-        print("DONE.")
         print("Compiling rand shape computer...")
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
         self.rand_shapes = self.compute_rand_shapes(32)
+        print("DONE.")
+        print("Compiling sample generator...")
+        self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(50)
         print("DONE.")
         return
 
