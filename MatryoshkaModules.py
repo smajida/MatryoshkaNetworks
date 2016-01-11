@@ -1052,8 +1052,7 @@ class InfConvMergeModule(object):
         self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
         self.params.extend([self.w3_td, self.b3_td])
         # rescaling parameter for distribution outputs
-        ds_ifn = inits.Constant(c=0.1)
-        self.dist_scale = ds_ifn((3), "{}_dist_scale".format(self.mod_name))
+        self.dist_scale = theano.shared(floatX(np.asarray([0.1, 0.1])))
         self.params.extend([self.dist_scale])
         return
 
@@ -1124,7 +1123,7 @@ class InfConvMergeModule(object):
                 h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
             # split output into "mean" and "log variance" components, for using in
             # Gaussian reparametrization.
-            h4 = tanh_clip((self.dist_scale * h4), scale=4.0)
+            h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
             out_mean = h4[:,:self.rand_chans,:,:]
             out_logvar = h4[:,self.rand_chans:,:,:]
         else:
@@ -1157,7 +1156,7 @@ class InfConvMergeModule(object):
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        h4 = tanh_clip((self.dist_scale * h4), scale=4.0)
+        h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
         out_mean = h4[:,:self.rand_chans,:,:]
         out_logvar = h4[:,self.rand_chans:,:,:]
         return out_mean, out_logvar
@@ -1219,8 +1218,7 @@ class InfFCModule(object):
         self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
         self.params.extend([self.w_out, self.b_out])
         # rescaling parameter for distribution outputs
-        ds_ifn = inits.Constant(c=0.1)
-        self.dist_scale = ds_ifn((3), "{}_dist_scale".format(self.mod_name))
+        self.dist_scale = theano.shared(floatX(np.asarray([0.1, 0.1])))
         self.params.extend([self.dist_scale])
         return
 
@@ -1275,7 +1273,7 @@ class InfFCModule(object):
             h3 = T.dot(bu_input, self.w_out)
             h4 = h3 + self.b_out.dimshuffle('x',0)
         # split output into mean and log variance parts
-        h4 = tanh_clip((self.dist_scale * h4), scale=4.0)
+        h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
