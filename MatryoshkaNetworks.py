@@ -501,7 +501,7 @@ class InfGenModel(object):
             # no random values were provided, which means we'll be generating
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
-        acts = []
+        td_acts = []
         for rvs, td_module, rvs_shape in zip(rand_vals, self.td_modules, self.rand_shapes):
             td_mod_name = td_module.mod_name
             td_act = None # this will be set to the output of td_module
