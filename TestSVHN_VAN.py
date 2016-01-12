@@ -88,7 +88,6 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_td_cond = False # whether to use top-down conditioning in generator
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
@@ -338,7 +337,6 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
-    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -351,7 +349,6 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
-    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -364,7 +361,6 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
-    use_td_cond=use_td_cond,
     act_func='lrelu',
     mod_name='im_mod_5'
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution

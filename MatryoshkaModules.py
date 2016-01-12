@@ -980,23 +980,20 @@ class InfConvMergeModule(object):
         td_chans: number of channels in the "top-down" inputs to module
         bu_chans: number of channels in the "bottom-up" inputs to module
         rand_chans: number of latent channels that we want conditionals for
-        conv_chans: number of channels in the "internal" convolution layers
+        conv_chans: number of channels in the "internal" convolution layer
         use_conv: flag for whether to use "internal" convolution layer
-        use_td_cond: flag for whether to use top-down conditioning
-                     -- top-down conditioning provides the "prior"
         act_func: in ['ident', 'relu', 'lrelu']
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  td_chans, bu_chans, rand_chans, conv_chans,
-                 use_conv=True, use_td_cond=False, act_func='relu',
+                 use_conv=True, act_func='relu',
                  mod_name='gm_conv'):
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
         self.use_conv = use_conv
-        self.use_td_cond = use_td_cond
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'relu':
@@ -1015,62 +1012,33 @@ class InfConvMergeModule(object):
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
-        ############################################
-        # Initialize "inference" model parameters. #
-        ############################################
         # initialize first conv layer parameters
-        self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
-                                "{}_w1_im".format(self.mod_name))
-        self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
-        self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
-        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        self.w1 = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
         # initialize second conv layer parameters
-        self.w2_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
-                                "{}_w2_im".format(self.mod_name))
-        self.params.extend([self.w2_im])
+        self.w2 = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
+                             "{}_w2".format(self.mod_name))
+        self.params.extend([self.w2])
         # initialize convolutional projection layer parameters
-        self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
-                                "{}_w3_im".format(self.mod_name))
-        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.b3_im])
-        #############################################
-        # Initialize "generative" model parameters. #
-        #############################################
-        # initialize first conv layer parameters
-        self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
-                                 "{}_w1_td".format(self.mod_name))
-        self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
-        self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
-        self.params.extend([self.w1_td, self.g1_td, self.b1_td])
-        # initialize second conv layer parameters
-        self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
-                                "{}_w2_td".format(self.mod_name))
-        self.params.extend([self.w2_td])
-        # initialize convolutional projection layer parameters
-        self.w3_td = weight_ifn((2*self.rand_chans, self.td_chans, 3, 3),
-                                "{}_w3_td".format(self.mod_name))
-        self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
-        self.params.extend([self.w3_td, self.b3_td])
+        self.w_out = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
+                                "{}_w_out".format(self.mod_name))
+        self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
+        self.params.extend([self.w_out, self.b_out])
         return
 
     def load_params(self, param_dict):
         """
         Load model params directly from a dict of numpy arrays.
         """
-        # load info-merge parameters
-        self.w1_im.set_value(floatX(param_dict['w1_im']))
-        self.g1_im.set_value(floatX(param_dict['g1_im']))
-        self.b1_im.set_value(floatX(param_dict['b1_im']))
-        self.w2_im.set_value(floatX(param_dict['w2_im']))
-        self.w3_im.set_value(floatX(param_dict['w3_im']))
-        self.b3_im.set_value(floatX(param_dict['b3_im']))
-        # load top-down conditioning parameters
-        self.w1_td.set_value(floatX(param_dict['w1_td']))
-        self.g1_td.set_value(floatX(param_dict['g1_td']))
-        self.b1_td.set_value(floatX(param_dict['b1_td']))
-        self.w2_td.set_value(floatX(param_dict['w2_td']))
-        self.w3_td.set_value(floatX(param_dict['w3_td']))
-        self.b3_td.set_value(floatX(param_dict['b3_td']))
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.w_out.set_value(floatX(param_dict['w_out']))
+        self.b_out.set_value(floatX(param_dict['b_out']))
         return
 
     def dump_params(self):
@@ -1078,78 +1046,39 @@ class InfConvMergeModule(object):
         Dump model params directly to a dict of numpy arrays.
         """
         param_dict = {}
-        # dump info-merge parameters
-        param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
-        param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
-        param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
-        param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
-        param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
-        param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
-        # dump top-down conditioning parameters
-        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
-        param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
-        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
-        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
-        param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
-        param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['w_out'] = self.w_out.get_value(borrow=False)
+        param_dict['b_out'] = self.b_out.get_value(borrow=False)
         return param_dict
 
-    def apply_td(self, td_input):
+    def apply(self, td_input, bu_input):
         """
-        Put distributions over stuff based on td_input.
-        """
-        if self.use_td_cond:
-            if self.use_conv:
-                # apply first internal conv layer
-                h1 = dnn_conv(td_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
-                h1 = batchnorm(h1, g=self.g1_td, b=self.b1_td)
-                h1 = self.act_func(h1)
-                # apply second internal conv layer
-                h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
-                # apply direct input->output conv layer
-                h3 = dnn_conv(td_input, self.w3_td, subsample=(1, 1), border_mode=(1, 1))
-                # combine non-linear and linear transforms of input...
-                h4 = h2 + h3 + self.b3_td.dimshuffle('x',0,'x','x')
-            else:
-                # apply direct input->output conv layer
-                h3 = dnn_conv(td_input, self.w3_td, subsample=(1, 1), border_mode=(1, 1))
-                h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
-            # split output into "mean" and "log variance" components, for using in
-            # Gaussian reparametrization.
-            h4 = tanh_clip(h4, scale=4.0)
-            out_mean = h4[:,:self.rand_chans,:,:]
-            out_logvar = h4[:,self.rand_chans:,:,:]
-        else:
-            # if no top-down conditioning, return ZMUV Gaussian params
-            out_mean = 0.0
-            out_logvar = 0.0
-        return out_mean, out_logvar
-
-    def apply_im(self, td_input, bu_input):
-        """
-        Combine td_input and bu_input, to put distributions over stuff.
+        Combine td_input and bu_input, to put distributions over some stuff.
         """
         # stack top-down and bottom-up inputs on top of each other
         full_input = T.concatenate([td_input, bu_input], axis=1)
 
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-            h1 = batchnorm(h1, g=self.g1_im, b=self.b1_im)
+            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
+            h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = self.act_func(h1)
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(1, 1))
             # apply direct input->output conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+            h3 = dnn_conv(full_input, self.w_out, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
-            h4 = h2 + h3 + self.b3_im.dimshuffle('x',0,'x','x')
+            h4 = h2 + h3 + self.b_out.dimshuffle('x',0,'x','x')
         else:
             # apply direct input->output conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+            h3 = dnn_conv(full_input, self.w_out, subsample=(1, 1), border_mode=(1, 1))
+            h4 = h3 + self.b_out.dimshuffle('x',0,'x','x')
+
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        h4 = tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans,:,:]
         out_logvar = h4[:,self.rand_chans:,:,:]
         return out_mean, out_logvar
@@ -1259,7 +1188,6 @@ class InfFCModule(object):
             h3 = T.dot(bu_input, self.w_out)
             h4 = h3 + self.b_out.dimshuffle('x',0)
         # split output into mean and log variance parts
-        h4 = tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
