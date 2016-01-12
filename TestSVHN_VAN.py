@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_no_td_cond_repro'
+desc = 'test_van_deep_dm2_dm3_match_dm0'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -316,7 +316,7 @@ BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
-    apply_bn=True,
+    apply_bn=False,
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
@@ -392,7 +392,10 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale
+    dist_scale=dist_scale[0],
+    dist_logvar=None,
+    dist_logvar_bound=3.0,
+    dist_mean_bound=3.0
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -472,7 +475,7 @@ lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
-inf_params = inf_gen_model.inf_params
+inf_params = [dist_scale] + inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -511,9 +514,9 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
                                    use_huber=0.5)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
-print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
+#vae_obs_nlls = vae_layer_nlls[3]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
