@@ -63,7 +63,7 @@ l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
-npx = 32          # # of pixels width/height of images
+npx = 64          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 24          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
@@ -82,8 +82,24 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-ntrain = Xtr.shape[0]
 
+def scale_to_tanh_range(X):
+    """
+    Scale the given 2d array to be in tanh range (i.e. -1...1).
+    """
+    X = (X / 127.5) - 1.0
+    X_std = np.std(X, axis=0, keepdims=True)
+    return X, X_std
+
+def load_and_scale_data(npy_file_name):
+    """
+    Load and scale data from the given npy file, and compute standard deviation
+    too, to use when doing distribution annealing.
+    """
+    np_ary = np.load(npy_file_name)
+    np_ary = np_ary.astype(theano.config.floatX)
+    X, X_std = scale_to_tanh_range(np_ary)
+    return X, X_std
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
@@ -503,6 +519,7 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
+#vae_obs_nlls = vae_layer_nlls[3]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
@@ -592,7 +609,8 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+Xtr, Xtr_std = load_and_scale_data(data_files[0])
+test_recons = recon_func(train_transform(Xtr[0:96,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
@@ -620,15 +638,15 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 100
+end_idx = 96
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(100)
-    samples = samples.reshape((100,-1))
+    samples = gen_network.generate_samples(96)
+    samples = samples.reshape((96,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 100
-    end_idx += 100
+    start_idx += 96
+    end_idx += 96
 print("DONE.")
 
 # make file for recording test progress
