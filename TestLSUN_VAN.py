@@ -397,7 +397,10 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale
+    dist_scale=dist_scale[0],
+    dist_logvar=None,
+    dist_logvar_bound=3.0,
+    dist_mean_bound=3.0
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -477,7 +480,7 @@ lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
-inf_params = inf_gen_model.inf_params
+inf_params = [dist_scale] + inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
