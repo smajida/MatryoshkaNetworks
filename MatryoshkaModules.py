@@ -1123,7 +1123,7 @@ class InfConvMergeModule(object):
                 h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
             # split output into "mean" and "log variance" components, for using in
             # Gaussian reparametrization.
-            h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
+            h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
             out_mean = h4[:,:self.rand_chans,:,:]
             out_logvar = h4[:,self.rand_chans:,:,:]
         else:
@@ -1156,7 +1156,7 @@ class InfConvMergeModule(object):
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
+        h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans,:,:]
         out_logvar = h4[:,self.rand_chans:,:,:]
         return out_mean, out_logvar
@@ -1273,7 +1273,7 @@ class InfFCModule(object):
             h3 = T.dot(bu_input, self.w_out)
             h4 = h3 + self.b_out.dimshuffle('x',0)
         # split output into mean and log variance parts
-        h4 = tanh_clip((self.dist_scale[0] * h4), scale=4.0)
+        h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar

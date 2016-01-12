@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_yes_td_cond'
+desc = 'test_van_deep_dm2_dm3_no_td_cond_rescale_after_clip'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -88,7 +88,7 @@ lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_td_cond = True # whether to use top-down conditioning in generator
+use_td_cond = False # whether to use top-down conditioning in generator
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
@@ -317,7 +317,7 @@ BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
-    apply_bn=False,
+    apply_bn=True,
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
@@ -567,7 +567,7 @@ gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_d = 5e-5 * sum([T.sum(p**2.0) for p in d_params])
 gan_reg_cost_g = 2e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
