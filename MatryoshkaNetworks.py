@@ -394,10 +394,11 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
+        dist_scale: rescaling param shared across conditional distributions.
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
-                 merge_info, output_transform):
+                 merge_info, output_transform, dist_scale):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -420,6 +421,8 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
+        self.dist_scale = dist_scale
+        self.params.append(dist_scale)
         # construct a theano function for drawing samples from this model
         print("Compiling rand shape computer...")
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
@@ -444,6 +447,9 @@ class InfGenModel(object):
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump TD modules
         mod_param_dicts = [m.dump_params() for m in self.im_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump IM modules
+        # dump dist_scale
+        dscale = self.dist_scale.get_value(borrow=False)
+        cPickle.dump(dscale, f_handle, protocol=-1)
         f_handle.close()
         return
 
@@ -463,6 +469,9 @@ class InfGenModel(object):
         mod_param_dicts = cPickle.load(pickle_file) # load IM modules
         for param_dict, mod in zip(mod_param_dicts, self.im_modules):
             mod.load_params(param_dict=param_dict)
+        # load dist_scale
+        dscale = cPickle.load(pickle_file)
+        self.dist_scale = theano.shared(floatX(dscale))
         pickle_file.close()
         return
 
@@ -526,6 +535,8 @@ class InfGenModel(object):
                         # use top-down conditioning
                         cond_mean_td, cond_logvar_td = \
                                 im_module.apply_td(td_acts[-1])
+                        cond_mean_td = self.dist_scale[0] * cond_mean_td
+                        cond_logvar_td = self.dist_scale[0] * cond_logvar_td
                         cond_rvs = reparametrize(cond_mean_td,
                                                  cond_logvar_td,
                                                  rvs=rvs)
@@ -596,6 +607,8 @@ class InfGenModel(object):
                     # -- This only happens for the top-most module.
                     cond_mean_im = bu_res_dict[bu_mod_name][0]
                     cond_logvar_im = bu_res_dict[bu_mod_name][1]
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     cond_mean_td = 0.0 * cond_mean_im
                     cond_logvar_td = 0.0 * cond_logvar_im
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
@@ -610,11 +623,15 @@ class InfGenModel(object):
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info, bu_input=bu_info)
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get the model distribution
                     if im_module.use_td_cond:
-                        # use top-down conditioning
+                        # get the top-down conditional distribution
                         cond_mean_td, cond_logvar_td = \
                                 im_module.apply_td(td_info)
+                        cond_mean_td = self.dist_scale[0] * cond_mean_td
+                        cond_logvar_td = self.dist_scale[0] * cond_logvar_td
                     else:
                         # use a fixed ZMUV Gaussian prior
                         cond_mean_td = 0.0 * cond_mean_im
@@ -626,12 +643,16 @@ class InfGenModel(object):
                                              rand_vals=rand_vals)
                 # record TD info produced by current module
                 td_acts.append(td_act)
-                # record KLd info for the relevant conditional distribution
+                # record KLd info for the conditional distributions
                 kld = gaussian_kld(T.flatten(cond_mean_im, 2),
                                    T.flatten(cond_logvar_im, 2),
                                    T.flatten(cond_mean_td, 2),
                                    T.flatten(cond_logvar_td, 2))
-                kld_dict[td_mod_name] = kld
+                dlk = gaussian_kld(T.flatten(cond_mean_td, 2),
+                                   T.flatten(cond_logvar_td, 2),
+                                   0.0, 0.0)
+                # we regularize top-down conditionals towards ZMUV...
+                kld_dict[td_mod_name] = kld + (0.01 * dlk)
             else:
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules (no rands)

@@ -1051,9 +1051,6 @@ class InfConvMergeModule(object):
                                 "{}_w3_td".format(self.mod_name))
         self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
         self.params.extend([self.w3_td, self.b3_td])
-        # rescaling parameter for distribution outputs
-        self.dist_scale = theano.shared(floatX(np.asarray([0.1, 0.1])))
-        self.params.extend([self.dist_scale])
         return
 
     def load_params(self, param_dict):
@@ -1074,8 +1071,6 @@ class InfConvMergeModule(object):
         self.w2_td.set_value(floatX(param_dict['w2_td']))
         self.w3_td.set_value(floatX(param_dict['w3_td']))
         self.b3_td.set_value(floatX(param_dict['b3_td']))
-        # rescaling parameter
-        self.dist_scale.set_value(floatX(param_dict['dist_scale']))
         return
 
     def dump_params(self):
@@ -1097,8 +1092,6 @@ class InfConvMergeModule(object):
         param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
-        # rescaling parameter
-        param_dict['dist_scale'] = self.dist_scale.get_value(borrow=False)
         return param_dict
 
     def apply_td(self, td_input):
@@ -1123,7 +1116,7 @@ class InfConvMergeModule(object):
                 h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
             # split output into "mean" and "log variance" components, for using in
             # Gaussian reparametrization.
-            h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
+            h4 = tanh_clip(h4, scale=4.0)
             out_mean = h4[:,:self.rand_chans,:,:]
             out_logvar = h4[:,self.rand_chans:,:,:]
         else:
@@ -1156,7 +1149,7 @@ class InfConvMergeModule(object):
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
+        h4 = tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans,:,:]
         out_logvar = h4[:,self.rand_chans:,:,:]
         return out_mean, out_logvar
@@ -1217,9 +1210,6 @@ class InfFCModule(object):
                                 "{}_w_out".format(self.mod_name))
         self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
         self.params.extend([self.w_out, self.b_out])
-        # rescaling parameter for distribution outputs
-        self.dist_scale = theano.shared(floatX(np.asarray([0.1, 0.1])))
-        self.params.extend([self.dist_scale])
         return
 
     def load_params(self, param_dict):
@@ -1232,8 +1222,6 @@ class InfFCModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.w_out.set_value(floatX(param_dict['w_out']))
         self.b_out.set_value(floatX(param_dict['b_out']))
-        # rescaling parameter
-        self.dist_scale.set_value(floatX(param_dict['dist_scale']))
         return
 
     def dump_params(self):
@@ -1247,8 +1235,6 @@ class InfFCModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['w_out'] = self.w_out.get_value(borrow=False)
         param_dict['b_out'] = self.b_out.get_value(borrow=False)
-        # rescaling parameter
-        param_dict['dist_scale'] = self.dist_scale.get_value(borrow=False)
         return param_dict
 
     def apply(self, bu_input):
@@ -1273,7 +1259,7 @@ class InfFCModule(object):
             h3 = T.dot(bu_input, self.w_out)
             h4 = h3 + self.b_out.dimshuffle('x',0)
         # split output into mean and log variance parts
-        h4 = self.dist_scale[0] * tanh_clip(h4, scale=4.0)
+        h4 = tanh_clip(h4, scale=4.0)
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
