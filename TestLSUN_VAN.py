@@ -179,12 +179,12 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=True,
+    use_fc=False,
     apply_bn=True,
     mod_name='td_mod_1'
-) # output is (batch, ngf*8, 2, 2)
+) # output is (batch, ngf*8, 4, 4)
 
 td_module_2 = \
 GenConvResModule(
@@ -197,22 +197,9 @@ GenConvResModule(
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_2'
-) # output is (batch, ngf*4, 4, 4)
-
-td_module_3 = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    us_stride=2,
-    mod_name='td_mod_3'
 ) # output is (batch, ngf*4, 8, 8)
 
-td_module_4 = \
+td_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -222,10 +209,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='td_mod_4'
-) # output is (batch, ngf*2, 16, 16)
+    mod_name='td_mod_3'
+) # output is (batch, ngf*4, 16, 16)
 
-td_module_5 = \
+td_module_4 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -235,13 +222,26 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='td_mod_5'
+    mod_name='td_mod_4'
 ) # output is (batch, ngf*1, 32, 32)
+
+td_module_5 = \
+GenConvResModule(
+    in_chans=(ngf*1),
+    out_chans=16,
+    conv_chans=32,
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='td_mod_5'
+) # output is (batch, ngf*1, 64, 64)
 
 td_module_6 = \
 BasicConvModule(
-    filt_shape=(5,5),
-    in_chans=(ngf*1),
+    filt_shape=(3,3),
+    in_chans=16,
     out_chans=nc,
     apply_bn=False,
     stride='half',
@@ -260,10 +260,10 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfFCModule(
-    bu_chans=(ngf*8*2*2),
+    bu_chans=(ngf*8*4*4),
     fc_chans=ngfc,
     rand_chans=nz0,
-    use_fc=True,
+    use_fc=False,
     act_func='lrelu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0)
@@ -278,21 +278,9 @@ BasicConvResModule(
     stride='double',
     act_func='lrelu',
     mod_name='bu_mod_2'
-) # output is (batch, ngf*8, 2, 2)
+) # output is (batch, ngf*8, 4, 4)
 
 bu_module_3 = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
-    mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 4, 4)
-
-bu_module_4 = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*4),
@@ -301,10 +289,10 @@ BasicConvResModule(
     use_conv=use_conv,
     stride='double',
     act_func='lrelu',
-    mod_name='bu_mod_4'
+    mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 8, 8)
 
-bu_module_5 = \
+bu_module_4 = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
@@ -313,19 +301,31 @@ BasicConvResModule(
     use_conv=use_conv,
     stride='double',
     act_func='lrelu',
-    mod_name='bu_mod_5'
+    mod_name='bu_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
+
+bu_module_5 = \
+BasicConvResModule(
+    in_chans=16,
+    out_chans=(ngf*1),
+    conv_chans=32,
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='double',
+    act_func='lrelu',
+    mod_name='bu_mod_5'
+) # output is (batch, ngf*1, 32, 32)
 
 bu_module_6 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     in_chans=nc,
-    out_chans=(ngf*1),
-    apply_bn=True,
-    stride='double',
+    out_chans=16,
+    apply_bn=False,
+    stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 32, 32)
+) # output is (batch, ngf*1, 64, 64)
 
 # modules must be listed in "evaluation order"
 bu_modules = [bu_module_6, bu_module_5, bu_module_4,
@@ -349,10 +349,10 @@ InfConvMergeModule(
 
 im_module_4 = \
 InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     act_func='lrelu',
     mod_name='im_mod_4'
@@ -361,8 +361,8 @@ InfConvMergeModule(
 
 im_module_5 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
@@ -397,10 +397,7 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale[0],
-    dist_logvar=None,
-    dist_logvar_bound=3.0,
-    dist_mean_bound=3.0
+    dist_scale=dist_scale[0]
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -516,7 +513,7 @@ vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.5)
+                                   use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
@@ -613,7 +610,7 @@ print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
 Xtr, Xtr_std = load_and_scale_data(data_files[0])
-test_recons = recon_func(train_transform(Xtr[0:96,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
@@ -641,15 +638,15 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 96
+end_idx = 100
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(96)
-    samples = samples.reshape((96,-1))
+    samples = gen_network.generate_samples(100)
+    samples = samples.reshape((100,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 96
-    end_idx += 96
+    start_idx += 100
+    end_idx += 100
 print("DONE.")
 
 # make file for recording test progress

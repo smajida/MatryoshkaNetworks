@@ -392,10 +392,7 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=tanh,
-    dist_scale=dist_scale[0],
-    dist_logvar=None,
-    dist_logvar_bound=3.0,
-    dist_mean_bound=3.0
+    dist_scale=dist_scale[0]
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -511,7 +508,7 @@ vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.5)
+                                   use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 vae_obs_nlls = vae_layer_nlls[0]
