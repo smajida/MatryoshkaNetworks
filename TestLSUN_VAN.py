@@ -62,7 +62,7 @@ set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 128      # # of examples in batch
+nbatch = 64      # # of examples in batch
 npx = 64          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 24          # # of dim for Z1
