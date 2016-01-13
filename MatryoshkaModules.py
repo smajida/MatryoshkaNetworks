@@ -7,8 +7,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, \
-                    cw_dropout
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
 from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
@@ -30,8 +29,8 @@ def fc_drop_func(x, unif_drop):
     """
     # dumb dropout, no rescale (assume MC dropout usage)
     if unif_drop > 0.01:
-        x *= cu_rng.binomial(x.shape, p=(1. - unif_drop),
-                             dtype=theano.config.floatX)
+        r = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
+        x = x * (r > unif_drop)
     return x
 
 def conv_drop_func(x, unif_drop, chan_drop):
@@ -40,12 +39,12 @@ def conv_drop_func(x, unif_drop, chan_drop):
     """
     # dumb dropout, no rescale (assume MC dropout usage)
     if unif_drop > 0.01:
-        x *= cu_rng.binomial(x.shape, p=(1. - unif_drop),
-                             dtype=theano.config.floatX)
+        ru = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
+        x = x * (ru > unif_drop)
     if chan_drop > 0.01:
-        chan_mask = cu_rng.binomial((x.shape[1],), p=(1. - chan_drop),
-                                    dtype=theano.config.floatX)
-        x *= chan_mask.dimshuffle('x',0,'x','x')
+        rc = cu_rng.uniform((x.shape[1],), dtype=theano.config.floatX)
+        chan_mask = (rc > chan_drop)
+        x = x * chan_mask.dimshuffle('x',0,'x','x')
     return x
 
 #####################################
