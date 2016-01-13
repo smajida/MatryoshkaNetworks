@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop02'
+desc = 'test_van_match_dm3_drop02_new_masking'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -518,13 +518,14 @@ Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
 Xg_joint = T.concatenate([Xg, Xg_recon], axis=0)
 Hg_joint, _ = disc_network.apply(input=Xg_joint, ret_vals=ret_vals,
                                  ret_acts=True, app_sigm=True,
-                                 share_masks=True)
-Hg_world = [hg[:Xg.shape[0],:,:,:] for hg in Hg_joint]
-Hg_recon = [hg[Xg.shape[0]:,:,:,:] for hg in Hg_joint]
+                                 share_mask=True)
+Hg_flat = [T.flatten(hg,2) for hg in Hg_joint]
+Hg_world = [hg[:Xg.shape[0],:] for hg in Hg_flat]
+Hg_recon = [hg[Xg.shape[0]:,:] for hg in Hg_flat]
 
 vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
-    lnll = -1. * log_prob_gaussian(T.flatten(hg_world,2), T.flatten(hg_recon,2),
+    lnll = -1. * log_prob_gaussian(hg_world, hg_recon,
                                    log_vars=bounded_logvar[0], do_sum=False,
                                    use_huber=0.25)
     # NLLs are recorded for each observation in the batch
