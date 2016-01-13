@@ -7,7 +7,8 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, \
+                    cw_dropout
 from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
@@ -21,6 +22,30 @@ def tanh_clip(x, scale=10.0):
     Do soft "tanh" clipping to put data in range -scale....+scale.
     """
     x = scale * tanh((1.0 / scale) * x)
+    return x
+
+def fc_drop_func(x, unif_drop):
+    """
+    Helper func for applying uniform dropout.
+    """
+    # dumb dropout, no rescale (assume MC dropout usage)
+    if unif_drop > 0.01:
+        x *= cu_rng.binomial(x.shape, p=(1. - unif_drop),
+                             dtype=theano.config.floatX)
+    return x
+
+def conv_drop_func(x, unif_drop, chan_drop):
+    """
+    Helper func for applying uniform and/or channel-wise dropout.
+    """
+    # dumb dropout, no rescale (assume MC dropout usage)
+    if unif_drop > 0.01:
+        x *= cu_rng.binomial(x.shape, p=(1. - unif_drop),
+                             dtype=theano.config.floatX)
+    if chan_drop > 0.01:
+        chan_mask = cu_rng.binomial((x.shape[1],), p=(1. - chan_drop),
+                                    dtype=theano.config.floatX)
+        x *= chan_mask.dimshuffle('x',0,'x','x')
     return x
 
 #####################################
@@ -183,10 +208,13 @@ class BasicConvModule(object):
         stride: whether to use 'double', 'single', or 'half' stride.
         apply_bn: whether to apply batch normalization after conv
         act_func: should be "ident", "relu", or "lrelu"
+        unif_drop: drop rate for uniform dropout
+        chan_drop: drop rate for channel-wise dropout
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, filt_shape, in_chans, out_chans,
                  stride='single', apply_bn=True, act_func='ident',
+                 unif_drop=0.0, chan_drop=0.0,
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
@@ -197,6 +225,8 @@ class BasicConvModule(object):
         self.stride = stride
         self.apply_bn = apply_bn
         self.act_func = act_func
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -239,6 +269,8 @@ class BasicConvModule(object):
         Apply this convolutional module to the given input.
         """
         bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
+        # apply uniform and/or channel-wise dropout if desired
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop)
         # apply first conv layer
         if self.stride == 'single':
             # normal, 1x1 stride
@@ -282,15 +314,18 @@ class DiscFCModule(object):
         in_dim: dimension of the inputs to the module
         use_fc: whether or not to use the hidden layer
         apply_bn: whether to apply batch normalization at fc layer
+        unif_drop: drop rate for uniform dropout
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, fc_dim, in_dim, use_fc,
                  apply_bn=True, init_func=None,
+                 unif_drop=0.0,
                  mod_name='dm_fc'):
         self.fc_dim = fc_dim
         self.in_dim = in_dim
         self.use_fc = use_fc
         self.apply_bn = apply_bn
+        self.unif_drop = unif_drop
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -345,12 +380,14 @@ class DiscFCModule(object):
         """
         # flatten input to 1d per example
         input = T.flatten(input, 2)
+        input = fc_drop_func(input, self.unif_drop)
         if self.use_fc:
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
             h1 = lrelu(h1)
+            h1 = fc_drop_func(h1, self.unif_drop)
             # compute discriminator output from fc layer and input
             h2 = T.dot(h1, self.w2) + T.dot(input, self.w2)
             y = h2
@@ -376,11 +413,14 @@ class DiscConvResModule(object):
         filt_shape: size of filters (either (3, 3) or (5, 5))
         use_conv: flag for whether to use "internal" convolution layer
         ds_stride: downsampling ratio in the fractionally strided convolution
+        unif_drop: drop rate for uniform dropout
+        chan_drop: drop rate for channel-wise dropout
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, filt_shape,
                  use_conv=True, ds_stride=2,
+                 unif_drop=0.0, chan_drop=0.0,
                  mod_name='dm_conv'):
         assert ((ds_stride == 1) or (ds_stride == 2)), \
                 "ds_stride must be 1 or 2."
@@ -392,6 +432,8 @@ class DiscConvResModule(object):
         self.filt_dim = filt_shape[0]
         self.use_conv = use_conv
         self.ds_stride = ds_stride
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -468,11 +510,16 @@ class DiscConvResModule(object):
         batch_size = input.shape[0] # number of inputs in this batch
         ss = self.ds_stride         # stride for "learned downsampling"
         bm = (self.filt_dim - 1) // 2 # set border mode for the convolutions
+        # apply dropout to input
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop)
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = lrelu(h1)
+            # apply dropout at intermediate convolution layer
+            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop)
+
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
             # apply direct input->output "projection" layer
@@ -489,7 +536,8 @@ class DiscConvResModule(object):
             output = lrelu(h3)
 
         # apply discriminator layer
-        y = dnn_conv(output, self.wd, subsample=(1, 1), border_mode=(1, 1))
+        d_in = conv_drop_func(output, self.unif_drop, self.chan_drop)
+        y = dnn_conv(d_in, self.wd, subsample=(1, 1), border_mode=(1, 1))
         y = T.flatten(y, 2)
         return [output, y]
 

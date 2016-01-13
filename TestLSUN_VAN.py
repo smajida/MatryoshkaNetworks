@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm0'
+desc = 'test_van_match_dm3_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,6 +82,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
+drop_rate = 0.2
 
 def scale_to_tanh_range(X):
     """
@@ -414,6 +415,8 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
+    unif_drop=drop_rate,
+    chan_drop=0.0,
     stride='double',
     act_func='lrelu',
     mod_name='disc_mod_1'
@@ -426,6 +429,8 @@ DiscConvResModule(
     conv_chans=ndf,
     filt_shape=(5,5),
     use_conv=False,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 16, 16)
@@ -437,6 +442,8 @@ DiscConvResModule(
     conv_chans=ndf,
     filt_shape=(5,5),
     use_conv=False,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*4, 8, 8)
@@ -448,6 +455,8 @@ DiscConvResModule(
     conv_chans=ndf,
     filt_shape=(5,5),
     use_conv=False,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*8, 4, 4)
@@ -458,6 +467,7 @@ DiscFCModule(
     in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
+    unif_drop=drop_rate,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
@@ -517,9 +527,9 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
-vae_obs_nlls = vae_layer_nlls[0]
+#vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-#vae_obs_nlls = vae_layer_nlls[3]
+vae_obs_nlls = vae_layer_nlls[3]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
