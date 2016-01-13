@@ -23,29 +23,51 @@ def tanh_clip(x, scale=10.0):
     x = scale * tanh((1.0 / scale) * x)
     return x
 
-def fc_drop_func(x, unif_drop):
+def fc_drop_func(x, unif_drop, share_mask=False):
     """
     Helper func for applying uniform dropout.
     """
     # dumb dropout, no rescale (assume MC dropout usage)
-    if unif_drop > 0.01:
-        r = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
-        x = x * (r > unif_drop)
+    if not share_mask:
+        if unif_drop > 0.01:
+            r = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
+            x = x * (r > unif_drop)
+    else:
+        # use the same mask for entire batch
+        if unif_drop > 0.01:
+            r = cu_rng.uniform((x.shape[1],), dtype=theano.config.floatX)
+            r = r.dimshuffle('x',0)
+            x = x * (r > unif_drop)
     return x
 
-def conv_drop_func(x, unif_drop, chan_drop):
+def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
     """
     Helper func for applying uniform and/or channel-wise dropout.
     """
     # dumb dropout, no rescale (assume MC dropout usage)
-    if unif_drop > 0.01:
-        ru = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
-        x = x * (ru > unif_drop)
-    if chan_drop > 0.01:
-        rc = cu_rng.uniform((x.shape[1],), dtype=theano.config.floatX)
-        chan_mask = (rc > chan_drop)
-        x = x * chan_mask.dimshuffle('x',0,'x','x')
+    if not share_mask:
+        if unif_drop > 0.01:
+            ru = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
+            x = x * (ru > unif_drop)
+        if chan_drop > 0.01:
+            rc = cu_rng.uniform((x.shape[0],x.shape[1]),
+                                dtype=theano.config.floatX)
+            chan_mask = (rc > chan_drop)
+            x = x * chan_mask.dimshuffle(0,1,'x','x')
+    else:
+        # share mask across entire batch
+        if unif_drop > 0.01:
+            ru = cu_rng.uniform((x.shape[1],x.shape[2],x.shape[3]),
+                                dtype=theano.config.floatX)
+            ru = ru.dimshuffle('x',0,1,2)
+            x = x * (ru > unif_drop)
+        if chan_drop > 0.01:
+            rc = cu_rng.uniform((x.shape[1],),
+                                dtype=theano.config.floatX)
+            chan_mask = (rc > chan_drop)
+            x = x * chan_mask.dimshuffle('x',0,'x','x')
     return x
+
 
 #####################################
 # BASIC DOUBLE CONVOLUTIONAL MODULE #
