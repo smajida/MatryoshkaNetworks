@@ -512,7 +512,7 @@ Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
 Xg_joint = T.concatenate([Xg, Xg_recon], axis=0)
 Hg_joint, _ = disc_network.apply(input=Xg_joint, ret_vals=ret_vals,
                                  ret_acts=True, app_sigm=True,
-                                 share_masks=True)
+                                 share_mask=True)
 Hg_world = [hg[:Xg.shape[0],:,:,:] for hg in Hg_joint]
 Hg_recon = [hg[Xg.shape[0]:,:,:,:] for hg in Hg_joint]
 
