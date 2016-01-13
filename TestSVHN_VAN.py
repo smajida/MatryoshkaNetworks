@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3'
+desc = 'test_van_deep_dm2_dm3_match_dm3_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -93,6 +93,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
+drop_rate = 0.2
 ntrain = Xtr.shape[0]
 
 
@@ -409,6 +410,8 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
+    unif_drop=drop_rate,
+    chan_drop=0.0,
     stride='double',
     act_func='lrelu',
     mod_name='disc_mod_1'
@@ -421,6 +424,8 @@ DiscConvResModule(
     conv_chans=ndf,
     filt_shape=(3,3),
     use_conv=True,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_2'
 ) # output is (batch, ndf*2, 8, 8)
@@ -432,6 +437,8 @@ DiscConvResModule(
     conv_chans=ndf,
     filt_shape=(3,3),
     use_conv=True,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*4, 4, 4)
@@ -443,6 +450,8 @@ DiscConvResModule(
     conv_chans=(ndf*2),
     filt_shape=(3,3),
     use_conv=False,
+    unif_drop=0.0,
+    chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*4, 2, 2)
