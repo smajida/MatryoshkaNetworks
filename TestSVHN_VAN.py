@@ -498,11 +498,14 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # run an inference and reconstruction pass through the generative stuff
 Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
 # feed reconstructions and their instigators into the discriminator.
-# -- these values are used for training the generative stuff ONLY
-Hg_recon, Yg_recon = disc_network.apply(input=Xg_recon, ret_vals=ret_vals,
-                                        ret_acts=True, app_sigm=True)
-Hg_world, Yg_world = disc_network.apply(input=Xg, ret_vals=ret_vals,
-                                        ret_acts=True, app_sigm=True)
+# -- these values are used for training the generative stuff ONLY.
+# -- use same drop mask for all examples, to get sensible reconstruction loss.
+Xg_joint = T.concatenate([Xg, Xg_recon], axis=0)
+Hg_joint, _ = disc_network.apply(input=Xg_joint, ret_vals=ret_vals,
+                                 ret_acts=True, app_sigm=True,
+                                 share_masks=True)
+Hg_world = [hg[:Xg.shape[0],:,:,:] for hg in Hg_joint]
+Hg_recon = [hg[Xg.shape[0]:,:,:,:] for hg in Hg_joint]
 
 vae_layer_nlls = []
 for hg_world, hg_recon in zip(Hg_world, Hg_recon):
@@ -511,6 +514,7 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
                                    use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
+print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 #vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
 vae_obs_nlls = vae_layer_nlls[3]

@@ -29,6 +29,7 @@ def fc_drop_func(x, unif_drop, share_mask=False):
     """
     # dumb dropout, no rescale (assume MC dropout usage)
     if not share_mask:
+        # make separate drop mask for each input
         if unif_drop > 0.01:
             r = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
             x = x * (r > unif_drop)
@@ -46,6 +47,7 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
     """
     # dumb dropout, no rescale (assume MC dropout usage)
     if not share_mask:
+        # make a separate drop mask for each input
         if unif_drop > 0.01:
             ru = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
             x = x * (ru > unif_drop)
@@ -55,7 +57,7 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
             chan_mask = (rc > chan_drop)
             x = x * chan_mask.dimshuffle(0,1,'x','x')
     else:
-        # share mask across entire batch
+        # use the same mask for entire batch
         if unif_drop > 0.01:
             ru = cu_rng.uniform((x.shape[1],x.shape[2],x.shape[3]),
                                 dtype=theano.config.floatX)
@@ -86,6 +88,8 @@ class BasicConvResModule(object):
         use_conv: flag for whether to use "internal" convolution layer
         stride: allowed strides are 'double', 'single', and 'half'
         act_func: allowed activations are 'ident', 'relu', and 'lrelu'
+        unif_drop: drop rate for uniform dropout
+        chan_drop: drop rate for channel-wise dropout
         mod_name: text name for identifying module in theano graph
         mod_params: dict of params for this module -- for use in model
                     saving and loading...
@@ -93,6 +97,7 @@ class BasicConvResModule(object):
     def __init__(self,
                  in_chans, out_chans, conv_chans, filt_shape,
                  use_conv=True, stride='single', act_func='relu',
+                 unif_drop=0.0, chan_drop=0.0,
                  mod_name='basic_conv_res'):
         assert (stride in ['single', 'double', 'half']), \
                 "stride must be 'double', 'single', or 'half'."
@@ -112,6 +117,8 @@ class BasicConvResModule(object):
             self.act_func = lambda x: relu(x)
         else:
             self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -176,19 +183,25 @@ class BasicConvResModule(object):
         param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input):
+    def apply(self, input, share_mask=False):
         """
         Apply this convolutional module to some input.
         """
         batch_size = input.shape[0] # number of inputs in this batch
         ss = 1 if (self.stride == 'single') else 2
         bm = (self.filt_dim - 1) // 2
+        # apply uniform and/or channel-wise dropout if desired
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
+                               share_mask=share_mask)
         if self.use_conv:
             if self.stride in ['double', 'single']:
                 # apply first internal conv layer (might downsample)
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
                 h1 = batchnorm(h1, g=self.g1, b=self.b1)
                 h1 = self.act_func(h1)
+                # apply dropout at intermediate convolution layer
+                h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
+                                    share_mask=share_mask)
                 # apply second internal conv layer
                 h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
                 # apply pass-through conv layer (might downsample)
@@ -198,6 +211,9 @@ class BasicConvResModule(object):
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
                 h1 = batchnorm(h1, g=self.g1, b=self.b1)
                 h1 = self.act_func(h1)
+                # apply dropout at intermediate convolution layer
+                h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
+                                    share_mask=share_mask)
                 # apply second internal conv layer (might upsample)
                 h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
                 # apply pass-through conv layer (might upsample)
@@ -285,13 +301,15 @@ class BasicConvModule(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, rand_vals=None, rand_shapes=False, noise_sigma=None):
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise_sigma=None,
+              share_mask=False):
         """
         Apply this convolutional module to the given input.
         """
         bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
         # apply uniform and/or channel-wise dropout if desired
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop)
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
+                               share_mask=share_mask)
         # apply first conv layer
         if self.stride == 'single':
             # normal, 1x1 stride
@@ -394,21 +412,21 @@ class DiscFCModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, noise_sigma=None):
+    def apply(self, input, noise_sigma=None, share_mask=False):
         """
         Apply this discriminator module to the given input. This produces a
         scalar discriminator output for each input observation.
         """
         # flatten input to 1d per example
         input = T.flatten(input, 2)
-        input = fc_drop_func(input, self.unif_drop)
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
         if self.use_fc:
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
             h1 = lrelu(h1)
-            h1 = fc_drop_func(h1, self.unif_drop)
+            h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
             h2 = T.dot(h1, self.w2) + T.dot(input, self.w2)
             y = h2
@@ -524,7 +542,7 @@ class DiscConvResModule(object):
         param_dict['wd'] = self.wd.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, noise_sigma=None):
+    def apply(self, input, noise_sigma=None, share_mask=False):
         """
         Apply this generator module to some input.
         """
@@ -532,14 +550,16 @@ class DiscConvResModule(object):
         ss = self.ds_stride         # stride for "learned downsampling"
         bm = (self.filt_dim - 1) // 2 # set border mode for the convolutions
         # apply dropout to input
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop)
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
+                               share_mask=share_mask)
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
             h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = lrelu(h1)
             # apply dropout at intermediate convolution layer
-            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop)
+            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
+                                share_mask=share_mask)
 
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
@@ -557,7 +577,8 @@ class DiscConvResModule(object):
             output = lrelu(h3)
 
         # apply discriminator layer
-        d_in = conv_drop_func(output, self.unif_drop, self.chan_drop)
+        d_in = conv_drop_func(output, self.unif_drop, self.chan_drop,
+                              share_mask=share_mask)
         y = dnn_conv(d_in, self.wd, subsample=(1, 1), border_mode=(1, 1))
         y = T.flatten(y, 2)
         return [output, y]
