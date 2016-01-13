@@ -130,16 +130,16 @@ def update_exprep_buffer(er_buffer, generator, replace_frac=0.1, do_print=False)
     new_sample_count = int(buffer_size * replace_frac)
     new_samples = floatX(np.zeros((new_sample_count, nc*npx*npx)))
     start_idx = 0
-    end_idx = 500
+    end_idx = 100
     if do_print:
         print("Updating experience replay buffer...")
     while start_idx < new_sample_count:
-        samples = generator.generate_samples(500)
-        samples = samples.reshape((500,-1))
+        samples = generator.generate_samples(100)
+        samples = samples.reshape((100,-1))
         end_idx = min(end_idx, new_sample_count)
         new_samples[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-        start_idx += 500
-        end_idx += 500
+        start_idx += 100
+        end_idx += 100
     idx = np.arange(buffer_size)
     npr.shuffle(idx)
     replace_idx = idx[:new_sample_count]
@@ -228,7 +228,7 @@ GenConvResModule(
 td_module_5 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=16,
+    out_chans=32,
     conv_chans=32,
     rand_chans=nz1,
     filt_shape=(3,3),
@@ -241,10 +241,10 @@ GenConvResModule(
 td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=16,
+    in_chans=32,
     out_chans=nc,
     apply_bn=False,
-    stride='half',
+    stride='single',
     act_func='ident',
     mod_name='td_mod_6'
 ) # output is (batch, c, 64, 64)
@@ -306,7 +306,7 @@ BasicConvResModule(
 
 bu_module_5 = \
 BasicConvResModule(
-    in_chans=16,
+    in_chans=32,
     out_chans=(ngf*1),
     conv_chans=32,
     filt_shape=(3,3),
@@ -320,7 +320,7 @@ bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
-    out_chans=16,
+    out_chans=32,
     apply_bn=False,
     stride='single',
     act_func='lrelu',

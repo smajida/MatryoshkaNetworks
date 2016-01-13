@@ -511,7 +511,7 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
                                    use_huber=0.25)
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
-vae_obs_nlls = vae_layer_nlls[0]
+#vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
 vae_obs_nlls = vae_layer_nlls[3]
 vae_nll_cost = T.mean(vae_obs_nlls)
