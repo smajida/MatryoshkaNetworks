@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3_drop02'
+desc = 'test_van_strong_disc_match_dm3_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -76,7 +76,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz1 = 24          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
@@ -406,60 +406,60 @@ gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
 
 disc_module_1 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
     unif_drop=drop_rate,
     chan_drop=0.0,
-    stride='double',
+    stride='single',
     act_func='lrelu',
     mod_name='disc_mod_1'
-) # output is (batch, ndf*1, 16, 16)
+) # output is (batch, ndf*1, 32, 32)
 
 disc_module_2 = \
 DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
-    conv_chans=ndf,
+    conv_chans=(ndf*1),
     filt_shape=(3,3),
     use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_2'
-) # output is (batch, ndf*2, 8, 8)
+) # output is (batch, ndf*2, 16, 16)
 
 disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    conv_chans=ndf,
+    conv_chans=(ndf*1),
     filt_shape=(3,3),
     use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*4, 4, 4)
+) # output is (batch, ndf*4, 8, 8)
 
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
-    conv_chans=(ndf*2),
+    conv_chans=(ndf*1),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*4, 2, 2)
+) # output is (batch, ndf*4, 4, 4)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*2*2),
+    in_dim=(ndf*4*4*4),
     use_fc=False,
     apply_bn=True,
     unif_drop=drop_rate,
