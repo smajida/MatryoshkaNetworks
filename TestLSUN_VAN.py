@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop02_new_masking'
+desc = 'test_van_match_dm3_deep_disc_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -426,9 +426,9 @@ disc_module_2 = \
 DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
-    conv_chans=ndf,
-    filt_shape=(5,5),
-    use_conv=False,
+    conv_chans=(ndf*1),
+    filt_shape=(3,3),
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -439,9 +439,9 @@ disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    conv_chans=ndf,
-    filt_shape=(5,5),
-    use_conv=False,
+    conv_chans=(ndf*2),
+    filt_shape=(3,3),
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -451,10 +451,10 @@ DiscConvResModule(
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
-    out_chans=(ndf*8),
-    conv_chans=ndf,
-    filt_shape=(5,5),
-    use_conv=False,
+    out_chans=(ndf*4),
+    conv_chans=(ndf*2),
+    filt_shape=(3,3),
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -464,7 +464,7 @@ DiscConvResModule(
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*4*4),
+    in_dim=(ndf*4*4*4),
     use_fc=False,
     apply_bn=True,
     unif_drop=drop_rate,
