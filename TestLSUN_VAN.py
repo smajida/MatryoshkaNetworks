@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_deep_disc_drop02'
+desc = 'test_van_match_dm4_deep_disc_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -533,7 +533,8 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 #vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-vae_obs_nlls = vae_layer_nlls[3]
+#vae_obs_nlls = vae_layer_nlls[3]
+vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
