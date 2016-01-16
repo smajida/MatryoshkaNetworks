@@ -428,7 +428,7 @@ class DiscFCModule(object):
             h1 = lrelu(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
-            h2 = T.dot(h1, self.w2) + T.dot(input, self.w2)
+            h2 = T.dot(h1, self.w2) + T.dot(input, self.w3)
             y = h2
         else:
             h2 = T.dot(input, self.w3)

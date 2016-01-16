@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_stronger_disc_match_dm4_drop02'
+desc = 'test_van_stronger_disc_match_dm3_drop01'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -93,7 +93,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.2
+drop_rate = 0.1
 ntrain = Xtr.shape[0]
 
 
@@ -528,8 +528,8 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 #vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-#vae_obs_nlls = vae_layer_nlls[3]
-vae_obs_nlls = vae_layer_nlls[4]
+vae_obs_nlls = vae_layer_nlls[3]
+#vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
