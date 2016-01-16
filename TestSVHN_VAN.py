@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_strong_disc_match_dm3_drop02'
+desc = 'test_van_stronger_disc_match_dm4_drop02'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -434,7 +434,7 @@ disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    conv_chans=(ndf*1),
+    conv_chans=(ndf*2),
     filt_shape=(3,3),
     use_conv=True,
     unif_drop=0.0,
@@ -447,7 +447,7 @@ disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*4),
-    conv_chans=(ndf*1),
+    conv_chans=(ndf*2),
     filt_shape=(3,3),
     use_conv=True,
     unif_drop=0.0,
@@ -460,7 +460,7 @@ disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*4*4*4),
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     unif_drop=drop_rate,
     mod_name='disc_mod_5'
@@ -528,7 +528,8 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 #vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-vae_obs_nlls = vae_layer_nlls[3]
+#vae_obs_nlls = vae_layer_nlls[3]
+vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
