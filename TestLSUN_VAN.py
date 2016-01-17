@@ -38,7 +38,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_deep_disc_drop01'
+desc = 'test_van_match_dm3_drop00'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -64,8 +64,8 @@ b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 64      # # of examples in batch
 npx = 64          # # of pixels width/height of images
-nz0 = 64         # # of dim for Z0
-nz1 = 24          # # of dim for Z1
+nz0 = 128         # # of dim for Z0
+nz1 = 16          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
@@ -82,7 +82,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.1
+drop_rate = 0.0
 
 def scale_to_tanh_range(X):
     """
@@ -194,7 +194,7 @@ GenConvResModule(
     conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_2'
@@ -336,6 +336,18 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4,
 # Setup the information merging modules #
 #########################################
 
+im_module_2 = \
+InfConvMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    rand_chans=nz1,
+    conv_chans=(ngf*4),
+    use_conv=True,
+    act_func='lrelu',
+    mod_name='im_mod_2'
+) # merge input to td_mod_2 and output of bu_mod_2, to place a distribution
+  # over the rand_vals used in td_mod_2.
+
 im_module_3 = \
 InfConvMergeModule(
     td_chans=(ngf*4),
@@ -372,7 +384,7 @@ InfConvMergeModule(
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
   # over the rand_vals used in td_mod_5.
 
-im_modules = [im_module_3, im_module_4, im_module_5]
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -385,6 +397,7 @@ im_modules = [im_module_3, im_module_4, im_module_5]
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
@@ -427,8 +440,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -440,8 +453,8 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -451,10 +464,10 @@ DiscConvResModule(
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
-    out_chans=(ndf*4),
+    out_chans=(ndf*8),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -464,7 +477,7 @@ DiscConvResModule(
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*4*4),
+    in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
     unif_drop=drop_rate,
@@ -683,7 +696,7 @@ for epoch in range(1, niter+niter_decay+1):
         carry_buffer = Xtr[0:carry_count,:].copy()
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    vae_scale = 0.01 # 0.002
+    vae_scale = 0.01
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))

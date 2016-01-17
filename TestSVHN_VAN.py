@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_stronger_disc_match_dm3_drop01'
+desc = 'test_van_deep_dm2_dm3_match_dm3_drop00'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -76,7 +76,7 @@ nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
-nz1 = 24          # # of dim for Z1
+nz1 = 16          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
@@ -93,7 +93,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.1
+drop_rate = 0.0
 ntrain = Xtr.shape[0]
 
 
@@ -175,7 +175,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 2, 2),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
@@ -184,12 +184,12 @@ GenFCModule(
 
 td_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*8),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_2'
@@ -199,7 +199,7 @@ td_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -212,7 +212,7 @@ td_module_4 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -225,7 +225,7 @@ td_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
-    conv_chans=ngf,
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -256,7 +256,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfFCModule(
-    bu_chans=(ngf*4*2*2),
+    bu_chans=(ngf*8*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -267,8 +267,8 @@ InfFCModule(
 bu_module_2 = \
 BasicConvResModule(
     in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    out_chans=(ngf*8),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -280,7 +280,7 @@ bu_module_3 = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*4),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -292,7 +292,7 @@ bu_module_4 = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -304,7 +304,7 @@ bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -330,6 +330,18 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4,
 #########################################
 # Setup the information merging modules #
 #########################################
+
+im_module_2 = \
+InfConvMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    rand_chans=nz1,
+    conv_chans=(ngf*4),
+    use_conv=True,
+    act_func='lrelu',
+    mod_name='im_mod_2'
+) # merge input to td_mod_2 and output of bu_mod_2, to place a distribution
+  # over the rand_vals used in td_mod_2.
 
 im_module_3 = \
 InfConvMergeModule(
@@ -367,7 +379,7 @@ InfConvMergeModule(
 ) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
   # over the rand_vals used in td_mod_5.
 
-im_modules = [im_module_3, im_module_4, im_module_5]
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -380,6 +392,7 @@ im_modules = [im_module_3, im_module_4, im_module_5]
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
@@ -406,16 +419,16 @@ gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
 
 disc_module_1 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=nc,
     out_chans=(ndf*1),
     apply_bn=False,
     unif_drop=drop_rate,
     chan_drop=0.0,
-    stride='single',
+    stride='double',
     act_func='lrelu',
     mod_name='disc_mod_1'
-) # output is (batch, ndf*1, 32, 32)
+) # output is (batch, ndf*1, 16, 16)
 
 disc_module_2 = \
 DiscConvResModule(
@@ -428,7 +441,7 @@ DiscConvResModule(
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_2'
-) # output is (batch, ndf*2, 16, 16)
+) # output is (batch, ndf*2, 8, 8)
 
 disc_module_3 = \
 DiscConvResModule(
@@ -441,26 +454,26 @@ DiscConvResModule(
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*4, 8, 8)
+) # output is (batch, ndf*4, 4, 4)
 
 disc_module_4 = \
 DiscConvResModule(
-    in_chans=(ndf*4),
+    in_chans=(ndf*8),
     out_chans=(ndf*4),
-    conv_chans=(ndf*2),
+    conv_chans=(ndf*4),
     filt_shape=(3,3),
-    use_conv=True,
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*4, 4, 4)
+) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*4*4),
-    use_fc=True,
+    in_dim=(ndf*8*2*2),
+    use_fc=False,
     apply_bn=True,
     unif_drop=drop_rate,
     mod_name='disc_mod_5'
