@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3_drop00'
+desc = 'test_van_match_dm3_drop00'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -50,9 +50,9 @@ if not os.path.exists(sample_dir):
     os.makedirs(sample_dir)
 
 # locations of 32x32 SVHN dataset
-tr_file = "{}/data/svhn_train.mat".format(EXP_DIR)
-te_file = "{}/data/svhn_test.mat".format(EXP_DIR)
-ex_file = "{}/data/svhn_extra.mat".format(EXP_DIR)
+tr_file = "{}/data/train_32x32.mat".format(EXP_DIR)
+te_file = "{}/data/test_32x32.mat".format(EXP_DIR)
+ex_file = "{}/data/extra_32x32.mat".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
 data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
@@ -435,8 +435,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -448,8 +448,8 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
-    use_conv=True,
+    filt_shape=(5,5),
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -458,10 +458,10 @@ DiscConvResModule(
 
 disc_module_4 = \
 DiscConvResModule(
-    in_chans=(ndf*8),
-    out_chans=(ndf*4),
+    in_chans=(ndf*4),
+    out_chans=(ndf*8),
     conv_chans=(ndf*4),
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
