@@ -50,9 +50,9 @@ if not os.path.exists(sample_dir):
     os.makedirs(sample_dir)
 
 # locations of 32x32 SVHN dataset
-tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
-te_file = "{}/data/svhn_test.pkl".format(EXP_DIR)
-ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
+tr_file = "{}/data/svhn_train.mat".format(EXP_DIR)
+te_file = "{}/data/svhn_test.mat".format(EXP_DIR)
+ex_file = "{}/data/svhn_extra.mat".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
 data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
