@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'AAA_TEMP_test_van_match_dm0_drop00'
+desc = 'test_van_match_dm3_drop00_more_vae'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -82,8 +82,8 @@ ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter = 75       # # of iter at starting learning rate
+niter_decay = 75 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
@@ -493,7 +493,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = [dist_scale] + inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -539,9 +539,9 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
-vae_obs_nlls = vae_layer_nlls[0]
+#vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-#vae_obs_nlls = vae_layer_nlls[3]
+vae_obs_nlls = vae_layer_nlls[3]
 #vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
@@ -682,7 +682,6 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 n_check = 0
-n_epochs = 0
 n_updates = 0
 t = time()
 gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
@@ -690,7 +689,7 @@ sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samp
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    vae_scale = 0.01
+    vae_scale = 0.05
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
@@ -776,8 +775,16 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
-    if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+    if (epoch == 30) or (epoch == 60):
+        # cut learning rate in half
+        lr = lrt.get_value(borrow=False)
+        lr = lr / 2.0
+        lrt.set_value(floatX(lr))
+    if epoch > niter:
+        # linearly decay learning rate
+        lr = lrt.get_value(borrow=False)
+        remaining_epochs = (niter + niter_decay + 1) - epoch
+        lrt.set_value(floatX(lr - (lr / remaining_epochs)))
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -816,13 +823,12 @@ for epoch in range(1, niter+niter_decay+1):
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    n_epochs += 1
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, epoch))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
@@ -858,8 +864,8 @@ for epoch in range(1, niter+niter_decay+1):
         va_vis_batch[idx_in,:,:,:] = va_rb_fuzz[rec_pair,:,:,:]
         va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
     # draw images...
-    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(sample_dir, n_epochs))
-    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(sample_dir, epoch))
+    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(sample_dir, epoch))
 
 
 
