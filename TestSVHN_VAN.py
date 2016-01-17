@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop00'
+desc = 'AAA_TEMP_test_van_match_dm0_drop00'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -539,15 +539,15 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
     # NLLs are recorded for each observation in the batch
     vae_layer_nlls.append(T.sum(lnll, axis=1))
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
-#vae_obs_nlls = vae_layer_nlls[0]
+vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-vae_obs_nlls = vae_layer_nlls[3]
+#vae_obs_nlls = vae_layer_nlls[3]
 #vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dicts.items()]
-vae_layer_klds = [T.mean(mod_kld) for mod_name, mod_kld in kld_tuples]
+vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 # compute total per-observation KL-divergence part of cost
 vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
@@ -697,7 +697,7 @@ for epoch in range(1, niter+niter_decay+1):
     g_epoch_costs = [0. for i in range(6)]
     v_epoch_costs = [0. for i in range(6)]
     d_epoch_costs = [0. for i in range(4)]
-    epoch_layer_klds = [0. for i in range(len(vae_layer_klds))]
+    epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
     carry_costs = []
