@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_long_anneal_24bf'
+desc = 'test_gan_best_model'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -81,7 +81,7 @@ b1 = 0.5         # momentum term of adam
 nc = 3           # # of channels in image
 nbatch = 64      # # of examples in batch
 npx = 64         # # of pixels width/height of images
-nz0 = 64         # # of dim for Z0
+nz0 = 128         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
@@ -138,16 +138,16 @@ def update_exprep_buffer(er_buffer, generator, replace_frac=0.1, do_print=False)
     new_sample_count = int(buffer_size * replace_frac)
     new_samples = floatX(np.zeros((new_sample_count, nc*npx*npx)))
     start_idx = 0
-    end_idx = 500
+    end_idx = 100
     if do_print:
         print("Updating experience replay buffer...")
     while start_idx < new_sample_count:
-        samples = generator.generate_samples(500)
-        samples = samples.reshape((500,-1))
+        samples = generator.generate_samples(100)
+        samples = samples.reshape((100,-1))
         end_idx = min(end_idx, new_sample_count)
         new_samples[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-        start_idx += 500
-        end_idx += 500
+        start_idx += 100
+        end_idx += 100
     idx = np.arange(buffer_size)
     npr.shuffle(idx)
     replace_idx = idx[:new_sample_count]
@@ -235,8 +235,8 @@ GenConvResModule(
 gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=24, #(ngf*1),
-    conv_chans=32, #(ngf*1),
+    out_chans=32,
+    conv_chans=32,
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
@@ -248,7 +248,7 @@ GenConvResModule(
 gen_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=24,
+    in_chans=32,
     out_chans=nc,
     apply_bn=False,
     stride='single',
@@ -336,10 +336,10 @@ print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
-Xtr_rec = Xtr[0:200,:]
+Xtr_rec = Xtr[0:128,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
-VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-2.0)
+VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)
 print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
@@ -379,7 +379,7 @@ d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-weights = [float(1)/len(range(1,len(p_gen)+1)) for i in range(1,len(p_gen)+1)]
+weights = [1.0 for i in range(1,len(p_gen)+1)]
 scale = sum(weights)
 weights = [w/scale for w in weights]
 print("Discriminator signal weights {}...".format(weights))

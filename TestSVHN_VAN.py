@@ -545,10 +545,12 @@ vae_obs_nlls = vae_layer_nlls[3]
 #vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
-# KL-divergence part of cost
-kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
-vae_layer_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples] # per-obs KLd for each latent layer
-vae_obs_klds = sum(vae_layer_klds) # per-observation total KLd
+# compute per-layer KL-divergence part of cost
+kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dicts.items()]
+vae_layer_klds = [T.mean(mod_kld) for mod_name, mod_kld in kld_tuples]
+vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+# compute total per-observation KL-divergence part of cost
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
@@ -637,11 +639,11 @@ print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
                  vae_nll_cost, vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs]
+                 vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost',
               'vae_nll_cost', 'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs']
+              'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)
@@ -688,13 +690,14 @@ sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samp
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    vae_scale = 0.01 # 0.002
+    vae_scale = 0.01
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
-    g_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
-    v_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
-    d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
+    g_epoch_costs = [0. for i in range(6)]
+    v_epoch_costs = [0. for i in range(6)]
+    d_epoch_costs = [0. for i in range(4)]
+    epoch_layer_klds = [0. for i in range(len(vae_layer_klds))]
     gen_grad_norms = []
     inf_grad_norms = []
     carry_costs = []
@@ -742,12 +745,14 @@ for epoch in range(1, niter+niter_decay+1):
                 # add examples from the carry buffer to this batch
                 imb_fuzz = np.concatenate([imb_fuzz, cb_fuzz], axis=0)
             g_result = g_train_func(imb_fuzz, z0)
-            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
-            batch_obs_costs = g_result[-1]
+            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
+            batch_obs_costs = g_result[8]
+            batch_layer_klds = g_result[9]
+            epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
-            gen_grad_norms.append(1.*g_result[-3])
-            inf_grad_norms.append(1.*g_result[-2])
+            gen_grad_norms.append(1.*g_result[6])
+            inf_grad_norms.append(1.*g_result[7])
             # load the most difficult VAE inputs into the carry buffer
             vae_cost_rank = np.argsort(-1.0 * batch_obs_costs)
             full_batch = np.concatenate([imb, carry_buffer], axis=0)
@@ -758,7 +763,7 @@ for epoch in range(1, niter+niter_decay+1):
             # process a validation batch
             if v_batch_count < 50:
                 v_result = g_train_func(vmb_fuzz, z0)
-                v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:-1], v_epoch_costs)]
+                v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
                 v_batch_count += 1
         else:
             if use_er:
@@ -781,12 +786,13 @@ for epoch in range(1, niter+niter_decay+1):
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
+    epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx[:-3], g_bc_names[:-3])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
     str2 = " ".join(g_bc_strs)
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
+                 for (c_idx, c_name) in zip(d_bc_idx[:4], d_bc_names[:4])]
     str3 = " ".join(d_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str4 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
@@ -802,9 +808,11 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     str8 = "    [min, mean, max](carry_costs): {0:.2f}, {1:.2f}, {2:.2f}".format( \
             min(carry_costs), sum(carry_costs)/len(carry_costs), max(carry_costs))
-    str9 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
+    kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
+    str9 = "    module kld -- {}".format(" ".join(kld_strs))
+    str10 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
             v_epoch_costs[4], v_epoch_costs[5])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8, str9])
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8, str9, str10])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
