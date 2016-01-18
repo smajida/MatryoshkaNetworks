@@ -456,9 +456,6 @@ DiscConvResModule(
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*4, 4, 4)
 
-grad_norm = sum([T.sum(g**2.0) for g in param_grads])
-rescale = T.min(max_norm / grad_norm, 1.0)
-
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
