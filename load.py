@@ -26,7 +26,7 @@ def mnist(data_dir):
     fd = open("{}/t10k-labels.idx1-ubyte".format(data_dir))
     loaded = np.fromfile(file=fd,dtype=np.uint8)
     teY = loaded[8:].reshape((10000))
-    
+
     trY = np.asarray(trY)
     teY = np.asarray(teY)
 
@@ -48,51 +48,53 @@ def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     Loads the full SVHN train/test sets and an additional number of randomly
     selected examples from the "extra set".
     """
+    import gc
+    import scipy.io as io
     # load the training set as a numpy arrays
-    pickle_file = open(tr_file)
-    data_dict = cPickle.load(pickle_file)
+    data_dict = io.loadmat(tr_file)
     Xtr = data_dict['X'].astype(theano.config.floatX)
     Ytr = data_dict['y'].astype(np.int32) + 1
-    Xtr_vec = np.zeros((Xtr.shape[3], 32*32*3)).astype(theano.config.floatX)
+    Xtr_vec = np.zeros((Xtr.shape[3], 32*32*3), dtype=theano.config.floatX)
     for i in range(Xtr.shape[3]):
         c_pix = 32*32
         for c in range(3):
             Xtr_vec[i,c*c_pix:((c+1)*c_pix)] = \
                     Xtr[:,:,c,i].reshape((32*32,))
     Xtr = Xtr_vec
-    pickle_file.close()
+    del data_dict
+    gc.collect()
     # load the test set as numpy arrays
-    pickle_file = open(te_file)
-    data_dict = cPickle.load(pickle_file)
+    data_dict = io.loadmat(te_file)
     Xte = data_dict['X'].astype(theano.config.floatX)
     Yte = data_dict['y'].astype(np.int32) + 1
-    Xte_vec = np.zeros((Xte.shape[3], 32*32*3)).astype(theano.config.floatX)
+    Xte_vec = np.zeros((Xte.shape[3], 32*32*3), dtype=theano.config.floatX)
     for i in range(Xte.shape[3]):
         c_pix = 32*32
         for c in range(3):
             Xte_vec[i,c*c_pix:((c+1)*c_pix)] = \
                     Xte[:,:,c,i].reshape((32*32,))
     Xte = Xte_vec
-    pickle_file.close()
+    del data_dict
+    gc.collect()
     if ex_file is None:
         Xex = None
     else:
         # load the extra digit examples and only keep a random subset
-        pickle_file = open(ex_file)
-        data_dict = cPickle.load(pickle_file)
+        data_dict = io.loadmat(ex_file)
         ex_full_size = data_dict['X'].shape[3]
         idx = np.arange(ex_full_size)
         npr.shuffle(idx)
         idx = idx[:ex_count]
         Xex = data_dict['X'].take(idx, axis=3).astype(theano.config.floatX)
-        Xex_vec = np.zeros((Xex.shape[3], 32*32*3)).astype(theano.config.floatX)
+        Xex_vec = np.zeros((Xex.shape[3], 32*32*3), dtype=theano.config.floatX)
         for i in range(Xex.shape[3]):
             c_pix = 32*32
             for c in range(3):
                 Xex_vec[i,c*c_pix:((c+1)*c_pix)] = \
                         Xex[:,:,c,i].reshape((32*32,))
         Xex = Xex_vec
-        pickle_file.close()
+        del data_dict
+        gc.collect()
 
     print("np.max(Xtr): {0:.4f}, np.min(Xtr): {1:.4f}".format(np.max(Xtr), np.min(Xtr)))
 
