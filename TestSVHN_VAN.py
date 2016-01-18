@@ -38,7 +38,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3_drop01'
+desc = 'test_van_deep_dm2_dm3_match_dm3_drop01_more_vae'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -456,6 +456,9 @@ DiscConvResModule(
     mod_name='disc_mod_3'
 ) # output is (batch, ndf*4, 4, 4)
 
+grad_norm = sum([T.sum(g**2.0) for g in param_grads])
+rescale = T.min(max_norm / grad_norm, 1.0)
+
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
@@ -689,7 +692,7 @@ sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samp
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    vae_scale = 0.01 # 0.05
+    vae_scale = 0.05 # 0.01
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
