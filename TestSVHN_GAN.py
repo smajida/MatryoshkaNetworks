@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_long_anneal'
+desc = 'test_gan_best_model_5x5_disc'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -72,7 +72,7 @@ ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
+niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
@@ -173,7 +173,7 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 2, 2),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=use_conv,
     apply_bn=True,
@@ -182,9 +182,9 @@ GenFCModule(
 
 gen_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*8),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -197,7 +197,7 @@ gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -210,7 +210,7 @@ gen_module_4 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -223,7 +223,7 @@ gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
-    conv_chans=ngf,
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -270,8 +270,8 @@ disc_module_2 = \
 DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
-    conv_chans=ndf,
-    filt_shape=(3,3),
+    conv_chans=(ndf*1),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -281,8 +281,8 @@ disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    conv_chans=ndf,
-    filt_shape=(3,3),
+    conv_chans=(ndf*2),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -291,9 +291,9 @@ DiscConvResModule(
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
-    out_chans=(ndf*4),
-    conv_chans=(ndf*2),
-    filt_shape=(3,3),
+    out_chans=(ndf*8),
+    conv_chans=(ndf*4),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -302,7 +302,7 @@ DiscConvResModule(
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*2*2),
+    in_dim=(ndf*8*2*2),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_5'
@@ -397,28 +397,19 @@ _train_d = theano.function([X, Z0, Xer], cost, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
-f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
-log_fields = [
-    'n_epochs',
-    'n_updates',
-    'n_examples',
-    'n_seconds',
-    'g_cost',
-    'd_cost',
-]
 
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 1000
+end_idx = 200
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(1000)
-    samples = samples.reshape((1000,-1))
+    samples = gen_network.generate_samples(200)
+    samples = samples.reshape((200,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 1000
-    end_idx += 1000
+    start_idx += 200
+    end_idx += 200
 print("DONE.")
 
 print desc.upper()
@@ -432,7 +423,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
