@@ -23,6 +23,9 @@ Mon. January 18
 
 Tue. January 19
 ---------------
-1. Test GAN performance with VAN architecture -- 5x5 and 3x3 disc.
+1. Test GAN performance with VAN architecture -- 5x5 and 3x3 disc. (DONE)
 2. Write generative and semi-supervised MNIST tests.
 3. Write SVHN semi-supervised tests.
+4. Check that GAN tests produce expected results. If not, look into changing
+   GenFCModule not to use resnet style, and look into reducing filter count in
+   top conv module of discriminator. Also check old normalization.
