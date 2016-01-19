@@ -38,15 +38,10 @@ DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
 desc = 'test_vae_1xKL'
-model_dir = "{}/models/{}".format(EXP_DIR, desc)
-sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
-log_dir = "{}/logs".format(EXP_DIR)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
-if not os.path.exists(sample_dir):
-    os.makedirs(sample_dir)
+result_dir = "{}/results/{}".format(EXP_DIR, desc)
+inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
 
 # locations of 32x32 SVHN dataset
 tr_file = "{}/data/train_32x32.mat".format(EXP_DIR)
@@ -359,15 +354,13 @@ merge_info = {
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
-dist_scale = sharedX( floatX([0.1]) )
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=tanh,
-    dist_scale=dist_scale[0]
+    output_transform=tanh
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -382,7 +375,7 @@ lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
-inf_params = [dist_scale] + inf_gen_model.inf_params
+inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -463,7 +456,7 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 carry_buffer = Xtr[0:carry_count,:].copy()
 
 # make file for recording test progress
-log_name = "{}/RESULTS.txt".format(sample_dir)
+log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
@@ -553,6 +546,10 @@ for epoch in range(1, niter+niter_decay+1):
         lr = lrt.get_value(borrow=False)
         remaining_epochs = (niter + niter_decay + 1) - epoch
         lrt.set_value(floatX(lr - (lr / remaining_epochs)))
+    ###################
+    # SAVE PARAMETERS #
+    ###################
+    inf_gen_model.dump_params(inf_gen_param_file)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -592,7 +589,7 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, epoch))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
@@ -628,8 +625,8 @@ for epoch in range(1, niter+niter_decay+1):
         va_vis_batch[idx_in,:,:,:] = va_rb_fuzz[rec_pair,:,:,:]
         va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
     # draw images...
-    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(sample_dir, epoch))
-    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(sample_dir, epoch))
+    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 

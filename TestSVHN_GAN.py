@@ -36,15 +36,11 @@ DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
 desc = 'test_gan_best_model_long_anneal'
-model_dir = "{}/models/{}".format(EXP_DIR, desc)
-sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
-log_dir = "{}/logs".format(EXP_DIR)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
-if not os.path.exists(sample_dir):
-    os.makedirs(sample_dir)
+result_dir = "{}/results/{}".format(EXP_DIR, desc)
+gen_param_file = "{}/gen_params.pkl".format(result_dir)
+disc_param_file = "{}/disc_params.pkl".format(result_dir)
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
 
 # locations of 32x32 SVHN dataset
 tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
@@ -163,7 +159,7 @@ def gauss_blur(x, x_std, w_x, w_g):
     return floatX(x_blurred)
 
 # draw some examples from training set
-color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_dir))
+color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(result_dir))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -330,7 +326,7 @@ print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
 test_recons = VIM.sample_Xg()
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
+color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(result_dir))
 
 
 ####################################
@@ -427,7 +423,7 @@ print("DONE.")
 
 print desc.upper()
 
-log_name = "{}/RESULTS.txt".format(sample_dir)
+log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 n_updates = 0
@@ -485,6 +481,14 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
+    ###################
+    # SAVE PARAMETERS #
+    ###################
+    gen_network.dump_params(gen_param_file)
+    disc_network.dump_params(disc_param_file)
+    ############################
+    # QUANTITATIVE DIAGNOSTICS #
+    ############################
     str1 = "Epoch {}:".format(epoch)
     str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
             (g_cost/gc_iter), (d_cost/dc_iter), (rec_cost/rec_iter))
@@ -497,9 +501,9 @@ for epoch in range(1, niter+niter_decay+1):
     n_epochs += 1
     # generate some samples from the model, for visualization
     samples = np.asarray(_gen(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
-    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
 

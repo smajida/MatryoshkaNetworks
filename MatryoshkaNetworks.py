@@ -396,12 +396,10 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
-        dist_scale: initial rescaling for reparametrization outputs
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
-                 merge_info, output_transform,
-                 dist_scale=0.1):
+                 merge_info, output_transform):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -417,6 +415,9 @@ class InfGenModel(object):
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
         self.params = self.inf_params + self.gen_params
+        # make dist_scale parameter
+        self.dist_scale = sharedX( floatX([0.1]) )
+        self.params.append(self.dist_scale)
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # keep a transform that we'll apply to generator output
@@ -424,8 +425,6 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
-        # record rescaling factor for reparametrization outputs
-        self.dist_scale = dist_scale
         # construct a theano function for drawing samples from this model
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
@@ -450,6 +449,9 @@ class InfGenModel(object):
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump TD modules
         mod_param_dicts = [m.dump_params() for m in self.im_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump IM modules
+        # dump dist_scale parameter
+        ds_ary = self.dist_scale.get_value(borrow=False)
+        cPickle.dump(ds_ary, f_handle, protocol=-1)
         f_handle.close()
         return
 
@@ -469,6 +471,9 @@ class InfGenModel(object):
         mod_param_dicts = cPickle.load(pickle_file) # load IM modules
         for param_dict, mod in zip(mod_param_dicts, self.im_modules):
             mod.load_params(param_dict=param_dict)
+        # load dist_scale parameter
+        ds_ary = cPickle.load(pickle_file)
+        self.dist_scale.set_value(floatX(ds_ary))
         pickle_file.close()
         return
 
@@ -567,8 +572,8 @@ class InfGenModel(object):
                     # bound the conditional logvars if desired
                     cond_logvar = tanh_clip(cond_logvar, bound=3.0)
                     # do reparametrization
-                    rand_vals = reparametrize((self.dist_scale * cond_mean),
-                                              (self.dist_scale * cond_logvar),
+                    rand_vals = reparametrize((self.dist_scale[0] * cond_mean),
+                                              (self.dist_scale[0] * cond_logvar),
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
                     td_act_i = td_module.apply(rand_vals=rand_vals)
@@ -583,8 +588,8 @@ class InfGenModel(object):
                     cond_mean = tanh_clip(cond_mean, bound=3.0)
                     # bound the conditional logvars if desired
                     cond_logvar = tanh_clip(cond_logvar, bound=3.0)
-                    rand_vals = reparametrize((self.dist_scale * cond_mean),
-                                              (self.dist_scale * cond_logvar),
+                    rand_vals = reparametrize((self.dist_scale[0] * cond_mean),
+                                              (self.dist_scale[0] * cond_logvar),
                                               rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
@@ -592,8 +597,8 @@ class InfGenModel(object):
                 # record TD info produced by current module
                 td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
-                kld_i = gaussian_kld(T.flatten((self.dist_scale * cond_mean), 2),
-                                     T.flatten((self.dist_scale * cond_logvar), 2),
+                kld_i = gaussian_kld(T.flatten((self.dist_scale[0] * cond_mean), 2),
+                                     T.flatten((self.dist_scale[0] * cond_logvar), 2),
                                      0.0, 0.0)
                 kld_dict[td_mod_name] = kld_i
             else:

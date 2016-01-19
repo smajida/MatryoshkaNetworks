@@ -37,16 +37,12 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop01'
-model_dir = "{}/models/{}".format(EXP_DIR, desc)
-sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
-log_dir = "{}/logs".format(EXP_DIR)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
-if not os.path.exists(sample_dir):
-    os.makedirs(sample_dir)
+desc = 'test_van_match_dm3_drop00'
+result_dir = "{}/results/{}".format(EXP_DIR, desc)
+inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+disc_param_file = "{}/disc_params.pkl".format(result_dir)
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
 
 # locations of 64x64 LSUN dataset -- stored as a collection of .npy files
 data_dir = "/NOBACKUP/lsun/bedroom_train_center_crop"
@@ -81,7 +77,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.1
+drop_rate = 0.0
 
 def scale_to_tanh_range(X):
     """
@@ -402,15 +398,13 @@ merge_info = {
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
-dist_scale = sharedX( floatX([0.1]) )
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=tanh,
-    dist_scale=dist_scale[0]
+    output_transform=tanh
 )
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
@@ -497,9 +491,9 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 1.25 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
-inf_params = [dist_scale] + inf_gen_model.inf_params
+inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -677,7 +671,7 @@ while start_idx < er_buffer_size:
 print("DONE.")
 
 # make file for recording test progress
-log_name = "{}/RESULTS.txt".format(sample_dir)
+log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
@@ -695,7 +689,7 @@ for epoch in range(1, niter+niter_decay+1):
         carry_buffer = Xtr[0:carry_count,:].copy()
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    vae_scale = 0.01
+    vae_scale = 0.05
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
@@ -763,6 +757,11 @@ for epoch in range(1, niter+niter_decay+1):
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+    ###################
+    # SAVE PARAMETERS #
+    ###################
+    inf_gen_model.dump_params(inf_gen_param_file)
+    disc_network.dump_params(disc_param_file)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -801,7 +800,7 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
@@ -828,7 +827,7 @@ for epoch in range(1, niter+niter_decay+1):
         tr_vis_batch[idx_in,:,:,:] = tr_rb_fuzz[rec_pair,:,:,:]
         tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
     # draw images...
-    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, n_epochs))
 
 
 
