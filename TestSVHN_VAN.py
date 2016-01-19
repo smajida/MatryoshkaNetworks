@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop00'
+desc = 'test_van_deep_dm2_dm3_match_dm3_drop01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -88,7 +88,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.0
+drop_rate = 0.1
 ntrain = Xtr.shape[0]
 
 
@@ -428,8 +428,8 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(5,5),
-    use_conv=False,
+    filt_shape=(3,3),
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -441,8 +441,8 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
-    use_conv=False,
+    filt_shape=(3,3),
+    use_conv=True,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -454,7 +454,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
     conv_chans=(ndf*4),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,

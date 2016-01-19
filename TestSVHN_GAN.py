@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_3x3_disc'
+desc = 'test_gan_best_model_5x5_disc'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -271,7 +271,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -282,7 +282,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -293,7 +293,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
     conv_chans=(ndf*4),
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'

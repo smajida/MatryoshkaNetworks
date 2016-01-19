@@ -414,10 +414,11 @@ class InfGenModel(object):
             self.inf_params.extend(module.params)
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
-        self.params = self.inf_params + self.gen_params
-        # make dist_scale parameter
+        # make dist_scale parameter (add it to the inf net parameters)
         self.dist_scale = sharedX( floatX([0.1]) )
-        self.params.append(self.dist_scale)
+        self.inf_params.append(self.dist_scale)
+        # store a list of all parameters in this network
+        self.params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # keep a transform that we'll apply to generator output

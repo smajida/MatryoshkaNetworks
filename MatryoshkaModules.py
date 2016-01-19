@@ -428,7 +428,7 @@ class DiscFCModule(object):
             h1 = lrelu(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
-            h2 = T.dot(h1, self.w2) + T.dot(input, self.w3)
+            h2 = T.dot(h1, self.w2) #+ T.dot(input, self.w3)
             y = h2
         else:
             h2 = T.dot(input, self.w3)
@@ -698,7 +698,7 @@ class GenFCModule(object):
                 h1 = batchnorm(h1, g=self.g1, b=self.b1)
             h1 = relu(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
+            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
@@ -1310,7 +1310,7 @@ class InfFCModule(object):
             h2 = T.dot(h1, self.w2)
             # feedforward directly from bu_input to output
             h3 = T.dot(bu_input, self.w_out)
-            h4 = h2 + h3 + self.b_out.dimshuffle('x',0)
+            h4 = h2 + self.b_out.dimshuffle('x',0) # + h3
         else:
             # feedforward directly from bu_input to output
             h3 = T.dot(bu_input, self.w_out)
