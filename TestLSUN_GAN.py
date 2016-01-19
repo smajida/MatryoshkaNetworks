@@ -27,7 +27,7 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscFCModule, GenFCModule, \
                               BasicConvModule, GenConvResModule, \
-                              DiscConvResModule, GenConvDblResModule
+                              DiscConvResModule
 from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
 

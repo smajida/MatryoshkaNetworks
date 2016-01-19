@@ -26,8 +26,7 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, \
-                              GenConvDblResModule, GenConvResModule, \
+from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule

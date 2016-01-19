@@ -26,8 +26,7 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, \
-                              GenConvDblResModule, GenConvResModule, \
+from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
@@ -38,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3_drop01_more_vae'
+desc = 'test_van_deep_dm2_dm3_match_dm3_drop01'
 model_dir = "{}/models/{}".format(EXP_DIR, desc)
 sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
 log_dir = "{}/logs".format(EXP_DIR)
@@ -493,7 +492,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = [dist_scale] + inf_gen_model.inf_params
 g_params = gen_params + inf_params
