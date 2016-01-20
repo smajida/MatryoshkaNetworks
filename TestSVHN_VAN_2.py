@@ -33,41 +33,52 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./lsun_bedrooms"
-DATA_SIZE = 250000
+EXP_DIR = "./svhn"
+DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop00'
+desc = 'test_van_match_dm3_drop00_disc_3x3_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-# locations of 64x64 LSUN dataset -- stored as a collection of .npy files
-data_dir = "/NOBACKUP/lsun/bedroom_train_center_crop"
-# get a list of the .npy files that contain images in this directory. there
-# shouldn't be any other files in the directory (hackish, but easy).
-data_files = os.listdir(data_dir)
-data_files.sort()
-data_files = ["{}/{}".format(data_dir, file_name) for file_name in data_files]
+# locations of 32x32 SVHN dataset
+tr_file = "{}/data/train_32x32.mat".format(EXP_DIR)
+te_file = "{}/data/test_32x32.mat".format(EXP_DIR)
+ex_file = "{}/data/extra_32x32.mat".format(EXP_DIR)
+# load dataset (load more when using adequate computers...)
+data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
+
+# stack data into a single array and rescale it into [-1,1] (per observation)
+Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xex']], axis=0)
+del data_dict
+Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+Xtr = 2.0 * (Xtr - 0.5)
+Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
+Xtr_std = np.std(Xtr, axis=0, keepdims=True)
+# split into training and validation sets (for checking VAE overfitting)
+Xtr = Xtr[:-10000,:]
+Xva = Xtr[-10000:,:]
 
 
 set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 64      # # of examples in batch
-npx = 64          # # of pixels width/height of images
-nz0 = 128         # # of dim for Z0
+nbatch = 128      # # of examples in batch
+npx = 32          # # of pixels width/height of images
+nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ndf = 64          # base # of filters for conv layers in discriminator
 ndfc = 256        # # of filters in fully connected layers of discriminator
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter = 75       # # of iter at starting learning rate
+niter_decay = 75 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
@@ -78,24 +89,8 @@ use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
 drop_rate = 0.0
+ntrain = Xtr.shape[0]
 
-def scale_to_tanh_range(X):
-    """
-    Scale the given 2d array to be in tanh range (i.e. -1...1).
-    """
-    X = (X / 127.5) - 1.0
-    X_std = np.std(X, axis=0, keepdims=True)
-    return X, X_std
-
-def load_and_scale_data(npy_file_name):
-    """
-    Load and scale data from the given npy file, and compute standard deviation
-    too, to use when doing distribution annealing.
-    """
-    np_ary = np.load(npy_file_name)
-    np_ary = np_ary.astype(theano.config.floatX)
-    X, X_std = scale_to_tanh_range(np_ary)
-    return X, X_std
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
@@ -126,16 +121,16 @@ def update_exprep_buffer(er_buffer, generator, replace_frac=0.1, do_print=False)
     new_sample_count = int(buffer_size * replace_frac)
     new_samples = floatX(np.zeros((new_sample_count, nc*npx*npx)))
     start_idx = 0
-    end_idx = 100
+    end_idx = 200
     if do_print:
         print("Updating experience replay buffer...")
     while start_idx < new_sample_count:
-        samples = generator.generate_samples(100)
-        samples = samples.reshape((100,-1))
+        samples = generator.generate_samples(200)
+        samples = samples.reshape((200,-1))
         end_idx = min(end_idx, new_sample_count)
         new_samples[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-        start_idx += 100
-        end_idx += 100
+        start_idx += 200
+        end_idx += 200
     idx = np.arange(buffer_size)
     npr.shuffle(idx)
     replace_idx = idx[:new_sample_count]
@@ -175,12 +170,12 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 4, 4),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     mod_name='td_mod_1'
-) # output is (batch, ngf*8, 4, 4)
+) # output is (batch, ngf*4, 2, 2)
 
 td_module_2 = \
 GenConvResModule(
@@ -193,7 +188,7 @@ GenConvResModule(
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_2'
-) # output is (batch, ngf*4, 8, 8)
+) # output is (batch, ngf*4, 4, 4)
 
 td_module_3 = \
 GenConvResModule(
@@ -206,9 +201,22 @@ GenConvResModule(
     use_conv=use_conv,
     us_stride=2,
     mod_name='td_mod_3'
-) # output is (batch, ngf*4, 16, 16)
+) # output is (batch, ngf*2, 8, 8)
 
 td_module_4 = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='td_mod_4'
+) # output is (batch, ngf*2, 16, 16)
+
+td_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -218,32 +226,19 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='td_mod_4'
-) # output is (batch, ngf*1, 32, 32)
-
-td_module_5 = \
-GenConvResModule(
-    in_chans=(ngf*1),
-    out_chans=32,
-    conv_chans=32,
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    us_stride=2,
     mod_name='td_mod_5'
-) # output is (batch, ngf*1, 64, 64)
+) # output is (batch, ngf*1, 32, 32)
 
 td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=32,
+    in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
     stride='single',
     act_func='ident',
     mod_name='td_mod_6'
-) # output is (batch, c, 64, 64)
+) # output is (batch, c, 32, 32)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3,
@@ -256,13 +251,13 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfFCModule(
-    bu_chans=(ngf*8*4*4),
+    bu_chans=(ngf*8*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,
-    use_fc=False,
+    use_fc=True,
     act_func='lrelu',
     mod_name='bu_mod_1'
-) # output is (batch, nz0)
+) # output is (batch, nz0), (batch, nz0)
 
 bu_module_2 = \
 BasicConvResModule(
@@ -274,7 +269,7 @@ BasicConvResModule(
     stride='double',
     act_func='lrelu',
     mod_name='bu_mod_2'
-) # output is (batch, ngf*8, 4, 4)
+) # output is (batch, ngf*4, 2, 2)
 
 bu_module_3 = \
 BasicConvResModule(
@@ -286,9 +281,21 @@ BasicConvResModule(
     stride='double',
     act_func='lrelu',
     mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 8, 8)
+) # output is (batch, ngf*4, 4, 4)
 
 bu_module_4 = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='double',
+    act_func='lrelu',
+    mod_name='bu_mod_4'
+) # output is (batch, ngf*2, 8, 8)
+
+bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
@@ -297,31 +304,19 @@ BasicConvResModule(
     use_conv=use_conv,
     stride='double',
     act_func='lrelu',
-    mod_name='bu_mod_4'
-) # output is (batch, ngf*2, 16, 16)
-
-bu_module_5 = \
-BasicConvResModule(
-    in_chans=32,
-    out_chans=(ngf*1),
-    conv_chans=32,
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
     mod_name='bu_mod_5'
-) # output is (batch, ngf*1, 32, 32)
+) # output is (batch, ngf*2, 16, 16)
 
 bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
-    out_chans=32,
+    out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 64, 64)
+) # output is (batch, ngf*1, 32, 32)
 
 # modules must be listed in "evaluation order"
 bu_modules = [bu_module_6, bu_module_5, bu_module_4,
@@ -369,8 +364,8 @@ InfConvMergeModule(
 
 im_module_5 = \
 InfConvMergeModule(
-    td_chans=(ngf*1),
-    bu_chans=(ngf*1),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*1),
     use_conv=True,
@@ -426,51 +421,51 @@ BasicConvModule(
     stride='double',
     act_func='lrelu',
     mod_name='disc_mod_1'
-) # output is (batch, ndf*1, 32, 32)
+) # output is (batch, ndf*1, 16, 16)
 
 disc_module_2 = \
 DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_2'
-) # output is (batch, ndf*2, 16, 16)
+) # output is (batch, ndf*2, 8, 8)
 
 disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*4, 8, 8)
+) # output is (batch, ndf*4, 4, 4)
 
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
-    conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    conv_chans=(ndf*4),
+    filt_shape=(3,3),
     use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*8, 4, 4)
+) # output is (batch, ndf*4, 2, 2)
 
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*4*4),
+    in_dim=(ndf*8*2*2),
     use_fc=False,
     apply_bn=True,
     unif_drop=drop_rate,
@@ -484,6 +479,14 @@ disc_modules = [disc_module_1, disc_module_2, disc_module_3,
 disc_network = DiscNetworkGAN(modules=disc_modules)
 d_params = disc_network.params
 
+################################
+# TEMP -- QUICK SAVE/LOAD TEST #
+################################
+inf_gen_model.dump_params(f_name=inf_gen_param_file)
+inf_gen_model.load_params(f_name=inf_gen_param_file)
+disc_network.dump_params(f_name=disc_param_file)
+disc_network.load_params(f_name=disc_param_file)
+
 
 ####################################
 # Setup the optimization objective #
@@ -491,7 +494,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -543,10 +546,12 @@ vae_obs_nlls = vae_layer_nlls[3]
 #vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
-# KL-divergence part of cost
-kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
-vae_layer_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples] # per-obs KLd for each latent layer
-vae_obs_klds = sum(vae_layer_klds) # per-observation total KLd
+# compute per-layer KL-divergence part of cost
+kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dicts.items()]
+vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+# compute total per-observation KL-divergence part of cost
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
@@ -630,17 +635,16 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-Xtr, Xtr_std = load_and_scale_data(data_files[0])
 test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, gan_cost_g, vae_cost,
                  vae_nll_cost, vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs]
+                 vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'gan_cost_g', 'vae_cost',
               'vae_nll_cost', 'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs']
+              'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg, Z0], g_cost_outputs, updates=g_updates)
@@ -659,48 +663,54 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 100
+end_idx = 200
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(100)
-    samples = samples.reshape((100,-1))
+    samples = gen_network.generate_samples(200)
+    samples = samples.reshape((200,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 100
-    end_idx += 100
+    start_idx += 200
+    end_idx += 200
 print("DONE.")
+# initialize a buffer holding VAE inputs to carry to next batch
+carry_buffer = Xtr[0:carry_count,:].copy()
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
-carry_buffer = None
+
 n_check = 0
-n_epochs = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 30) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
+w1 = np.zeros((10,))
+w2 = np.linspace(0.0, 0.05, 20) # weights for vae "fade-in"
+lam_vae_weights = np.concatenate([w1, w2], axis=0)
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
-    # load a file containing a subset of the large full training set
-    Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
-    if carry_buffer is None:
-        carry_buffer = Xtr[0:carry_count,:].copy()
     Xtr = shuffle(Xtr)
-    ntrain = Xtr.shape[0]
-    vae_scale = 0.05
+    Xva = shuffle(Xva)
+    if (epoch-1) < lam_vae_weights.size:
+        vae_scale = lam_vae_weights[epoch-1]
+    else:
+        vae_scale = lam_vae_weights[-1]
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
-    g_epoch_costs = [0. for i in range(len(g_cost_outputs)-1)]
-    d_epoch_costs = [0. for i in range(len(d_cost_outputs))]
+    g_epoch_costs = [0. for i in range(6)]
+    v_epoch_costs = [0. for i in range(6)]
+    d_epoch_costs = [0. for i in range(4)]
+    epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
     carry_costs = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
+    v_batch_count = 0.
     d_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         if epoch < gauss_blur_weights.shape[0]:
@@ -708,18 +718,28 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             w_x = 1.0
         w_g = 1.0 - w_x
+        # grab a validation batch, if required
+        if v_batch_count < 50:
+            start_idx = int(v_batch_count)*100
+            vmb = Xva[start_idx:(start_idx+100),:]
+        else:
+            vmb = Xva[0:100,:]
         if use_annealing and (w_x < 0.999):
             # add noise to both the current batch and the carry buffer
             imb_fuzz = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
+                               a_min=-1.0, a_max=1.0)
+            vmb_fuzz = np.clip(gauss_blur(vmb, Xtr_std, w_x, w_g),
                                a_min=-1.0, a_max=1.0)
             cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
                               a_min=-1.0, a_max=1.0)
         else:
             # use noiseless versions of the current batch and the carry buffer
             imb_fuzz = imb.copy()
+            vmb_fuzz = vmb.copy()
             cb_fuzz = carry_buffer.copy()
         # transform noisy training batch and carry buffer to "image format"
         imb_fuzz = train_transform(imb_fuzz)
+        vmb_fuzz = train_transform(vmb_fuzz)
         cb_fuzz = train_transform(cb_fuzz)
         # sample random noise for top of generator
         z0 = rand_gen(size=(nbatch, nz0))
@@ -731,12 +751,14 @@ for epoch in range(1, niter+niter_decay+1):
                 # add examples from the carry buffer to this batch
                 imb_fuzz = np.concatenate([imb_fuzz, cb_fuzz], axis=0)
             g_result = g_train_func(imb_fuzz, z0)
-            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:-1], g_epoch_costs)]
-            batch_obs_costs = g_result[-1]
+            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
+            batch_obs_costs = g_result[8]
+            batch_layer_klds = g_result[9]
+            epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
             vae_nlls.append(1.*g_result[4])
             vae_klds.append(1.*g_result[5])
-            gen_grad_norms.append(1.*g_result[-3])
-            inf_grad_norms.append(1.*g_result[-2])
+            gen_grad_norms.append(1.*g_result[6])
+            inf_grad_norms.append(1.*g_result[7])
             # load the most difficult VAE inputs into the carry buffer
             vae_cost_rank = np.argsort(-1.0 * batch_obs_costs)
             full_batch = np.concatenate([imb, carry_buffer], axis=0)
@@ -744,6 +766,11 @@ for epoch in range(1, niter+niter_decay+1):
                 carry_buffer[i,:] = full_batch[vae_cost_rank[i],:]
                 carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
             g_batch_count += 1
+            # process a validation batch
+            if v_batch_count < 50:
+                v_result = g_train_func(vmb_fuzz, z0)
+                v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
+                v_batch_count += 1
         else:
             if use_er:
                 d_result = d_train_func(imb_fuzz, z0, xer)
@@ -755,26 +782,38 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
-    if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+    if (epoch == 30) or (epoch == 60):
+        # cut learning rate in half
+        lr = lrt.get_value(borrow=False)
+        lr = lr / 2.0
+        lrt.set_value(floatX(lr))
+    if epoch > niter:
+        # linearly decay learning rate
+        lr = lrt.get_value(borrow=False)
+        remaining_epochs = (niter + niter_decay + 1) - epoch
+        lrt.set_value(floatX(lr - (lr / remaining_epochs)))
     ###################
     # SAVE PARAMETERS #
     ###################
     inf_gen_model.dump_params(inf_gen_param_file)
     disc_network.dump_params(disc_param_file)
+    inf_gen_model.load_params(inf_gen_param_file)
+    disc_network.load_params(disc_param_file)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     d_epoch_costs = [(c / d_batch_count) for c in d_epoch_costs]
+    epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx[:-3], g_bc_names[:-3])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
     str2 = " ".join(g_bc_strs)
     d_bc_strs = ["{0:s}: {1:.2f},".format(c_name, d_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(d_bc_idx, d_bc_names)]
+                 for (c_idx, c_name) in zip(d_bc_idx[:4], d_bc_names[:4])]
     str3 = " ".join(d_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str4 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
@@ -790,17 +829,20 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     str8 = "    [min, mean, max](carry_costs): {0:.2f}, {1:.2f}, {2:.2f}".format( \
             min(carry_costs), sum(carry_costs)/len(carry_costs), max(carry_costs))
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
+    str9 = "    module kld -- {}".format(" ".join(kld_strs))
+    str10 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
+            v_epoch_costs[4], v_epoch_costs[5])
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8, str9, str10])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    n_epochs += 1
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
@@ -809,25 +851,35 @@ for epoch in range(1, niter+niter_decay+1):
     w_g = 1.0 - w_x
     tr_rec_batch = np.concatenate([carry_buffer, Xtr[0:100,:]], axis=0)
     tr_rec_batch = tr_rec_batch[0:100,:]
+    va_rec_batch = Xva[0:100,:]
     if use_annealing and (w_x < 0.999):
         # add noise to reconstruction targets (if we trained with noise)
         tr_rb_fuzz = np.clip(gauss_blur(tr_rec_batch, Xtr_std, w_x, w_g),
                              a_min=-1.0, a_max=1.0)
+        va_rb_fuzz = np.clip(gauss_blur(va_rec_batch, Xtr_std, w_x, w_g),
+                             a_min=-1.0, a_max=1.0)
     else:
         # otherwise, use noise-free reconstruction targets
         tr_rb_fuzz = tr_rec_batch
+        va_rb_fuzz = va_rec_batch
     # get the model reconstructions
     tr_rb_fuzz = train_transform(tr_rb_fuzz)
+    va_rb_fuzz = train_transform(va_rb_fuzz)
     tr_recons = recon_func(tr_rb_fuzz)
+    va_recons = recon_func(va_rb_fuzz)
     # stripe data for nice display (each reconstruction next to its target)
     tr_vis_batch = np.zeros((200, nc, npx, npx))
+    va_vis_batch = np.zeros((200, nc, npx, npx))
     for rec_pair in range(100):
         idx_in = 2*rec_pair
         idx_out = 2*rec_pair + 1
         tr_vis_batch[idx_in,:,:,:] = tr_rb_fuzz[rec_pair,:,:,:]
         tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
+        va_vis_batch[idx_in,:,:,:] = va_rb_fuzz[rec_pair,:,:,:]
+        va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
     # draw images...
-    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, n_epochs))
+    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 

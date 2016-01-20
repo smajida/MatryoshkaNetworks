@@ -1,6 +1,7 @@
 import theano
 import theano.tensor as T
 import numpy as np
+from theano_utils import floatX
 
 def CategoricalCrossEntropy(y_true, y_pred):
     return T.nnet.categorical_crossentropy(y_pred, y_true).mean()
@@ -42,8 +43,8 @@ mae = MAE = MeanAbsoluteError
 ############################
 
 # library with theano PDF functions
-PI = np.pi
-C = -0.5 * np.log(2*PI)
+PI = floatX(np.pi)
+C = floatX(-0.5 * np.log(2*PI))
 
 def normal(x, mean, logvar):
 	return C - logvar/2 - (x - mean)**2 / (2 * T.exp(logvar))
@@ -92,8 +93,14 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
     if mask is None:
         mask = T.ones((1, mu_approx.shape[1]))
     if use_huber:
-        ind_log_probs = C - (0.5 * log_vars)  - \
-                (Huber(mu_true, mu_approx, t=use_huber) / (2.0 * T.exp(log_vars)))
+        # when written on one line, this causes upcast to float64. when spread
+        # over four lines, it doesn't. WTF?
+        part_1 = C - (0.5 * log_vars)
+        part_2 = Huber(mu_true, mu_approx, t=use_huber)
+        part_3 = 2.0 * T.exp(log_vars)
+        ind_log_probs = part_1 - (part_2 / part_3)
+        #ind_log_probs = C - (0.5 * log_vars)  - \
+        #        (Huber(mu_true, mu_approx, t=use_huber) / (2.0 * T.exp(log_vars)))
     else:
         ind_log_probs = C - (0.5 * log_vars)  - \
                 ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
@@ -125,8 +132,8 @@ def gaussian_ent(mu, logvar):
 #################################
 # Log-gamma function for theano #
 #################################
-LOG_PI = np.log(PI)
-LOG_SQRT_2PI = np.log(np.sqrt(2*PI))
+LOG_PI = floatX(np.log(PI))
+LOG_SQRT_2PI = floatX(np.log(np.sqrt(2*PI)))
 def log_gamma_lanczos(z):
     # reflection formula. Normally only used for negative arguments,
     # but here it's also used for 0 < z < 0.5 to improve accuracy in this region.

@@ -41,7 +41,7 @@ def reparametrize(z_mean, z_logvar, rng=None, rvs=None):
             "must provide either rng or rvs."
     if not (rng is None):
         # generate zmuv samples from the provided rng
-        zmuv_gauss = rng.normal(size=z_mean.shape, dtype=theano.config.floatX)
+        zmuv_gauss = rng.normal(size=z_mean.shape)
     else:
         # use zmuv samples provided by the user
         zmuv_gauss = rvs

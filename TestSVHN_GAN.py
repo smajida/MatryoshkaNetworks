@@ -27,37 +27,33 @@ from load import load_svhn
 #
 from MatryoshkaModules import DiscFCModule, GenFCModule, \
                               BasicConvModule, GenConvResModule, \
-                              DiscConvResModule, GenConvDblResModule
+                              DiscConvResModule
 from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
-DATA_SIZE = 250000
+DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_long_anneal'
-model_dir = "{}/models/{}".format(EXP_DIR, desc)
-sample_dir = "{}/samples/{}".format(EXP_DIR, desc)
-log_dir = "{}/logs".format(EXP_DIR)
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
-if not os.path.exists(model_dir):
-    os.makedirs(model_dir)
-if not os.path.exists(sample_dir):
-    os.makedirs(sample_dir)
+desc = 'test_gan_best_model_5x5_disc'
+result_dir = "{}/results/{}".format(EXP_DIR, desc)
+gen_param_file = "{}/gen_params.pkl".format(result_dir)
+disc_param_file = "{}/disc_params.pkl".format(result_dir)
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
 
 # locations of 32x32 SVHN dataset
-tr_file = "{}/data/svhn_train.pkl".format(EXP_DIR)
-te_file = "{}/data/svhn_test.pkl".format(EXP_DIR)
-ex_file = "{}/data/svhn_extra.pkl".format(EXP_DIR)
+tr_file = "{}/data/train_32x32.mat".format(EXP_DIR)
+te_file = "{}/data/test_32x32.mat".format(EXP_DIR)
+ex_file = "{}/data/extra_32x32.mat".format(EXP_DIR)
 # load dataset (load more when using adequate computers...)
 data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
 del data_dict
-Xtr = Xtr - np.min(Xtr)
-Xtr = Xtr / np.max(Xtr)
+Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
@@ -76,9 +72,9 @@ ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
+niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
-er_buffer_size = DATA_SIZE # size of "experience replay" buffer
+er_buffer_size = 250000 # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
@@ -163,7 +159,7 @@ def gauss_blur(x, x_std, w_x, w_g):
     return floatX(x_blurred)
 
 # draw some examples from training set
-color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(sample_dir))
+color_grid_vis(draw_transform(Xtr[0:200]), (10, 20), "{}/Xtr.png".format(result_dir))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -177,7 +173,7 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 2, 2),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=use_conv,
     apply_bn=True,
@@ -186,9 +182,9 @@ GenFCModule(
 
 gen_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*8),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -201,7 +197,7 @@ gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -214,7 +210,7 @@ gen_module_4 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=ngf,
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -227,7 +223,7 @@ gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
-    conv_chans=ngf,
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -274,8 +270,8 @@ disc_module_2 = \
 DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
-    conv_chans=ndf,
-    filt_shape=(3,3),
+    conv_chans=(ndf*1),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -285,8 +281,8 @@ disc_module_3 = \
 DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
-    conv_chans=ndf,
-    filt_shape=(3,3),
+    conv_chans=(ndf*2),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -295,9 +291,9 @@ DiscConvResModule(
 disc_module_4 = \
 DiscConvResModule(
     in_chans=(ndf*4),
-    out_chans=(ndf*4),
-    conv_chans=(ndf*2),
-    filt_shape=(3,3),
+    out_chans=(ndf*8),
+    conv_chans=(ndf*4),
+    filt_shape=(5,5),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -306,7 +302,7 @@ DiscConvResModule(
 disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*4*2*2),
+    in_dim=(ndf*8*2*2),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_5'
@@ -330,7 +326,7 @@ print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
 test_recons = VIM.sample_Xg()
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(sample_dir))
+color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(result_dir))
 
 
 ####################################
@@ -401,33 +397,24 @@ _train_d = theano.function([X, Z0, Xer], cost, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
-f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
-log_fields = [
-    'n_epochs',
-    'n_updates',
-    'n_examples',
-    'n_seconds',
-    'g_cost',
-    'd_cost',
-]
 
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 1000
+end_idx = 200
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(1000)
-    samples = samples.reshape((1000,-1))
+    samples = gen_network.generate_samples(200)
+    samples = samples.reshape((200,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 1000
-    end_idx += 1000
+    start_idx += 200
+    end_idx += 200
 print("DONE.")
 
 print desc.upper()
 
-log_name = "{}/RESULTS.txt".format(sample_dir)
+log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 n_updates = 0
@@ -436,7 +423,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
@@ -485,6 +472,14 @@ for epoch in range(1, niter+niter_decay+1):
         # update experience replay buffer (a better update schedule may be helpful)
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
+    ###################
+    # SAVE PARAMETERS #
+    ###################
+    gen_network.dump_params(gen_param_file)
+    disc_network.dump_params(disc_param_file)
+    ############################
+    # QUANTITATIVE DIAGNOSTICS #
+    ############################
     str1 = "Epoch {}:".format(epoch)
     str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
             (g_cost/gc_iter), (d_cost/dc_iter), (rec_cost/rec_iter))
@@ -497,9 +492,9 @@ for epoch in range(1, niter+niter_decay+1):
     n_epochs += 1
     # generate some samples from the model, for visualization
     samples = np.asarray(_gen(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
-    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(sample_dir, n_epochs))
+    color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
 
