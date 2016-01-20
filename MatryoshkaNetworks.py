@@ -523,15 +523,16 @@ class InfGenModel(object):
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
         """
-        acts = []
+        bu_acts = []
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
                 res = bu_mod.apply(input)
             else:
-                res = bu_mod.apply(acts[i-1])
-            acts.append(res)
+                res = bu_mod.apply(bu_acts[i-1])
+            bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
+        res_dict['bu_acts'] = bu_acts
         return res_dict
 
     def apply_im(self, input):
@@ -609,7 +610,12 @@ class InfGenModel(object):
                 td_act_i = td_module.apply(input=td_info, rand_vals=None)
                 td_acts.append(td_act_i)
         td_output = self.output_transform(td_acts[-1])
-        return td_output, kld_dict
+        im_res_dict = {}
+        im_res_dict['td_output'] = td_output
+        im_res_dict['kld_dict'] = kld_dict
+        im_res_dict['td_acts'] = td_acts
+        im_res_dict['bu_acts'] = bu_acts
+        return im_res_dict
 
     def _construct_generate_samples(self):
         """

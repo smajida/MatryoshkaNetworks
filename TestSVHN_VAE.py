@@ -390,7 +390,17 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # run an inference and reconstruction pass through the generative stuff
-Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
+im_res_dict = inf_gen_model.apply_im(Xg)
+Xg_recon = im_res_dict['td_output']
+kld_dicts = im_res_dict['kld_dicts']
+td_acts = im_res_dict['td_acts']
+bu_acts = im_res_dict['bu_acts']
+
+print("<<<DIAGNOSTICS--")
+print("len(td_acts): {}".format(len(td_acts)))
+print("len(bu_acts): {}".format(len(bu_acts)))
+print("---DIAGNOSTICS>>>")
+
 
 vae_obs_nlls = T.sum(-1. * log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
