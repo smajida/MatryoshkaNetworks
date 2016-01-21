@@ -28,4 +28,12 @@ Tue. January 19
 3. Write SVHN semi-supervised tests.
 4. Check that GAN tests produce expected results. If not, look into changing
    GenFCModule not to use resnet style, and look into reducing filter count in
-   top conv module of discriminator. Also check old normalization.
+   top conv module of discriminator. Also check old normalization. (DONE)
+
+Thurs. January 21
+-----------------
+1. Write code for "multi-scale" reconstruction in VAE.
+2. Write generative and semi-supervised MNIST tests.
+3. Write SVHN semi-supervised tests.
+4. Work on writing about GAN problems and VAE problems.
+5. Work on an abstract, to obtain focus.
