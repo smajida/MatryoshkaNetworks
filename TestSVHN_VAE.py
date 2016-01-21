@@ -392,7 +392,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg)
 Xg_recon = im_res_dict['td_output']
-kld_dicts = im_res_dict['kld_dicts']
+kld_dict = im_res_dict['kld_dict']
 td_acts = im_res_dict['td_acts']
 bu_acts = im_res_dict['bu_acts']
 
@@ -408,7 +408,7 @@ vae_obs_nlls = T.sum(-1. * log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
-kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dicts.items()]
+kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 # compute total per-observation KL-divergence part of cost

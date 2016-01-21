@@ -517,7 +517,11 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # run an inference and reconstruction pass through the generative stuff
-Xg_recon, kld_dicts = inf_gen_model.apply_im(Xg)
+im_res_dict = inf_gen_model.apply_im(Xg)
+Xg_recon = im_res_dict['td_output']
+kld_dict = im_res_dict['kld_dict']
+td_acts = im_res_dict['td_acts']
+bu_acts = im_res_dict['bu_acts']
 # feed reconstructions and their instigators into the discriminator.
 # -- these values are used for training the generative stuff ONLY.
 # -- use same drop mask for all examples, to get sensible reconstruction loss.
@@ -544,7 +548,7 @@ vae_obs_nlls = vae_layer_nlls[3]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # KL-divergence part of cost
-kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dicts.items()]
+kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = [T.sum(tup[1], axis=1) for tup in kld_tuples] # per-obs KLd for each latent layer
 vae_obs_klds = sum(vae_layer_klds) # per-observation total KLd
 vae_kld_cost = T.mean(vae_obs_klds)

@@ -614,7 +614,7 @@ class InfGenModel(object):
         im_res_dict['td_output'] = td_output
         im_res_dict['kld_dict'] = kld_dict
         im_res_dict['td_acts'] = td_acts
-        im_res_dict['bu_acts'] = bu_acts
+        im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         return im_res_dict
 
     def _construct_generate_samples(self):
