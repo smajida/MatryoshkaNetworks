@@ -1,6 +1,7 @@
 #############
 # TODO LIST #
 #############
+TODO_LIST="""
 
 Sun. January 17
 ---------------
@@ -37,3 +38,14 @@ Thurs. January 21
 3. Write SVHN semi-supervised tests.
 4. Work on writing about GAN problems and VAE problems.
 5. Work on an abstract, to obtain focus.
+
+TODO: When gpus are available, train deep_dm2_dm3_match_drop01 with delayed
+      onset of vae cost in the generator. This seemed to dramatically reduce
+      the eventual KLd of the inference network for match_drop00_3x3_disc.
+
+
+
+
+
+END DUMMY STRING
+"""
