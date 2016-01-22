@@ -403,6 +403,16 @@ td_acts = im_res_dict['td_acts']
 bu_acts = im_res_dict['bu_acts']
 td_acts.reverse() # flip in order to correspond with bu_acts when zipped
 
+tda_func = theano.function([Xg], td_acts[1:])
+bua_func = theano.function([Xg], bu_acts[:-1])
+tdas = tda_func(train_transform(Xtr[0:100,:]))
+buas = bua_func(train_transform(Xtr[0:100,:]))
+print("TDA SHAPES:")
+for i, tda in enumerate(tdas):
+    print("i={}, tda.shape: {}".format(i, tda.shape))
+for i, bua in enumerate(buas):
+    print("i={}, bua.shape: {}".format(i, bua.shape))
+
 print("<<<DIAGNOSTICS--")
 print("len(td_acts): {}".format(len(td_acts)))
 print("len(bu_acts): {}".format(len(bu_acts)))
@@ -411,13 +421,13 @@ print("---DIAGNOSTICS>>>")
 # compute reconstruction error at intermediate inferencegeneration layers
 # -- this is like a stacked autoencoder loss
 deep_nll_list = []
-for tda, bua in zip(td_acts[1:], bu_acts[1:]):
+for tda, bua in zip(td_acts[1:], bu_acts[:-1]):
     dnll = -1. * T.sum(log_prob_gaussian(T.flatten(bua,2), T.flatten(tda,2),
                                        log_vars=bounded_logvar[0], do_sum=False,
                                        use_huber=0.25), axis=1)
     deep_nll_list.append(dnll)
-deep_nll_matrix = T.concatenate(deep_nll_list, axis=1)
-deep_nlls = T.sum(deep_nll_matrix, axis=1)
+deep_nll_matrix = T.stack(deep_nll_list)
+deep_nlls = T.sum(deep_nll_matrix, axis=0)
 # compute reconstruction error at generator output
 surface_nlls = -1. * T.sum(log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,

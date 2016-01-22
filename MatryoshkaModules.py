@@ -1087,7 +1087,7 @@ class GenConvResModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
             h1 = switchy_bn(h1, g=self.g1, b=self.b1,
-                            self.use_bn_params)
+                            use_gb=self.use_bn_params)
             h1 = relu(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
