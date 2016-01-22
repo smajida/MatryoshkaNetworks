@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_10xKL'
+desc = 'test_vae_1xKL_lv_bound_5'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -373,7 +373,7 @@ gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 5.0 * tanh((1.0/5.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -479,7 +479,7 @@ sample_z0mb = rand_gen(size=(200, nz0))       # root noise for visualizing sampl
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    kld_scale = 10.0
+    kld_scale = 1.0
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
