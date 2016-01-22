@@ -135,6 +135,7 @@ GenFCModule(
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
+    act_func='relu',
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 2, 2)
 
@@ -148,6 +149,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
+    act_func='relu',
     mod_name='td_mod_2'
 ) # output is (batch, ngf*4, 4, 4)
 
@@ -161,6 +163,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
+    act_func='relu',
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 8, 8)
 
@@ -174,6 +177,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
+    act_func='relu',
     mod_name='td_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
 
@@ -187,6 +191,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
+    act_func='relu',
     mod_name='td_mod_5'
 ) # output is (batch, ngf*1, 32, 32)
 
@@ -216,8 +221,8 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
-    use_bn_params=False,
-    act_func='lrelu',
+    use_bn_params=True,
+    act_func='relu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -228,9 +233,9 @@ BasicConvResModule(
     conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=False,
+    use_bn_params=True,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_2'
 ) # output is (batch, ngf*4, 2, 2)
 
@@ -241,9 +246,9 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=False,
+    use_bn_params=True,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 4, 4)
 
@@ -254,9 +259,9 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=False,
+    use_bn_params=True,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_4'
 ) # output is (batch, ngf*2, 8, 8)
 
@@ -267,9 +272,9 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=False,
+    use_bn_params=True,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_5'
 ) # output is (batch, ngf*2, 16, 16)
 
@@ -279,9 +284,9 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     apply_bn=False,
-    use_bn_params=False,
+    use_bn_params=True,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 32, 32)
 
@@ -407,15 +412,15 @@ tda_func = theano.function([Xg], td_acts[1:])
 bua_func = theano.function([Xg], bu_acts[:-1])
 tdas = tda_func(train_transform(Xtr[0:100,:]))
 buas = bua_func(train_transform(Xtr[0:100,:]))
-print("TDA SHAPES:")
-for i, tda in enumerate(tdas):
-    print("i={}, tda.shape: {}".format(i, tda.shape))
-for i, bua in enumerate(buas):
-    print("i={}, bua.shape: {}".format(i, bua.shape))
-
 print("<<<DIAGNOSTICS--")
 print("len(td_acts): {}".format(len(td_acts)))
 print("len(bu_acts): {}".format(len(bu_acts)))
+print("TDA SHAPES:")
+for i, tda in enumerate(tdas):
+    print("i={}, tda.shape: {}".format(i, tda.shape))
+print("BUA SHAPES:")
+for i, bua in enumerate(buas):
+    print("i={}, bua.shape: {}".format(i, bua.shape))
 print("---DIAGNOSTICS>>>")
 
 # compute reconstruction error at intermediate inferencegeneration layers
