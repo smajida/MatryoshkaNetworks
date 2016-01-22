@@ -70,6 +70,12 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
             x = x * chan_mask.dimshuffle('x',0,'x','x')
     return x
 
+def switchy_bn(acts, g=None, b=None, use_gb=True):
+    if use_gb and (not (g is None) or (b is None)):
+        bn_acts = batchnorm(acts, g=g, b=b)
+    else:
+        bn_acts = batchnorm(acts)
+    return bn_acts
 
 #####################################
 # BASIC DOUBLE CONVOLUTIONAL MODULE #
@@ -90,14 +96,13 @@ class BasicConvResModule(object):
         act_func: allowed activations are 'ident', 'relu', and 'lrelu'
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
+        use_bn_params: whether to use post-processing params for BN
         mod_name: text name for identifying module in theano graph
-        mod_params: dict of params for this module -- for use in model
-                    saving and loading...
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, filt_shape,
                  use_conv=True, stride='single', act_func='relu',
-                 unif_drop=0.0, chan_drop=0.0,
+                 unif_drop=0.0, chan_drop=0.0, use_bn_params=True,
                  mod_name='basic_conv_res'):
         assert (stride in ['single', 'double', 'half']), \
                 "stride must be 'double', 'single', or 'half'."
@@ -120,6 +125,7 @@ class BasicConvResModule(object):
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
         self.mod_name = mod_name
+        self.use_bn_params = use_bn_params
         self._init_params() # initialize parameters
         return
 
@@ -197,7 +203,8 @@ class BasicConvResModule(object):
             if self.stride in ['double', 'single']:
                 # apply first internal conv layer (might downsample)
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                                use_gb=self.use_bn_params)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -209,7 +216,9 @@ class BasicConvResModule(object):
             else:
                 # apply first internal conv layer
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                if self.use_bn_params:
+                    h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                                    use_gb=self.use_bn_params)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -226,7 +235,8 @@ class BasicConvResModule(object):
                 h4 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
             else:
                 h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-        h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
+        h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
+                        use_gb=self.use_bn_params)
         output = self.act_func(h4)
         return output
 
@@ -247,11 +257,13 @@ class BasicConvModule(object):
         act_func: should be "ident", "relu", or "lrelu"
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
+        use_bn_params: whether to use params for BN
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, filt_shape, in_chans, out_chans,
                  stride='single', apply_bn=True, act_func='ident',
                  unif_drop=0.0, chan_drop=0.0,
+                 use_bn_params=True,
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
@@ -264,6 +276,7 @@ class BasicConvModule(object):
         self.act_func = act_func
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -321,7 +334,8 @@ class BasicConvModule(object):
             # upsampling, 0.5x0.5 stride
             h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
         if self.apply_bn:
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                            use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
         if self.act_func == 'ident':
@@ -354,17 +368,20 @@ class DiscFCModule(object):
         use_fc: whether or not to use the hidden layer
         apply_bn: whether to apply batch normalization at fc layer
         unif_drop: drop rate for uniform dropout
+        use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, fc_dim, in_dim, use_fc,
                  apply_bn=True, init_func=None,
                  unif_drop=0.0,
+                 use_bn_params=True,
                  mod_name='dm_fc'):
         self.fc_dim = fc_dim
         self.in_dim = in_dim
         self.use_fc = use_fc
         self.apply_bn = apply_bn
         self.unif_drop = unif_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -424,7 +441,8 @@ class DiscFCModule(object):
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
-                h1 = batchnorm(h1, g=self.g1, b=self.b1, n=noise_sigma)
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                                use_gb=self.use_bn_params)
             h1 = lrelu(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
@@ -454,12 +472,14 @@ class DiscConvResModule(object):
         ds_stride: downsampling ratio in the fractionally strided convolution
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
+        use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, filt_shape,
                  use_conv=True, ds_stride=2,
                  unif_drop=0.0, chan_drop=0.0,
+                 use_bn_params=True,
                  mod_name='dm_conv'):
         assert ((ds_stride == 1) or (ds_stride == 2)), \
                 "ds_stride must be 1 or 2."
@@ -473,6 +493,7 @@ class DiscConvResModule(object):
         self.ds_stride = ds_stride
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -555,7 +576,8 @@ class DiscConvResModule(object):
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                            use_gb=self.use_bn_params)
             h1 = lrelu(h1)
             # apply dropout at intermediate convolution layer
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -568,12 +590,14 @@ class DiscConvResModule(object):
 
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
-            h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
+            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
+                            use_gb=self.use_bn_params)
             output = lrelu(h4)
         else:
             # apply direct input->output "projection" layer
             h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-            h3 = batchnorm(h3, g=self.g_prj, b=self.b_prj)
+            h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj,
+                            use_gb=self.use_bn_params)
             output = lrelu(h3)
 
         # apply discriminator layer
@@ -597,6 +621,7 @@ class GenFCModule(object):
                  rand_dim, fc_dim, out_shape,
                  use_fc, apply_bn=True,
                  unif_drop=0.0,
+                 use_bn_params=True,
                  mod_name='dm_fc'):
         assert (len(out_shape) == 3), \
                 "out_shape should describe the input to a conv layer."
@@ -607,6 +632,7 @@ class GenFCModule(object):
         self.use_fc = use_fc
         self.apply_bn = apply_bn
         self.unif_drop = unif_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -695,14 +721,16 @@ class GenFCModule(object):
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
             if self.apply_bn:
-                h1 = batchnorm(h1, g=self.g1, b=self.b1)
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                                use_gb=self.use_bn_params)
             h1 = relu(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
-            h2 = batchnorm(h2, g=self.g3, b=self.b3)
+            h2 = switchy_bn(h2, g=self.g3, b=self.b3,
+                            use_gb=self.use_bn_params)
         h2 = relu(h2)
         # reshape vector outputs for use as conv layer inputs
         h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
@@ -929,12 +957,14 @@ class GenConvResModule(object):
         us_stride: upsampling ratio in the fractionally strided convolution
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
+        use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
                  use_rand=True, use_conv=True, us_stride=2,
                  unif_drop=0.0, chan_drop=0.0,
+                 use_bn_params=True,
                  mod_name='gm_conv'):
         assert ((us_stride == 1) or (us_stride == 2)), \
                 "us_stride must be 1 or 2."
@@ -950,6 +980,7 @@ class GenConvResModule(object):
         self.us_stride = us_stride
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         # use small dummy rand size if we won't use random vars
         if not self.use_rand:
@@ -1055,7 +1086,8 @@ class GenConvResModule(object):
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                            self.use_bn_params)
             h1 = relu(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1068,7 +1100,8 @@ class GenConvResModule(object):
         else:
             # apply direct input->output "projection" layer
             h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-        h4 = batchnorm(h4, g=self.g_prj, b=self.b_prj)
+        h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
+                        use_gb=self.use_bn_params)
         output = relu(h4)
 
         if rand_shapes:
@@ -1096,12 +1129,14 @@ class InfConvMergeModule(object):
         act_func: in ['ident', 'relu', 'lrelu']
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
+        use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
                  td_chans, bu_chans, rand_chans, conv_chans,
                  use_conv=True, act_func='relu',
                  unif_drop=0.0, chan_drop=0.0,
+                 use_bn_params=True,
                  mod_name='gm_conv'):
         self.td_chans = td_chans
         self.bu_chans = bu_chans
@@ -1116,6 +1151,7 @@ class InfConvMergeModule(object):
             self.act_func = lambda x: lrelu(x)
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
+        self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1183,7 +1219,8 @@ class InfConvMergeModule(object):
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(1, 1))
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                            use_gb=self.use_bn_params)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1220,11 +1257,13 @@ class InfFCModule(object):
         use_fc: flag for whether to use the hidden fully connected layer
         act_func: in ['ident', 'relu', 'lrelu']
         unif_drop: drop rate for unifor dropout
+        use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, bu_chans, fc_chans, rand_chans,
                  use_fc=True, act_func='relu',
                  unif_drop=0.0,
+                 use_bn_params=True,
                  mod_name='dm_fc'):
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
@@ -1237,6 +1276,7 @@ class InfFCModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.unif_drop = unif_drop
+        self.use_bn_params = True
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1303,7 +1343,8 @@ class InfFCModule(object):
         if self.use_fc:
             # feedforward to fc layer
             h1 = T.dot(bu_input, self.w1)
-            h1 = batchnorm(h1, g=self.g1, b=self.b1)
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                            use_gb=self.use_bn_params)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward to from fc layer to output
