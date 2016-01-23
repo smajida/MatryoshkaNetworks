@@ -70,11 +70,11 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
             x = x * chan_mask.dimshuffle('x',0,'x','x')
     return x
 
-def switchy_bn(acts, g=None, b=None, use_gb=True):
+def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
     if use_gb and (not (g is None) or (b is None)):
-        bn_acts = batchnorm(acts, g=g, b=b)
+        bn_acts = batchnorm(acts, g=g, b=b, n=n)
     else:
-        bn_acts = batchnorm(acts)
+        bn_acts = batchnorm(acts, n=n)
     return bn_acts
 
 #####################################
@@ -450,7 +450,7 @@ class DiscFCModule(object):
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
-                                use_gb=self.use_bn_params)
+                                use_gb=self.use_bn_params, n=noise_sigma)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
@@ -593,7 +593,7 @@ class DiscConvResModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
             h1 = switchy_bn(h1, g=self.g1, b=self.b1,
-                            use_gb=self.use_bn_params)
+                            use_gb=self.use_bn_params, n=noise_sigma)
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -607,13 +607,13 @@ class DiscConvResModule(object):
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
             h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
-                            use_gb=self.use_bn_params)
+                            use_gb=self.use_bn_params, n=noise_sigma)
             output = self.act_func(h4)
         else:
             # apply direct input->output "projection" layer
             h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
             h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj,
-                            use_gb=self.use_bn_params)
+                            use_gb=self.use_bn_params, n=noise_sigma)
             output = self.act_func(h3)
 
         # apply discriminator layer

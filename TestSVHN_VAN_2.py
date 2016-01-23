@@ -690,8 +690,8 @@ n_check = 0
 n_updates = 0
 t = time()
 gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
-w1 = np.zeros((10,))
-w2 = np.linspace(0.0, 0.05, 20) # weights for vae "fade-in"
+w1 = np.zeros((15,))
+w2 = np.linspace(0.0, 0.05, 15) # weights for vae "fade-in"
 lam_vae_weights = np.concatenate([w1, w2], axis=0)
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):

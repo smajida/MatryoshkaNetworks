@@ -34,10 +34,10 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"
-DATA_SIZE = 400000
+DATA_SIZE = 200000
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_multi_recon_2xKL'
+desc = 'test_vae_uni_recon_1xKL'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -71,9 +71,7 @@ nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 64          # base # of filters for conv layers in generative stuff
-ndf = 64          # base # of filters for conv layers in discriminator
-ndfc = 256        # # of filters in fully connected layers of discriminator
+ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 50       # # of iter at starting learning rate
@@ -81,7 +79,7 @@ niter_decay = 50 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_conv = False   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
@@ -221,7 +219,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
-    use_bn_params=True,
+    use_bn_params=False,
     act_func='relu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
@@ -233,7 +231,7 @@ BasicConvResModule(
     conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=True,
+    use_bn_params=False,
     stride='double',
     act_func='relu',
     mod_name='bu_mod_2'
@@ -246,7 +244,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=True,
+    use_bn_params=False,
     stride='double',
     act_func='relu',
     mod_name='bu_mod_3'
@@ -259,7 +257,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=True,
+    use_bn_params=False,
     stride='double',
     act_func='relu',
     mod_name='bu_mod_4'
@@ -272,7 +270,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    use_bn_params=True,
+    use_bn_params=False,
     stride='double',
     act_func='relu',
     mod_name='bu_mod_5'
@@ -284,7 +282,7 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     apply_bn=False,
-    use_bn_params=True,
+    use_bn_params=False,
     stride='single',
     act_func='relu',
     mod_name='bu_mod_6'
@@ -432,12 +430,12 @@ for tda, bua in zip(td_acts[1:], bu_acts[:-1]):
                                        use_huber=0.25), axis=1)
     deep_nll_list.append(dnll)
 deep_nll_matrix = T.stack(deep_nll_list)
-deep_nlls = T.sum(deep_nll_matrix, axis=0)
+deep_nlls = deep_nll_list[2] #T.sum(deep_nll_matrix, axis=0)
 # compute reconstruction error at generator output
 surface_nlls = -1. * T.sum(log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
                                    use_huber=0.25), axis=1)
-vae_obs_nlls = surface_nlls + (0.1 * deep_nlls)
+vae_obs_nlls = surface_nlls #+ (0.1 * deep_nlls)
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
@@ -507,12 +505,12 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 5) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.2, 1.0, 5) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0))       # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    kld_scale = 2.0
+    kld_scale = 1.0
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]

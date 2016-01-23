@@ -220,7 +220,7 @@ class DiscNetworkGAN(object):
         return
 
     def apply(self, input, ret_vals=None, app_sigm=True,
-              disc_noise=None, ret_acts=False, share_mask=False):
+              noise_sigma=None, ret_acts=False, share_mask=False):
         """
         Apply this DiscNetworkGAN to some input and return some subset of the
         discriminator layer outputs from its underlying modules.
@@ -233,11 +233,11 @@ class DiscNetworkGAN(object):
             if i == (len(self.modules) - 1):
                 # final fc module takes 1d input
                 result = module.apply(T.flatten(hs[-1], 2),
-                                      noise_sigma=disc_noise,
+                                      noise_sigma=noise_sigma,
                                       share_mask=share_mask)
             else:
                 # other modules take 2d input
-                result = module.apply(hs[-1], noise_sigma=disc_noise,
+                result = module.apply(hs[-1], noise_sigma=noise_sigma,
                                       share_mask=share_mask)
             if type(result) == type([1, 2, 3]):
                 hi = result[0]

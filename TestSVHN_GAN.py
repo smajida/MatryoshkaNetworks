@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_5x5_disc'
+desc = 'test_gan_best_model_3x3_disc_no_anneal'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -80,7 +80,7 @@ multi_rand = True   # whether to use stochastic variables at all scales
 multi_disc = True   # whether to use discriminator guidance at all scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use experience replay
-use_annealing = True # whether to use "annealing" of the target distribution
+use_annealing = False # whether to use "annealing" of the target distribution
 
 ntrain = Xtr.shape[0]
 
@@ -271,7 +271,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -282,7 +282,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -293,7 +293,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
     conv_chans=(ndf*4),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
