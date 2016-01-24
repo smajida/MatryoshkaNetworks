@@ -45,7 +45,7 @@ if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
 # locations of 64x64 faces dataset -- stored as a collection of .npy files
-data_dir = "/NOBACKUP/faces_celeba/imgs_as_npy"
+data_dir = "{}/data".format(EXP_DIR)
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
@@ -503,14 +503,13 @@ for epoch in range(1, niter+niter_decay+1):
     ############################
     # QUANTITATIVE DIAGNOSTICS #
     ############################
-    g_costs = [(v / gc_iter) for v in g_costs]
-    d_costs = [(v / dc_iter) for v in d_costs]
+    epoch_costs = [(v / epoch_iter) for v in epoch_costs]
     rec_cost = rec_cost / rec_iter
     str1 = "Epoch {}:".format(epoch)
     str2 = "    g_cost: {0:.4f}, d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
-            g_costs[0], d_costs[1], rec_cost)
+            epoch_costs[0], epoch_costs[1], rec_cost)
     str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
-            g_costs[2], d_costs[3], d_costs[4], d_costs[5])
+            epoch_costs[2], epoch_costs[3], epoch_costs[4], epoch_costs[5])
     joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")

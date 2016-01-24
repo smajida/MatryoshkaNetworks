@@ -561,7 +561,7 @@ vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
@@ -604,7 +604,7 @@ gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
 gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
-gan_reg_cost_g = 2e-5 * sum([T.sum(p**2.0) for p in gen_params])
+gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
     adv_cost = (0.5 * gan_nll_cost_model) + (0.5 * gan_nll_cost_exrep)
