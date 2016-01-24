@@ -389,7 +389,7 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (1e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
@@ -413,15 +413,15 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 1000
+end_idx = 200
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(1000)
-    samples = samples.reshape((1000,-1))
+    samples = gen_network.generate_samples(200)
+    samples = samples.reshape((200,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 1000
-    end_idx += 1000
+    start_idx += 200
+    end_idx += 200
 print("DONE.")
 
 print desc.upper()
@@ -435,17 +435,15 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 50) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
     Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    g_cost = 0.
-    g_cost_d = 0.
-    d_cost = 0.
-    d_cost_real = 0.
+    g_costs = [0. for c in all_costs]
+    d_costs = [0. for c in all_costs]
     gc_iter = 0
     dc_iter = 0
     rec_iter = 0
@@ -466,16 +464,14 @@ for epoch in range(1, niter+niter_decay+1):
             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
             # compute generator cost and apply update
             result = _train_g(imb, z0mb, xer)
-            g_cost += result[0]
-            g_cost_d += result[2]
+            g_costs = [(v1 + v2) for v1, v2 in zip(g_costs, result)]
             gc_iter += 1
         else:
             # sample data from experience replay buffer
             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
             # compute discriminator cost and apply update
             result = _train_d(imb, z0mb, xer)
-            d_cost += result[1]
-            d_cost_real += result[3]
+            d_costs = [(v1 + v2) for v1, v2 in zip(d_costs, result)]
             dc_iter += 1
         if ((n_updates % 10) == 0):
             # train the bootleg variational inference model
@@ -495,11 +491,14 @@ for epoch in range(1, niter+niter_decay+1):
     ############################
     # QUANTITATIVE DIAGNOSTICS #
     ############################
+    g_costs = [(v / gc_iter) for v in g_costs]
+    d_costs = [(v / dc_iter) for v in d_costs]
+    rec_cost = rec_cost / rec_iter
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
-            (g_cost/gc_iter), (d_cost/dc_iter), (rec_cost/rec_iter))
-    str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format( \
-            (g_cost_d/gc_iter), (d_cost_real/dc_iter))
+    str2 = "    g_cost: {0:.4f}, d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
+            g_costs[0], d_costs[1], rec_cost)
+    str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
+            g_costs[2], d_costs[3], d_costs[4], d_costs[5])
     joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
