@@ -491,7 +491,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 1.25 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -543,7 +543,7 @@ for hg_world, hg_recon in zip(Hg_world, Hg_recon):
 print("len(vae_layer_nlls): {}".format(len(vae_layer_nlls)))
 #vae_obs_nlls = vae_layer_nlls[0]
 #vae_obs_nlls = vae_layer_nlls[2]
-vae_obs_nlls = vae_layer_nlls[3]
+vae_obs_nlls = vae_layer_nlls[3] + (0.05 * vae_layer_nlls[0])
 #vae_obs_nlls = vae_layer_nlls[4]
 vae_nll_cost = T.mean(vae_obs_nlls)
 
