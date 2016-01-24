@@ -415,7 +415,7 @@ d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
-cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
+all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er]
 
 lrt = sharedX(lr)
 lrd = sharedX(lr/2.0)
@@ -427,7 +427,7 @@ updates = d_updates + g_updates
 
 print 'COMPILING'
 t = time()
-train_func = theano.function([X, Z0, Xer], cost, updates=updates)
+train_func = theano.function([X, Z0, Xer], all_costs, updates=updates)
 gen_func = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
