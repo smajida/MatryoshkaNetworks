@@ -491,7 +491,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -596,7 +596,7 @@ gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 3e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
 gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
@@ -620,7 +620,7 @@ full_cost_inf = vae_cost
 lrt = sharedX(lr)
 lrd = sharedX(lr/2.0)
 d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=100.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions

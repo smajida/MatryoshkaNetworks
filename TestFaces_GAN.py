@@ -172,7 +172,6 @@ tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
-
 ###############################
 # Setup the generator network #
 ###############################
@@ -180,14 +179,27 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 4, 4),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8, 4, 4)
+) # output is (batch, ngf*8, 2, 2)
 
 gen_module_2 = \
+GenConvResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    conv_chans=(ngf*4),
+    filt_shape=(3,3),
+    rand_chans=(nz1*2),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='gen_mod_2'
+) # output is (batch, ngf*8, 4, 4)
+
+gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
@@ -197,10 +209,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_2'
+    mod_name='gen_mod_3'
 ) # output is (batch, ngf*4, 8, 8)
 
-gen_module_3 = \
+gen_module_4 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -210,10 +222,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_3'
+    mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
 
-gen_module_4 = \
+gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -223,10 +235,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_4'
+    mod_name='gen_mod_5'
 ) # output is (batch, ngf*2, 32, 32)
 
-gen_module_5 = \
+gen_module_6 = \
 GenConvResModule(
     in_chans=(ngf*1),
     out_chans=32,
@@ -236,10 +248,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_5'
+    mod_name='gen_mod_6'
 ) # output is (batch, ngf*1, 64, 64)
 
-gen_module_6 = \
+gen_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=32,
@@ -247,11 +259,11 @@ BasicConvModule(
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='gen_mod_6'
+    mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-               gen_module_4, gen_module_5, gen_module_6]
+gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
+               gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -293,7 +305,7 @@ DiscConvResModule(
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*2, 8, 8)
+) # output is (batch, ndf*4, 8, 8)
 
 disc_module_4 = \
 DiscConvResModule(
@@ -304,19 +316,30 @@ DiscConvResModule(
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*2, 4, 4)
+) # output is (batch, ndf*8, 4, 4)
 
 disc_module_5 = \
+DiscConvResModule(
+    in_chans=(ndf*8),
+    out_chans=(ndf*8),
+    conv_chans=ndf,
+    filt_shape=(3,3),
+    use_conv=False,
+    ds_stride=2,
+    mod_name='disc_mod_5'
+) # output is (batch, ndf*8, 2, 2)
+
+disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*4*4),
+    in_dim=(ndf*8*2*2),
     use_fc=False,
     apply_bn=True,
-    mod_name='disc_mod_5'
+    mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5]
+                disc_module_4, disc_module_5, disc_module_6]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -330,7 +353,7 @@ print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
-Xtr_rec = Xtr[0:128,:]
+Xtr_rec = Xtr[0:200,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
 VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)

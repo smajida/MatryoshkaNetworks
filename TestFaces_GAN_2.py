@@ -354,7 +354,7 @@ print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
-Xtr_rec = Xtr[0:128,:]
+Xtr_rec = Xtr[0:200,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
 VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)
@@ -363,7 +363,6 @@ opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
 test_recons = VIM.sample_Xg()
 color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(result_dir))
-
 
 ####################################
 # Setup the optimization objective #
