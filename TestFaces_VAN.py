@@ -44,7 +44,7 @@ disc_param_file = "{}/disc_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-# locations of 64x64 LSUN dataset -- stored as a collection of .npy files
+# locations of 64x64 faces dataset -- stored as a collection of .npy files
 data_dir = "/NOBACKUP/faces_celeba/imgs_as_npy"
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
@@ -684,7 +684,7 @@ n_check = 0
 n_epochs = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 30) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
