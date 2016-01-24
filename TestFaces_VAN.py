@@ -67,7 +67,7 @@ ndfc = 256        # # of filters in fully connected layers of discriminator
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 100       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 multi_disc = True # whether to use discriminator feedback at multiple scales
@@ -177,7 +177,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
@@ -491,7 +491,7 @@ d_params = disc_network.params
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 1.0 * tanh((1.0/2.0) * obs_logvar)
+bounded_logvar = 2.0 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -618,7 +618,8 @@ full_cost_inf = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+lrd = sharedX(lr/2.0)
+d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
 gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=100.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 
@@ -685,6 +686,9 @@ n_epochs = 0
 n_updates = 0
 t = time()
 gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
+w1 = np.zeros((20,))
+w2 = np.linspace(0.0, 0.05, 30) # weights for vae "fade-in"
+lam_vae_weights = np.concatenate([w1, w2], axis=0)
 sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
@@ -693,7 +697,10 @@ for epoch in range(1, niter+niter_decay+1):
         carry_buffer = Xtr[0:carry_count,:].copy()
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    vae_scale = 0.05
+    if (epoch-1) < lam_vae_weights.size:
+        vae_scale = lam_vae_weights[epoch-1]
+    else:
+        vae_scale = lam_vae_weights[-1]
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
@@ -760,7 +767,13 @@ for epoch in range(1, niter+niter_decay+1):
         if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+        # shrink the learning rate and keep discriminator at half rate
+        iters_left = (niter_decay + niter) - n_epochs + 1
+        old_lr = lrt.get_value(borrow=False)
+        new_lr = old_lr - (old_lr / iters_left)
+        lrt.set_value(floatX(new_lr))
+        lrd.set_value(floatX(new_lr/2.0))
+
     ###################
     # SAVE PARAMETERS #
     ###################

@@ -39,7 +39,7 @@ DATA_SIZE = 250000
 # setup paths for dumping diagnostic info
 desc = 'test_gan_best_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
-inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
@@ -182,7 +182,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
@@ -395,7 +395,8 @@ g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
 
 lrt = sharedX(lr)
-d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+lrd = sharedX(lr/2.0)
+d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
 g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
@@ -510,7 +511,12 @@ for epoch in range(1, niter+niter_decay+1):
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+        # reduce learning rate and keep discriminator at half rate
+        iters_left = (niter_decay + niter) - n_epochs + 1
+        old_lr = lrt.get_value(borrow=False)
+        new_lr = old_lr - (old_lr / iters_left)
+        lrt.set_value(floatX(new_lr))
+        lrd.set_value(floatX(new_lr/2.0))
 
 
 
