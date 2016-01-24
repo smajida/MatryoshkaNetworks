@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_3x3_disc_old_scaling'
+desc = 'test_gan_best_model_3x3_disc_no_multi_disc'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -52,10 +52,10 @@ data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
 del data_dict
-#Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
-#Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
-Xtr = Xtr - np.min(Xtr)
-Xtr = Xtr / np.max(Xtr)
+Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr - np.min(Xtr)
+#Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
@@ -79,7 +79,7 @@ lr = 0.0002       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
-multi_disc = True   # whether to use discriminator guidance at all scales
+multi_disc = False   # whether to use discriminator guidance at all scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
