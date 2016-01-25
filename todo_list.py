@@ -42,6 +42,15 @@ Thurs. January 21
 TODO: When gpus are available, train deep_dm2_dm3_match_drop01 with delayed
       onset of vae cost in the generator. This seemed to dramatically reduce
       the eventual KLd of the inference network for match_drop00_3x3_disc.
+** The above didn't work well, so give it up. Move on. **
+
+Mon. January 25
+-----------------
+1. Work on an abstract, to obtain focus.
+2. Work on writing about GAN problems and VAE problems.
+3. Re-run faces GAN and VAN tests with reduced ER buffer refresh rate.
+4. Re-run faces GAN and VAN tests with reduced discriminator regularization.
+5. Write SVHN semi-supervised tests.
 
 
 
