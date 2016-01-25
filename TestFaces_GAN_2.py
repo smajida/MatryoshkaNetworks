@@ -320,27 +320,16 @@ DiscConvResModule(
 ) # output is (batch, ndf*8, 4, 4)
 
 disc_module_5 = \
-DiscConvResModule(
-    in_chans=(ndf*8),
-    out_chans=(ndf*8),
-    conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=False,
-    ds_stride=2,
-    mod_name='disc_mod_5'
-) # output is (batch, ndf*8, 2, 2)
-
-disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*2*2),
+    in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
-    mod_name='disc_mod_6'
+    mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5, disc_module_6]
+                disc_module_4, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)

@@ -685,7 +685,7 @@ n_check = 0
 n_epochs = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 50) # weights for distribution "annealing"
 w1 = np.zeros((20,))
 w2 = np.linspace(0.0, 0.05, 30) # weights for vae "fade-in"
 lam_vae_weights = np.concatenate([w1, w2], axis=0)
