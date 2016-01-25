@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_3x3_disc_no_multi_disc'
+desc = 'test_gan_best_model_3x3'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -79,7 +79,7 @@ lr = 0.0002       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
 multi_rand = True   # whether to use stochastic variables at all scales
-multi_disc = False   # whether to use discriminator guidance at all scales
+multi_disc = True   # whether to use discriminator guidance at all scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use experience replay
 use_annealing = True # whether to use "annealing" of the target distribution
@@ -383,7 +383,7 @@ d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
-cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
+all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
@@ -394,8 +394,8 @@ updates = d_updates + g_updates
 
 print 'COMPILING'
 t = time()
-_train_g = theano.function([X, Z0, Xer], cost, updates=g_updates)
-_train_d = theano.function([X, Z0, Xer], cost, updates=d_updates)
+_train_g = theano.function([X, Z0, Xer], all_costs, updates=g_updates)
+_train_d = theano.function([X, Z0, Xer], all_costs, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
@@ -429,10 +429,8 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annea
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
-    g_cost = 0.
-    g_cost_d = 0.
-    d_cost = 0.
-    d_cost_real = 0.
+    g_costs = [0. for c in all_costs]
+    d_costs = [0. for c in all_costs]
     gc_iter = 0
     dc_iter = 0
     rec_iter = 0
@@ -453,16 +451,14 @@ for epoch in range(1, niter+niter_decay+1):
             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
             # compute generator cost and apply update
             result = _train_g(imb, z0mb, xer)
-            g_cost += result[0]
-            g_cost_d += result[2]
+            g_costs = [(v1 + v2) for v1, v2 in zip(g_costs, result)]
             gc_iter += 1
         else:
             # sample data from experience replay buffer
             xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
             # compute discriminator cost and apply update
             result = _train_d(imb, z0mb, xer)
-            d_cost += result[1]
-            d_cost_real += result[3]
+            d_costs = [(v1 + v2) for v1, v2 in zip(d_costs, result)]
             dc_iter += 1
         if ((n_updates % 10) == 0):
             # train the bootleg variational inference model
@@ -472,21 +468,24 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #
     ###################
-    gen_network.dump_params(gen_param_file)
-    disc_network.dump_params(disc_param_file)
     ############################
     # QUANTITATIVE DIAGNOSTICS #
     ############################
+    g_costs = [(v / gc_iter) for v in g_costs]
+    d_costs = [(v / dc_iter) for v in d_costs]
+    rec_cost = rec_cost / rec_iter
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    g_cost: {0:.4f},      d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
-            (g_cost/gc_iter), (d_cost/dc_iter), (rec_cost/rec_iter))
-    str3 = "  g_cost_d: {0:.4f}, d_cost_real: {1:.4f}".format( \
-            (g_cost_d/gc_iter), (d_cost_real/dc_iter))
+    str2 = "    g_cost: {0:.4f}, d_cost: {1:.4f}, rec_cost: {2:.4f}".format( \
+            g_costs[0], d_costs[1], rec_cost)
+    str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
+            g_costs[2], d_costs[3], d_costs[4], d_costs[5])
+    str4 = "    -- g_cost_ds: {}".format( \
+            ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[6:])]))
     joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
@@ -498,7 +497,11 @@ for epoch in range(1, niter+niter_decay+1):
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if n_epochs > niter:
-        lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
+        # reduce learning rate and keep discriminator at half rate
+        iters_left = (niter_decay + niter) - n_epochs + 1
+        old_lr = lrt.get_value(borrow=False)
+        new_lr = old_lr - (old_lr / iters_left)
+        lrt.set_value(floatX(new_lr))
 
 
 
