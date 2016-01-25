@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_shorter_gen'
+desc = 'test_gan_best_model_shorter_model_slower_er_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -318,28 +318,28 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*8, 4, 4)
 
-disc_module_5 = \
-DiscConvResModule(
-    in_chans=(ndf*8),
-    out_chans=(ndf*8),
-    conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=False,
-    ds_stride=2,
-    mod_name='disc_mod_5'
-) # output is (batch, ndf*8, 2, 2)
+#disc_module_5 = \
+#DiscConvResModule(
+#    in_chans=(ndf*8),
+#    out_chans=(ndf*8),
+#    conv_chans=ndf,
+#    filt_shape=(3,3),
+#    use_conv=False,
+#    ds_stride=2,
+#    mod_name='disc_mod_5'
+#) # output is (batch, ndf*8, 2, 2)
 
 disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*2*2),
+    in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5, disc_module_6]
+                disc_module_4, disc_module_6] #disc_module_5, disc_module_6]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -504,7 +504,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
+        if ((n_updates % (min(20,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #

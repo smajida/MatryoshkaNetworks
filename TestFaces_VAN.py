@@ -697,10 +697,11 @@ for epoch in range(1, niter+niter_decay+1):
         carry_buffer = Xtr[0:carry_count,:].copy()
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    if (epoch-1) < lam_vae_weights.size:
-        vae_scale = lam_vae_weights[epoch-1]
-    else:
-        vae_scale = lam_vae_weights[-1]
+    #if (epoch-1) < lam_vae_weights.size:
+    #    vae_scale = lam_vae_weights[epoch-1]
+    #else:
+    #    vae_scale = lam_vae_weights[-1]
+    vae_scale = 0.01
     kld_scale = 1.0
     lam_vae.set_value(np.asarray([vae_scale]).astype(theano.config.floatX))
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
@@ -764,7 +765,7 @@ for epoch in range(1, niter+niter_decay+1):
             d_batch_count += 1
         n_updates += 1
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
+        if ((n_updates % (min(15,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     if n_epochs > niter:
         # shrink the learning rate and keep discriminator at half rate
