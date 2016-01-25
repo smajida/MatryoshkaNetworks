@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_deep_dm2_dm3_match_dm3_drop01'
+desc = 'test_van_match_dm3_drop00'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -88,7 +88,7 @@ use_annealing = True # whether to anneal the target distribution while training
 use_carry = True     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 er_buffer_size = 250000 # size of the "experience replay" buffer
-drop_rate = 0.1
+drop_rate = 0.0
 ntrain = Xtr.shape[0]
 
 
@@ -429,7 +429,7 @@ DiscConvResModule(
     out_chans=(ndf*2),
     conv_chans=(ndf*1),
     filt_shape=(3,3),
-    use_conv=True,
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -442,7 +442,7 @@ DiscConvResModule(
     out_chans=(ndf*4),
     conv_chans=(ndf*2),
     filt_shape=(3,3),
-    use_conv=True,
+    use_conv=False,
     unif_drop=0.0,
     chan_drop=drop_rate,
     ds_stride=2,
@@ -559,7 +559,7 @@ vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
@@ -602,7 +602,7 @@ gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
 gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
-gan_reg_cost_g = 2e-5 * sum([T.sum(p**2.0) for p in gen_params])
+gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
     adv_cost = (0.5 * gan_nll_cost_model) + (0.5 * gan_nll_cost_exrep)
@@ -667,15 +667,15 @@ print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # initialize an experience replay buffer
 er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 1000
+end_idx = 200
 print("Initializing experience replay buffer...")
 while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(1000)
-    samples = samples.reshape((1000,-1))
+    samples = gen_network.generate_samples(200)
+    samples = samples.reshape((200,-1))
     end_idx = min(end_idx, er_buffer_size)
     er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 1000
-    end_idx += 1000
+    start_idx += 200
+    end_idx += 200
 print("DONE.")
 # initialize a buffer holding VAE inputs to carry to next batch
 carry_buffer = Xtr[0:carry_count,:].copy()
@@ -778,7 +778,7 @@ for epoch in range(1, niter+niter_decay+1):
             d_batch_count += 1
         n_updates += 1
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     if (epoch == 30) or (epoch == 60):
         # cut learning rate in half

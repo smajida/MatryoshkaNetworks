@@ -493,7 +493,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #

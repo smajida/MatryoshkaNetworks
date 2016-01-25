@@ -380,7 +380,7 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (1e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 cost = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen]
@@ -472,7 +472,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #

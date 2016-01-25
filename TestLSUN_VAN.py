@@ -596,7 +596,7 @@ gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 3e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
 gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
@@ -619,7 +619,7 @@ full_cost_inf = vae_cost
 # stuff for performing updates
 lrt = sharedX(lr)
 d_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=100.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
@@ -757,7 +757,7 @@ for epoch in range(1, niter+niter_decay+1):
             d_batch_count += 1
         n_updates += 1
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*20)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     if n_epochs > niter:
         lrt.set_value(floatX(lrt.get_value() - lr/niter_decay))
