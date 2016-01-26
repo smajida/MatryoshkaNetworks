@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model_more_weight_on_buffer'
+desc = 'test_gan_big_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -245,7 +245,7 @@ GenConvResModule(
     conv_chans=32,
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=multi_rand,
+    use_rand=False,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_6'
@@ -411,7 +411,7 @@ g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.25, 0.75
+    a1, a2 = 0.5, 0.5
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
@@ -461,7 +461,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
