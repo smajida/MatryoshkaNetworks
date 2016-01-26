@@ -43,6 +43,18 @@ def mnist_with_valid_set(data_dir):
 
     return trX, vaX, teX, trY, vaY, teY
 
+def load_binarized_mnist(data_path='./'):
+    #binarized_mnist_test.amat  binarized_mnist_train.amat  binarized_mnist_valid.amat
+    print 'loading binary MNIST, sampled version (de Larochelle)'
+    train_x = np.loadtxt(data_path + 'binarized_mnist_train.amat').astype('float32')
+    valid_x = np.loadtxt(data_path + 'binarized_mnist_valid.amat').astype('float32')
+    test_x = np.loadtxt(data_path + 'binarized_mnist_test.amat').astype('float32')
+    # shuffle dataset
+    train_x = row_shuffle(train_x)
+    valid_x = row_shuffle(valid_x)
+    test_x = row_shuffle(test_x)
+    return train_x, valid_x, test_x
+
 def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     """
     Loads the full SVHN train/test sets and an additional number of randomly
