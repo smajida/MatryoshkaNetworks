@@ -395,6 +395,7 @@ d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
 d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
+g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 weights = [1.0 for i in range(1,len(p_gen)+1)]
 weights[0] = 0.0
@@ -405,6 +406,7 @@ d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
 g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
+g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
 
 
 # switch costs based on use of experience replay
@@ -414,7 +416,7 @@ else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (4e-5 * sum([T.sum(p**2.0) for p in disc_params]))
-g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
+g_cost = g_cost_h + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
