@@ -16,7 +16,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.costs import log_prob_gaussian, log_prob_bernoulli
+from lib.costs import log_prob_bernoulli
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
@@ -33,8 +33,7 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./svhn"
-DATA_SIZE = 400000
+EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
 desc = 'test_vae_basic'
@@ -66,7 +65,6 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to anneal the target distribution while training
 
 ntrain = Xtr.shape[0]
 
@@ -119,7 +117,7 @@ GenConvResModule(
     use_conv=use_conv,
     us_stride=1,
     mod_name='td_mod_2'
-) # output is (batch, ngf*4, 7, 7)
+) # output is (batch, ngf*2, 7, 7)
 
 td_module_3 = \
 GenConvResModule(
@@ -169,7 +167,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfFCModule(
-    bu_chans=(ngf*8*2*2),
+    bu_chans=(ngf*4*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -179,29 +177,17 @@ InfFCModule(
 
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='double',
-    act_func='lrelu',
-    mod_name='bu_mod_2'
-) # output is (batch, ngf*4, 2, 2)
-
-bu_module_3 = \
-BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    stride='double',
+    stride='single',
     act_func='lrelu',
-    mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 4, 4)
+    mod_name='bu_mod_2'
+) # output is (batch, ngf*4, 7, 7)
 
-bu_module_4 = \
+bu_module_3 = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -210,10 +196,10 @@ BasicConvResModule(
     use_conv=use_conv,
     stride='double',
     act_func='lrelu',
-    mod_name='bu_mod_4'
-) # output is (batch, ngf*2, 8, 8)
+    mod_name='bu_mod_3'
+) # output is (batch, ngf*4, 7, 7)
 
-bu_module_5 = \
+bu_module_4 = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
@@ -222,10 +208,10 @@ BasicConvResModule(
     use_conv=use_conv,
     stride='double',
     act_func='lrelu',
-    mod_name='bu_mod_5'
-) # output is (batch, ngf*2, 16, 16)
+    mod_name='bu_mod_4'
+) # output is (batch, ngf*2, 14, 14)
 
-bu_module_6 = \
+bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
@@ -234,11 +220,11 @@ BasicConvModule(
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 32, 32)
+) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_5, bu_module_4, bu_module_3
+              bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -246,10 +232,10 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4,
 
 im_module_2 = \
 InfConvMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    td_chans=(ngf*4),
+    bu_chans=(ngf*4),
     rand_chans=nz1,
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     use_conv=True,
     act_func='lrelu',
     mod_name='im_mod_2'
@@ -258,8 +244,8 @@ InfConvMergeModule(
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -273,26 +259,14 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     act_func='lrelu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
 
-im_module_5 = \
-InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*1),
-    use_conv=True,
-    act_func='lrelu',
-    mod_name='im_mod_5'
-) # merge input to td_mod_5 and output of bu_mod_5, to place a distribution
-  # over the rand_vals used in td_mod_5.
-
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
+im_modules = [im_module_2, im_module_3, im_module_4]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -308,7 +282,6 @@ merge_info = {
     'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
-    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules
@@ -317,10 +290,10 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=tanh
+    output_transform=sigmoid
 )
 # create a model of just the generator
-gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
+gen_network = GenNetworkGAN(modules=td_modules, output_transform=sigmoid)
 
 
 
@@ -329,9 +302,7 @@ gen_network = GenNetworkGAN(modules=td_modules, output_transform=tanh)
 ####################################
 lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
-obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-bounded_logvar = 5.0 * tanh((1.0/5.0) * obs_logvar)
-gen_params = [obs_logvar] + inf_gen_model.gen_params
+gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
@@ -358,10 +329,9 @@ print("len(td_acts): {}".format(len(td_acts)))
 print("len(bu_acts): {}".format(len(bu_acts)))
 print("---DIAGNOSTICS>>>")
 
-
-vae_obs_nlls = T.sum(-1. * log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                                   log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.25), axis=1)
+vae_obs_nlls = T.sum((-1. * log_prob_bernoulli( \
+                        T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                        do_sum=False)), axis=1)
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
@@ -390,7 +360,7 @@ full_cost_inf = vae_cost
 
 # stuff for performing updates
 lrt = sharedX(lr)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=100.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
@@ -450,14 +420,11 @@ for epoch in range(1, niter+niter_decay+1):
             vmb = Xva[start_idx:(start_idx+100),:]
         else:
             vmb = Xva[0:100,:]
-        # use noiseless versions of the current batch and the carry buffer
-        imb_fuzz = imb.copy()
-        vmb_fuzz = vmb.copy()
         # transform noisy training batch and carry buffer to "image format"
-        imb_fuzz = train_transform(imb_fuzz)
-        vmb_fuzz = train_transform(vmb_fuzz)
+        imb_img = train_transform(imb)
+        vmb_img = train_transform(vmb)
         # train vae on training batch
-        g_result = g_train_func(imb_fuzz.astype(theano.config.floatX))
+        g_result = g_train_func(imb_img.astype(theano.config.floatX))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -469,10 +436,10 @@ for epoch in range(1, niter+niter_decay+1):
         g_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            v_result = g_train_func(vmb_fuzz)
+            v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 30) or (epoch == 60):
+    if (epoch == 33) or (epoch == 66):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -523,44 +490,28 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # generate some samples from the model prior
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+    grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
-    if epoch < gauss_blur_weights.shape[0]:
-        w_x = gauss_blur_weights[epoch]
-    else:
-        w_x = 1.0
-    w_g = 1.0 - w_x
-    tr_rec_batch = np.concatenate([carry_buffer, Xtr[0:100,:]], axis=0)
-    tr_rec_batch = tr_rec_batch[0:100,:]
-    va_rec_batch = Xva[0:100,:]
-    if use_annealing and (w_x < 0.999):
-        # add noise to reconstruction targets (if we trained with noise)
-        tr_rb_fuzz = np.clip(gauss_blur(tr_rec_batch, Xtr_std, w_x, w_g),
-                             a_min=-1.0, a_max=1.0)
-        va_rb_fuzz = np.clip(gauss_blur(va_rec_batch, Xtr_std, w_x, w_g),
-                             a_min=-1.0, a_max=1.0)
-    else:
-        # otherwise, use noise-free reconstruction targets
-        tr_rb_fuzz = tr_rec_batch
-        va_rb_fuzz = va_rec_batch
+    tr_rb = Xtr[0:100,:]
+    va_rb = Xva[0:100,:]
     # get the model reconstructions
-    tr_rb_fuzz = train_transform(tr_rb_fuzz)
-    va_rb_fuzz = train_transform(va_rb_fuzz)
-    tr_recons = recon_func(tr_rb_fuzz)
-    va_recons = recon_func(va_rb_fuzz)
+    tr_rb = train_transform(tr_rb)
+    va_rb = train_transform(va_rb)
+    tr_recons = recon_func(tr_rb)
+    va_recons = recon_func(va_rb)
     # stripe data for nice display (each reconstruction next to its target)
     tr_vis_batch = np.zeros((200, nc, npx, npx))
     va_vis_batch = np.zeros((200, nc, npx, npx))
     for rec_pair in range(100):
         idx_in = 2*rec_pair
         idx_out = 2*rec_pair + 1
-        tr_vis_batch[idx_in,:,:,:] = tr_rb_fuzz[rec_pair,:,:,:]
+        tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
         tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-        va_vis_batch[idx_in,:,:,:] = va_rb_fuzz[rec_pair,:,:,:]
+        va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
         va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
     # draw images...
-    color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-    color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+    grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+    grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 
