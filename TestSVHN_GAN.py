@@ -486,7 +486,7 @@ for epoch in range(1, niter+niter_decay+1):
             g_costs[2], d_costs[3], d_costs[4], d_costs[5])
     str4 = "    -- g_cost_ds: {}".format( \
             ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[6:])]))
-    joint_str = "\n".join([str1, str2, str3])
+    joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
