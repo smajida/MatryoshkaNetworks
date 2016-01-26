@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_shorter_model_slower_er_buffer'
+desc = 'test_gan_big_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -179,25 +179,25 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 4, 4),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 2, 2)
 
-#gen_module_2 = \
-#GenConvResModule(
-#    in_chans=(ngf*8),
-#    out_chans=(ngf*8),
-#    conv_chans=(ngf*4),
-#    filt_shape=(3,3),
-#    rand_chans=(nz1*2),
-#    use_rand=multi_rand,
-#    use_conv=use_conv,
-#    us_stride=2,
-#    mod_name='gen_mod_2'
-#) # output is (batch, ngf*8, 4, 4)
+gen_module_2 = \
+GenConvResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    conv_chans=(ngf*4),
+    filt_shape=(3,3),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    us_stride=2,
+    mod_name='gen_mod_2'
+) # output is (batch, ngf*8, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -262,7 +262,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_3, gen_module_4, #gen_module_2, gen_module_3, gen_module_4,
+gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
@@ -318,28 +318,28 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*8, 4, 4)
 
-#disc_module_5 = \
-#DiscConvResModule(
-#    in_chans=(ndf*8),
-#    out_chans=(ndf*8),
-#    conv_chans=ndf,
-#    filt_shape=(3,3),
-#    use_conv=False,
-#    ds_stride=2,
-#    mod_name='disc_mod_5'
-#) # output is (batch, ndf*8, 2, 2)
+disc_module_5 = \
+DiscConvResModule(
+    in_chans=(ndf*8),
+    out_chans=(ndf*8),
+    conv_chans=ndf,
+    filt_shape=(3,3),
+    use_conv=False,
+    ds_stride=2,
+    mod_name='disc_mod_5'
+) # output is (batch, ndf*8, 2, 2)
 
 disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*4*4),
+    in_dim=(ndf*8*2*2),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_6] #disc_module_5, disc_module_6]
+                disc_module_4, disc_module_5, disc_module_6]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -397,6 +397,7 @@ d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 weights = [1.0 for i in range(1,len(p_gen)+1)]
+weights[0] = 0.0
 scale = sum(weights)
 weights = [w/scale for w in weights]
 print("Discriminator signal weights {}...".format(weights))
@@ -412,10 +413,10 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+         (4e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
-all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er]
+all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
 lrd = sharedX(lr/2.0)
@@ -504,7 +505,7 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(20,epoch)*15)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
             update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #
@@ -522,7 +523,9 @@ for epoch in range(1, niter+niter_decay+1):
             g_costs[0], d_costs[1], rec_cost)
     str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
             g_costs[2], d_costs[3], d_costs[4], d_costs[5])
-    joint_str = "\n".join([str1, str2, str3])
+    str4 = "    -- g_cost_ds: {}".format( \
+            ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[6:])]))
+    joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
@@ -532,6 +535,11 @@ for epoch in range(1, niter+niter_decay+1):
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
+    if (n_epochs == 50) or (n_epochs == 100):
+        old_lr = lrt.get_value(borrow=False)
+        new_lr = 0.5 * old_lr
+        lrt.set_value(floatX(new_lr))
+        lrd.set_value(floatX(new_lr/2.0))
     if n_epochs > niter:
         # reduce learning rate and keep discriminator at half rate
         iters_left = (niter_decay + niter) - n_epochs + 1
