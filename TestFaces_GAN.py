@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model'
+desc = 'test_gan_big_model_more_weight_on_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -411,12 +411,12 @@ g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.5, 0.5
+    a1, a2 = 0.25, 0.75
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (4e-5 * sum([T.sum(p**2.0) for p in disc_params]))
-g_cost = g_cost_h + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
+g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
