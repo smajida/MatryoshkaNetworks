@@ -10,6 +10,15 @@ import theano
 
 from lib.data_utils import shuffle
 
+def row_shuffle(X):
+    """
+    Return a copy of X with shuffled rows.
+    """
+    shuf_idx = np.arange(X.shape[0])
+    npr.shuffle(shuf_idx)
+    X_shuf = X[shuf_idx]
+    return X_shuf
+
 def mnist(data_dir):
     fd = open("{}/train-images.idx3-ubyte".format(data_dir))
     loaded = np.fromfile(file=fd,dtype=np.uint8)

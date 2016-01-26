@@ -17,7 +17,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.costs import log_prob_bernoulli
-from lib.vis import color_grid_vis
+from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_basic'
+desc = 'test_vae_basic_no_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -52,7 +52,7 @@ l2 = 1.0e-5       # l2 weight decay
 b1 = 0.8          # momentum term of adam
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
-npx = 32          # # of pixels width/height of images
+npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
@@ -65,6 +65,7 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_bn = False    # whether to use batch normalization throughout the model
 
 ntrain = Xtr.shape[0]
 
@@ -102,7 +103,7 @@ GenFCModule(
     out_shape=(ngf*4, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
-    apply_bn=True,
+    apply_bn=use_bn,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -115,6 +116,7 @@ GenConvResModule(
     filt_shape=(3,3),
     use_rand=multi_rand,
     use_conv=use_conv,
+    apply_bn=use_bn,
     us_stride=1,
     mod_name='td_mod_2'
 ) # output is (batch, ngf*2, 7, 7)
@@ -128,6 +130,7 @@ GenConvResModule(
     filt_shape=(3,3),
     use_rand=multi_rand,
     use_conv=use_conv,
+    apply_bn=use_bn,
     us_stride=2,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
@@ -141,6 +144,7 @@ GenConvResModule(
     filt_shape=(3,3),
     use_rand=multi_rand,
     use_conv=use_conv,
+    apply_bn=use_bn,
     us_stride=2,
     mod_name='td_mod_4'
 ) # output is (batch, ngf*2, 28, 28)
@@ -171,6 +175,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    apply_bn=use_bn,
     act_func='lrelu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
@@ -182,6 +187,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
+    apply_bn=use_bn,
     stride='single',
     act_func='lrelu',
     mod_name='bu_mod_2'
@@ -194,6 +200,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
+    apply_bn=use_bn,
     stride='double',
     act_func='lrelu',
     mod_name='bu_mod_3'
@@ -206,6 +213,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
+    apply_bn=use_bn,
     stride='double',
     act_func='lrelu',
     mod_name='bu_mod_4'
@@ -223,7 +231,7 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_5, bu_module_4, bu_module_3
+bu_modules = [bu_module_5, bu_module_4, bu_module_3,
               bu_module_2, bu_module_1]
 
 #########################################
@@ -237,6 +245,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    apply_bn=use_bn,
     act_func='lrelu',
     mod_name='im_mod_2'
 ) # merge input to td_mod_2 and output of bu_mod_2, to place a distribution
@@ -249,6 +258,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    apply_bn=use_bn,
     act_func='lrelu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -261,6 +271,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    apply_bn=use_bn,
     act_func='lrelu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution

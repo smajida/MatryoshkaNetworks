@@ -7,7 +7,7 @@ def grayscale_grid_vis(X, (nh, nw), save_path=None):
     for n, x in enumerate(X):
         j = n/nw
         i = n%nw
-        img[j*h:j*h+h, i*w:i*w+w] = x
+        img[j*h:j*h+h, i*w:i*w+w] = x[:,:,0]
     if save_path is not None:
         imsave(save_path, img)
     return img
