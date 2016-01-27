@@ -57,14 +57,13 @@ class GenNetworkGAN(object):
         for module in self.modules:
             self.params.extend(module.params)
         self.output_transform = output_transform
-        # construct a theano function for drawing samples from this model
+        print("Compiling rand shape computer...")
+        self.compute_rand_shapes = self._construct_compute_rand_shapes()
+        self.rand_shapes = self.compute_rand_shapes(50)
+        print("DONE.")
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
         samps = self.generate_samples(50)
-        print("DONE.")
-        print("Compiling rand shape computer...")
-        self.compute_rand_shapes = self._construct_compute_rand_shapes()
-        shapes = self.compute_rand_shapes(50)
         print("DONE.")
         return
 
@@ -426,14 +425,13 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
-        # construct a theano function for drawing samples from this model
-        print("Compiling sample generator...")
-        self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(32)
-        print("DONE.")
         print("Compiling rand shape computer...")
         self.compute_rand_shapes = self._construct_compute_rand_shapes()
         self.rand_shapes = self.compute_rand_shapes(32)
+        print("DONE.")
+        print("Compiling sample generator...")
+        self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(32)
         print("DONE.")
         return
 
@@ -612,7 +610,7 @@ class InfGenModel(object):
                     cond_logvar_im = self.dist_scale[0] * tanh_clip(cond_logvar_im, bound=3.0)
                     # get top-down mean and logvar (here, just ZMUV)
                     cond_mean_td = 0.0 * cond_mean_im
-                    cond_logvar_td = 0.0 * cond_logvar_td
+                    cond_logvar_td = 0.0 * cond_logvar_im
                     # do reparametrization
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
@@ -626,8 +624,8 @@ class InfGenModel(object):
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info, bu_input=bu_info)
-                    cond_mean_im = self.dist_scale[0] * tanh_clip(cond_mean, bound=3.0)
-                    cond_logvar_im = self.dist_scale[0] * tanh_clip(cond_logvar, bound=3.0)
+                    cond_mean_im = self.dist_scale[0] * tanh_clip(cond_mean_im, bound=3.0)
+                    cond_logvar_im = self.dist_scale[0] * tanh_clip(cond_logvar_im, bound=3.0)
                     # get the model distribution
                     if im_module.use_td_cond:
                         # get the top-down conditional distribution

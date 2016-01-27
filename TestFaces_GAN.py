@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model'
+desc = 'test_gan_big_model_faster'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -75,7 +75,7 @@ set_seed(1)     # seed for shared rngs
 k = 1            # # of discrim updates for each gen update
 b1 = 0.5         # momentum term of adam
 nc = 3           # # of channels in image
-nbatch = 64      # # of examples in batch
+nbatch = 100     # # of examples in batch
 npx = 64         # # of pixels width/height of images
 nz0 = 128         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -85,8 +85,8 @@ ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
-lr = 0.0001       # initial learning rate for adam
+niter_decay = 300 # # of iter to linearly decay learning rate to zero
+lr = 0.00015       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales

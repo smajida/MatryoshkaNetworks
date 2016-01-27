@@ -1282,21 +1282,21 @@ class InfConvMergeModule(object):
         Dump model params directly to a dict of numpy arrays.
         """
         param_dict = {}
-        # dump info-merge parameters
-        param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
-        param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
-        param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
-        param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
-        param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
-        param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
-        # dump top-down conditioning parameters
+        # dump info-merge conditioning parameters
+        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
+        param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
+        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
+        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        # dump top-down parameters
         if self.use_td_cond:
-            param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
-            param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
-            param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
-            param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
-            param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
-            param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+            param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
+            param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
+            param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
+            param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
+            param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
         return param_dict
 
     def apply_td(self, td_input):

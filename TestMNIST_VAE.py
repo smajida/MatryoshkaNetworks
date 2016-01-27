@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_td_cond_men_32x16'
+desc = 'test_vae_deeper_no_td_cond_men_50x10'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -48,23 +48,21 @@ Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 
 
 set_seed(1)       # seed for shared rngs
-l2 = 1.0e-5       # l2 weight decay
 nc = 1            # # of channels in image
-nbatch = 32      # # of examples in batch
+nbatch = 50      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 36          # base # of filters for conv layers in generative stuff
-ndfc = 128        # # of filters in fully connected layers of discriminator
+ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
+niter = 200       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-use_td_cond = True # whether to use top-down conditioning in generator
-men_samples = 16   # number of samples to use in MEN bound
+use_td_cond = False # whether to use top-down conditioning in generator
+men_samples = 10   # number of samples to use in MEN bound
 log_men_samples = floatX(np.log(men_samples))
 
 ntrain = Xtr.shape[0]
@@ -175,7 +173,7 @@ BasicConvModule(
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
+td_modules = [td_module_1, td_module_2a, td_module_2, td_module_3,
               td_module_4, td_module_5]
 
 ##########################################
@@ -259,7 +257,7 @@ BasicConvModule(
 
 # modules must be listed in "evaluation order"
 bu_modules = [bu_module_5, bu_module_4, bu_module_3,
-              bu_module_2, bu_module_1]
+              bu_module_2, bu_module_2a, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -334,7 +332,7 @@ im_modules = [im_module_2a, im_module_2, im_module_3, im_module_4]
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#    'td_mod_2a': {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_2a'},
+    'td_mod_2a': {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_2a'},
     'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
@@ -418,9 +416,12 @@ else:
     vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
     vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
     # compute total per-observation KL-divergence part of cost
-    vae_obs_klds = sum([T.mean(mod_kld.reshape(batch_size, men_samples), axis=1) \
+    vae_obs_klds = sum([T.mean(mod_kld.reshape((batch_size, men_samples)), axis=1) \
                         for mod_name, mod_kld in kld_tuples]) + log_men_samples
     vae_kld_cost = T.mean(vae_obs_klds)
+    # get simple samples for other purposes
+    im_res_dict = inf_gen_model.apply_im(Xg)
+    Xg_recon = im_res_dict['td_output']
 
 # parameter regularization part of cost
 vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
@@ -496,11 +497,11 @@ for epoch in range(1, niter+niter_decay+1):
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
-        if v_batch_count < 25:
-            start_idx = int(v_batch_count)*100
-            vmb = Xva[start_idx:(start_idx+100),:]
+        if v_batch_count < 50:
+            start_idx = int(v_batch_count)*nbatch
+            vmb = Xva[start_idx:(start_idx+nbatch),:]
         else:
-            vmb = Xva[0:100,:]
+            vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
