@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_basic_no_bn'
+desc = 'test_vae_basic_more_filters'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -49,23 +49,20 @@ Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 
 set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
-b1 = 0.8          # momentum term of adam
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
-ndf = 32          # base # of filters for conv layers in discriminator
+ngf = 40          # base # of filters for conv layers in generative stuff
 ndfc = 128        # # of filters in fully connected layers of discriminator
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
-lr = 0.0002       # initial learning rate for adam
+niter = 150       # # of iter at starting learning rate
+niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False    # whether to use batch normalization throughout the model
+use_bn = True    # whether to use batch normalization throughout the model
 
 ntrain = Xtr.shape[0]
 
@@ -105,6 +102,20 @@ GenFCModule(
     use_fc=True,
     apply_bn=use_bn,
     mod_name='td_mod_1'
+) # output is (batch, ngf*4, 7, 7)
+
+td_module_2a = \
+GenConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    us_stride=1,
+    mod_name='td_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
 td_module_2 = \
@@ -176,9 +187,22 @@ InfFCModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
+
+bu_module_2a = \
+BasicConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func='relu',
+    mod_name='bu_mod_2a'
+) # output is (batch, ngf*4, 7, 7)
 
 bu_module_2 = \
 BasicConvResModule(
@@ -189,7 +213,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_2'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -202,7 +226,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -215,7 +239,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_4'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -226,7 +250,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
@@ -238,6 +262,19 @@ bu_modules = [bu_module_5, bu_module_4, bu_module_3,
 # Setup the information merging modules #
 #########################################
 
+im_module_2a = \
+InfConvMergeModule(
+    td_chans=(ngf*4),
+    bu_chans=(ngf*4),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    apply_bn=use_bn,
+    act_func='relu',
+    mod_name='im_mod_2a'
+) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
+  # over the rand_vals used in td_mod_2a.
+
 im_module_2 = \
 InfConvMergeModule(
     td_chans=(ngf*4),
@@ -246,7 +283,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_2'
 ) # merge input to td_mod_2 and output of bu_mod_2, to place a distribution
   # over the rand_vals used in td_mod_2.
@@ -259,7 +296,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -272,12 +309,12 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
 
-im_modules = [im_module_2, im_module_3, im_module_4]
+im_modules = [im_module_2a, im_module_2, im_module_3, im_module_4]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -290,6 +327,7 @@ im_modules = [im_module_2, im_module_3, im_module_4]
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#    'td_mod_2a': {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_2a'},
     'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
@@ -370,9 +408,10 @@ full_cost_gen = vae_cost
 full_cost_inf = vae_cost
 
 # stuff for performing updates
-lrt = sharedX(lr)
-gen_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
-inf_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4, clipnorm=1000.0)
+lrt = sharedX(0.0002)
+b1t = sharedX(0.8)
+gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
@@ -450,11 +489,14 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 33) or (epoch == 66):
+    if (epoch == 40) or (epoch == 80) or (epoch == 120):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
         lrt.set_value(floatX(lr))
+        b1 = b1t.get_value(borrow=False)
+        b1 = b1 + ((0.95 - b1) / 2.0)
+        b1t.set_value(floatX(b1))
     if epoch > niter:
         # linearly decay learning rate
         lr = lrt.get_value(borrow=False)
@@ -490,8 +532,8 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4])
+    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe: {2:.2f}".format( \
+            v_epoch_costs[3], v_epoch_costs[4], (v_epoch_costs[3]+v_epoch_costs[4]))
     joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")

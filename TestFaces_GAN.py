@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model_more_weight_on_buffer'
+desc = 'test_gan_big_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -86,7 +86,7 @@ ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
-lr = 0.0002       # initial learning rate for adam
+lr = 0.0001       # initial learning rate for adam
 er_buffer_size = DATA_SIZE # size of "experience replay" buffer
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
@@ -245,7 +245,7 @@ GenConvResModule(
     conv_chans=32,
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_6'
@@ -411,7 +411,7 @@ g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
 
 # switch costs based on use of experience replay
 if use_er:
-    a1, a2 = 0.25, 0.75
+    a1, a2 = 0.5, 0.5
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
