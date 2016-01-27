@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_basic_more_filters'
+desc = 'test_vae_td_cond_men_32x16'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -50,11 +50,11 @@ Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 32      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 40          # base # of filters for conv layers in generative stuff
+ngf = 36          # base # of filters for conv layers in generative stuff
 ndfc = 128        # # of filters in fully connected layers of discriminator
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -64,6 +64,8 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = True # whether to use top-down conditioning in generator
+men_samples = 16   # number of samples to use in MEN bound
+log_men_samples = floatX(np.log(men_samples))
 
 ntrain = Xtr.shape[0]
 
@@ -371,30 +373,54 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
-# run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg)
-Xg_recon = im_res_dict['td_output']
-kld_dict = im_res_dict['kld_dict']
-td_acts = im_res_dict['td_acts']
-bu_acts = im_res_dict['bu_acts']
 
-print("<<<DIAGNOSTICS--")
-print("len(td_acts): {}".format(len(td_acts)))
-print("len(bu_acts): {}".format(len(bu_acts)))
-print("---DIAGNOSTICS>>>")
+if men_samples == 1:
+    # run an inference and reconstruction pass through the generative stuff
+    im_res_dict = inf_gen_model.apply_im(Xg)
+    Xg_recon = im_res_dict['td_output']
+    kld_dict = im_res_dict['kld_dict']
+    td_acts = im_res_dict['td_acts']
+    bu_acts = im_res_dict['bu_acts']
 
-vae_obs_nlls = T.sum((-1. * log_prob_bernoulli( \
-                        T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                        do_sum=False)), axis=1)
-vae_nll_cost = T.mean(vae_obs_nlls)
+    # compute reconstruction error part of free-energy
+    vae_obs_nlls = T.sum((-1. * log_prob_bernoulli( \
+                            T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                            do_sum=False)), axis=1)
+    vae_nll_cost = T.mean(vae_obs_nlls)
 
-# compute per-layer KL-divergence part of cost
-kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-# compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-vae_kld_cost = T.mean(vae_obs_klds)
+    # compute per-layer KL-divergence part of cost
+    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
+    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+    # compute total per-observation KL-divergence part of cost
+    vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+    vae_kld_cost = T.mean(vae_obs_klds)
+
+else:
+    # run an inference and reconstruction pass through the generative stuff
+    batch_size = Xg.shape[0]
+    Xgr = T.extra_ops.repeat(Xg, men_samples, axis=0)
+    im_res_dict = inf_gen_model.apply_im(Xgr)
+    Xgr_recon = im_res_dict['td_output']
+    kld_dict = im_res_dict['kld_dict']
+    td_acts = im_res_dict['td_acts']
+    bu_acts = im_res_dict['bu_acts']
+
+    # compute reconstruction error part of free-energy
+    vae_obs_nlls_mc = T.sum((-1. * log_prob_bernoulli( \
+                             T.flatten(Xgr,2), T.flatten(Xgr_recon,2),
+                             do_sum=False)), axis=1)
+    vae_obs_nlls = T.min(vae_obs_nlls_mc.reshape((batch_size, men_samples)), axis=1)
+    vae_nll_cost = T.mean(vae_obs_nlls)
+
+    # compute per-layer KL-divergence part of cost
+    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
+    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+    # compute total per-observation KL-divergence part of cost
+    vae_obs_klds = sum([T.mean(mod_kld.reshape(batch_size, men_samples), axis=1) \
+                        for mod_name, mod_kld in kld_tuples]) + log_men_samples
+    vae_kld_cost = T.mean(vae_obs_klds)
 
 # parameter regularization part of cost
 vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
