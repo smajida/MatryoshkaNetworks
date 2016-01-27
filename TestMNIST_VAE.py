@@ -62,7 +62,8 @@ niter = 150       # # of iter at starting learning rate
 niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True    # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
+use_td_cond = True # whether to use top-down conditioning in generator
 
 ntrain = Xtr.shape[0]
 
@@ -270,6 +271,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    use_td_cond=use_td_cond,
     act_func='relu',
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
@@ -283,6 +285,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    use_td_cond=use_td_cond,
     act_func='relu',
     mod_name='im_mod_2'
 ) # merge input to td_mod_2 and output of bu_mod_2, to place a distribution
@@ -296,6 +299,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    use_td_cond=use_td_cond,
     act_func='relu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -309,6 +313,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    use_td_cond=use_td_cond,
     act_func='relu',
     mod_name='im_mod_4'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
