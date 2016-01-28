@@ -520,19 +520,22 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
-
-if men_samples == 1:
+# parameter regularization part of cost
+vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
     im_res_dict = inf_gen_model.apply_im(Xg)
     Xg_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
-    td_acts = im_res_dict['td_acts']
-    bu_acts = im_res_dict['bu_acts']
+    log_p_z = sum(im_res_dict['log_p_z'])
+    log_q_z = sum(im_res_dict['log_q_z'])
+
+    log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                    do_sum=False), axis=1)
 
     # compute reconstruction error part of free-energy
-    vae_obs_nlls = T.sum((-1. * log_prob_bernoulli( \
-                            T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                            do_sum=False)), axis=1)
+    vae_obs_nlls = -1.0 * log_p_x
     vae_nll_cost = T.mean(vae_obs_nlls)
 
     # compute per-layer KL-divergence part of cost
@@ -542,50 +545,52 @@ if men_samples == 1:
     # compute total per-observation KL-divergence part of cost
     vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
     vae_kld_cost = T.mean(vae_obs_klds)
-    # make a function for computing all the MEN stuff
-    men_func = theano.function([Xg], [vae_obs_nlls,vae_layer_klds])
 
+    # combined cost for generator stuff
+    vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
+    vae_obs_costs = vae_obs_nlls + vae_obs_klds
 else:
     # run an inference and reconstruction pass through the generative stuff
     batch_size = Xg.shape[0]
-    Xgr = T.extra_ops.repeat(Xg, men_samples, axis=0)
-    im_res_dict = inf_gen_model.apply_im(Xgr)
-    Xgr_recon = im_res_dict['td_output']
+    Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
+    im_res_dict = inf_gen_model.apply_im(Xg_rep)
+    Xg_rep_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
-    td_acts = im_res_dict['td_acts']
-    bu_acts = im_res_dict['bu_acts']
+    log_p_z = sum(im_res_dict['log_p_z'])
+    log_q_z = sum(im_res_dict['log_q_z'])
+    
+    log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
+                    do_sum=False), axis=1)
 
-    # compute reconstruction error part of free-energy
-    vae_obs_nlls_mc = T.sum((-1. * log_prob_bernoulli( \
-                             T.flatten(Xgr,2), T.flatten(Xgr_recon,2),
-                             do_sum=False)), axis=1)
-    vae_obs_nlls_mc = vae_obs_nlls_mc.reshape((batch_size, men_samples))
-    vae_obs_nlls = T.min(vae_obs_nlls_mc, axis=1)
+    # compute quantities used in the IWAE bound
+    log_ws_vec = log_p_x + log_p_z - log_q_z
+    log_ws_mat = log_ws_vec.reshape((batch_size, iwae_samples))
+    ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
+    ws_mat = T.exp(ws_mat)
+    nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
+    nis_weights = T.gradient.disconnected_grad(nis_weights)
+
+    vae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
+                            T.sum((nis_weights * T.log(nis_weights)), axis=1))
+
+    vae_cost = T.mean(vae_obs_costs)
+
+    # compute a VAE-style reconstruction cost averaged over IWAE samples
+    vae_obs_nlls = -1.0 * T.mean(log_p_x.reshape((batch_size, iwae_samples)), axis=1)
     vae_nll_cost = T.mean(vae_obs_nlls)
-
     # compute per-layer KL-divergence part of cost
     kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
     vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
     vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
     # compute total per-observation KL-divergence part of cost
-    vae_obs_klds_mc = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-    vae_obs_klds_mc = vae_obs_klds_mc.reshape((batch_size, men_samples))
-    vae_obs_klds = T.mean(vae_obs_klds_mc, axis=1)
+    vae_obs_klds = sum([T.mean(mod_kld.reshape((batch_size, iwae_samples)), axis=1) \
+                         for mod_name, mod_kld in kld_tuples])
     vae_kld_cost = T.mean(vae_obs_klds)
-    # get simple samples for other purposes
-    im_res_dict = inf_gen_model.apply_im(Xg)
-    Xg_recon = im_res_dict['td_output']
-    # make a function for computing all the MEN stuff
-    men_func = theano.function([Xg], [vae_obs_nlls_mc,vae_obs_klds_mc])
-    result = men_func(train_transform(Xtr[0:25,:]))
-    print("vae_obs_nlls_mc.shape: {}".format(result[0].shape))
-    print("vae_obs_klds_mc.shape: {}".format(result[1].shape))
 
-# parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
-# combined cost for generator stuff
-vae_cost = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
-vae_obs_costs = vae_obs_nlls + vae_obs_klds
+    # get simple reconstruction, for other purposes
+    im_rd = inf_gen_model.apply_im(Xg)
+    Xg_recon = im_rd['td_output']
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]

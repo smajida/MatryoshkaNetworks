@@ -643,10 +643,14 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
                 # record log probability of z under p and q, for IWAE bound
-                log_p_z = log_prob_gaussian(rand_vals, cond_mean_td,
-                                log_vars=cond_logvar_td, do_sum=True)
-                log_q_z = log_prob_gaussian(rand_vals, cond_mean_im,
-                                log_vars=cond_logvar_im, do_sum=True)
+                log_p_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+                                            T.flatten(cond_mean_td, 2),
+                                            log_vars=T.flatten(cond_logvar_td, 2),
+                                            do_sum=True)
+                log_q_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+                                            T.flatten(cond_mean_im, 2),
+                                            log_vars=T.flatten(cond_logvar_im, 2),
+                                            do_sum=True)
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
                 # record TD info produced by current module
@@ -669,6 +673,8 @@ class InfGenModel(object):
         im_res_dict['kld_dict'] = kld_dict
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
+        im_res_dict['log_p_z'] = logz_dict['log_p_z']
+        im_res_dict['log_q_z'] = logz_dict['log_q_z']
         return im_res_dict
 
     def _construct_generate_samples(self):
