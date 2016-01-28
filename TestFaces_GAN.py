@@ -37,7 +37,7 @@ EXP_DIR = "./faces_celeba"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model_faster'
+desc = 'test_gan_short_model_faster'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -179,25 +179,25 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8, 2, 2)
-
-gen_module_2 = \
-GenConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    us_stride=2,
-    mod_name='gen_mod_2'
 ) # output is (batch, ngf*8, 4, 4)
+
+#gen_module_2 = \
+#GenConvResModule(
+#    in_chans=(ngf*8),
+#    out_chans=(ngf*8),
+#    conv_chans=(ngf*4),
+#    filt_shape=(3,3),
+#    rand_chans=nz1,
+#    use_rand=multi_rand,
+#    use_conv=use_conv,
+#    us_stride=2,
+#    mod_name='gen_mod_2'
+#) # output is (batch, ngf*8, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -262,7 +262,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
+gen_modules = [gen_module_1, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network

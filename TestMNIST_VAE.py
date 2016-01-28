@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_mods_2abc_4ab_no_td_cond'
+desc = 'test_vae_tanh_mods_2abc_4ab_no_td_cond_no_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -56,11 +56,11 @@ nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter = 400       # # of iter at starting learning rate
+niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 men_samples = 1   # number of samples to use in MEN bound
 log_men_samples = floatX(np.log(men_samples))
@@ -225,7 +225,7 @@ InfFCModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -239,7 +239,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -253,7 +253,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -267,7 +267,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_2c'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -281,7 +281,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -295,7 +295,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -309,7 +309,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -321,7 +321,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
-    act_func='relu',
+    act_func='tanh',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
@@ -343,7 +343,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
   # over the rand_vals used in td_mod_2a.
@@ -357,7 +357,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
   # over the rand_vals used in td_mod_2b.
@@ -371,7 +371,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
   # over the rand_vals used in td_mod_2c.
@@ -385,7 +385,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -399,7 +399,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_4a'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -413,7 +413,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='relu',
+    act_func='tanh',
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -551,7 +551,7 @@ full_cost_gen = vae_cost
 full_cost_inf = vae_cost
 
 # stuff for performing updates
-lrt = sharedX(0.0002)
+lrt = sharedX(0.0001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -632,7 +632,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 40) or (epoch == 80) or (epoch == 120):
+    if (epoch == 50) or (epoch == 100) or (epoch == 200):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
