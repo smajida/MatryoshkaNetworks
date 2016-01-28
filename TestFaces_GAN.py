@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 EXP_DIR = "./faces_celeba"
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_deep_model_faster'
+desc = 'test_gan_short_model_double_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -84,7 +84,7 @@ ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
-niter_decay = 300 # # of iter to linearly decay learning rate to zero
+niter_decay = 400 # # of iter to linearly decay learning rate to zero
 lr = 0.00015       # initial learning rate for adam
 slow_buffer_size = 200000  # size of slow replay buffer
 fast_buffer_size = 20000   # size of fast replay buffer
@@ -179,25 +179,25 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
 
-gen_module_2 = \
-GenConvResModule(
-   in_chans=(ngf*8),
-   out_chans=(ngf*8),
-   conv_chans=(ngf*4),
-   filt_shape=(3,3),
-   rand_chans=nz1,
-   use_rand=multi_rand,
-   use_conv=use_conv,
-   us_stride=2,
-   mod_name='gen_mod_2'
-) # output is (batch, ngf*8, 4, 4)
+#gen_module_2 = \
+#GenConvResModule(
+#   in_chans=(ngf*8),
+#   out_chans=(ngf*8),
+#   conv_chans=(ngf*4),
+#   filt_shape=(3,3),
+#   rand_chans=nz1,
+#   use_rand=multi_rand,
+#   use_conv=use_conv,
+#   us_stride=2,
+#   mod_name='gen_mod_2'
+#) # output is (batch, ngf*8, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -262,7 +262,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
+gen_modules = [gen_module_1, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
