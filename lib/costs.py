@@ -78,7 +78,7 @@ def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
     log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx)+1e-8)
     log_prob_01 = log_prob_1 + log_prob_0
     if do_sum:
-        result = T.sum((log_prob_01 * mask), axis=1, keepdims=True)
+        result = T.sum((log_prob_01 * mask), axis=1, keepdims=False)
     else:
         result = log_prob_01 * mask
     return T.cast(result, 'floatX')
@@ -105,7 +105,7 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
         ind_log_probs = C - (0.5 * log_vars)  - \
                 ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
     if do_sum:
-        result = T.sum((ind_log_probs * mask), axis=1, keepdims=True)
+        result = T.sum((ind_log_probs * mask), axis=1, keepdims=False)
     else:
         result = ind_log_probs * mask
     return T.cast(result, 'floatX')

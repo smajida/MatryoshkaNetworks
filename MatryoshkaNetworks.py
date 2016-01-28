@@ -589,6 +589,7 @@ class InfGenModel(object):
         # set aside a dict for recording KLd info at each layer where we use
         # conditional distributions over the latent variables.
         kld_dict = {}
+        logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input)
         # now, run top-down pass using latent variables sampled from
@@ -641,6 +642,13 @@ class InfGenModel(object):
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
+                # record log probability of z under p and q, for IWAE bound
+                log_p_z = log_prob_gaussian(rand_vals, cond_mean_td,
+                                log_vars=cond_logvar_td, do_sum=True)
+                log_q_z = log_prob_gaussian(rand_vals, cond_mean_im,
+                                log_vars=cond_logvar_im, do_sum=True)
+                logz_dict['log_p_z'].append(log_p_z)
+                logz_dict['log_q_z'].append(log_q_z)
                 # record TD info produced by current module
                 td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
