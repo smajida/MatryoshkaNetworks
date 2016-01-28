@@ -34,10 +34,9 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./faces_celeba"
-DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_big_model_faster'
+desc = 'test_gan_short_model_double_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -84,10 +83,11 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
-niter_decay = 300 # # of iter to linearly decay learning rate to zero
+niter = 200       # # of iter at starting learning rate
+niter_decay = 400 # # of iter to linearly decay learning rate to zero
 lr = 0.00015       # initial learning rate for adam
-er_buffer_size = DATA_SIZE # size of "experience replay" buffer
+slow_buffer_size = 200000  # size of slow replay buffer
+fast_buffer_size = 20000   # size of fast replay buffer
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
@@ -179,25 +179,25 @@ bce = T.nnet.binary_crossentropy
 gen_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*8, 2, 2),
+    out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
-) # output is (batch, ngf*8, 2, 2)
-
-gen_module_2 = \
-GenConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    us_stride=2,
-    mod_name='gen_mod_2'
 ) # output is (batch, ngf*8, 4, 4)
+
+#gen_module_2 = \
+#GenConvResModule(
+#   in_chans=(ngf*8),
+#   out_chans=(ngf*8),
+#   conv_chans=(ngf*4),
+#   filt_shape=(3,3),
+#   rand_chans=nz1,
+#   use_rand=multi_rand,
+#   use_conv=use_conv,
+#   us_stride=2,
+#   mod_name='gen_mod_2'
+#) # output is (batch, ngf*8, 4, 4)
 
 gen_module_3 = \
 GenConvResModule(
@@ -241,8 +241,8 @@ GenConvResModule(
 gen_module_6 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=32,
-    conv_chans=32,
+    out_chans=40,
+    conv_chans=40,
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
@@ -254,7 +254,7 @@ GenConvResModule(
 gen_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=32,
+    in_chans=40,
     out_chans=nc,
     apply_bn=False,
     stride='single',
@@ -262,7 +262,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
+gen_modules = [gen_module_1, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
@@ -353,7 +353,7 @@ print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
-Xtr_rec = Xtr[0:200,:]
+Xtr_rec = Xtr[0:100,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
 VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)
@@ -361,7 +361,7 @@ print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
 test_recons = VIM.sample_Xg()
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(result_dir))
+color_grid_vis(draw_transform(Xtr_rec), (10, 10), "{}/Xtr_rec.png".format(result_dir))
 
 
 ####################################
@@ -391,6 +391,7 @@ p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, app_sigm=False)
 print("Gathering discriminator signal from {} layers...".format(len(p_er)))
 
 # compute costs based on discriminator output for real/generated data
+d_cost_obs = sum([T.mean(bce(sigmoid(p), T.ones(p.shape)), axis=1) for p in p_real])
 d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
 d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
@@ -415,7 +416,7 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (4e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
@@ -433,21 +434,35 @@ t = time()
 _train_g = theano.function([X, Z0, Xer], all_costs, updates=g_updates)
 _train_d = theano.function([X, Z0, Xer], all_costs, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
+_disc = theano.function([X], d_cost_obs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
+# test disc cost func
+temp = _disc(train_transform(Xtr[0:50,:]))
+print("temp.shape: {}".format(temp.shape))
 
 
 # initialize an experience replay buffer
-er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
+slow_buffer = floatX(np.zeros((slow_buffer_size, nc*npx*npx)))
+fast_buffer = floatX(np.zeros((fast_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 200
-print("Initializing experience replay buffer...")
-while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(200)
-    samples = samples.reshape((200,-1))
-    end_idx = min(end_idx, er_buffer_size)
-    er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 200
-    end_idx += 200
+end_idx = 100
+print("Initializing experience replay buffers...")
+while start_idx < slow_buffer_size:
+    samples = gen_network.generate_samples(100)
+    samples = samples.reshape((100,-1))
+    end_idx = min(end_idx, slow_buffer_size)
+    slow_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
+    start_idx += 100
+    end_idx += 100
+start_idx = 0
+end_idx = 100
+while start_idx < fast_buffer_size:
+    samples = gen_network.generate_samples(100)
+    samples = samples.reshape((100,-1))
+    end_idx = min(end_idx, fast_buffer_size)
+    slow_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
+    start_idx += 100
+    end_idx += 100
 print("DONE.")
 
 print desc.upper()
@@ -487,14 +502,18 @@ for epoch in range(1, niter+niter_decay+1):
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:
             # sample data from experience replay buffer
-            xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
+            xsb = train_transform(sample_exprep_buffer(slow_buffer, len(imb)/2))
+            xfb = train_transform(sample_exprep_buffer(fast_buffer, len(imb)/2))
+            xer = np.concatenate([xsb, xfb], axis=0)
             # compute generator cost and apply update
             result = _train_g(imb, z0mb, xer)
             g_costs = [(v1 + v2) for v1, v2 in zip(g_costs, result)]
             gc_iter += 1
         else:
             # sample data from experience replay buffer
-            xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
+            xsb = train_transform(sample_exprep_buffer(slow_buffer, len(imb)/2))
+            xfb = train_transform(sample_exprep_buffer(fast_buffer, len(imb)/2))
+            xer = np.concatenate([xsb, xfb], axis=0)
             # compute discriminator cost and apply update
             result = _train_d(imb, z0mb, xer)
             d_costs = [(v1 + v2) for v1, v2 in zip(d_costs, result)]
@@ -506,9 +525,12 @@ for epoch in range(1, niter+niter_decay+1):
             rec_iter += 1
         n_updates += 1
         n_examples += len(imb)
-        # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
-            update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
+        # update slow replay buffer
+        if ((n_updates % (min(10,epoch)*10)) == 0) and use_er:
+            update_exprep_buffer(slow_buffer, gen_network, replace_frac=0.10)
+        # update fast replay buffer
+        if ((n_updates % (min(10,epoch)*2)) == 0) and use_er:
+            update_exprep_buffer(fast_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #
     ###################
@@ -533,11 +555,14 @@ for epoch in range(1, niter+niter_decay+1):
     out_file.flush()
     n_epochs += 1
     # generate some samples from the model, for visualization
-    samples = np.asarray(_gen(sample_z0mb))
+    samples = floatX( _gen(sample_z0mb) )
+    d_cost_samps = _disc(samples)
+    sort_idx = np.argsort(-1.0 * d_cost_samps)
+    samples = samples[sort_idx,:,:,:]
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
-    if (n_epochs == 50) or (n_epochs == 100):
+    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 150):
         old_lr = lrt.get_value(borrow=False)
         new_lr = 0.5 * old_lr
         lrt.set_value(floatX(new_lr))
