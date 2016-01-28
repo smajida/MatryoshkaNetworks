@@ -598,7 +598,7 @@ full_cost_gen = vae_cost
 full_cost_inf = vae_cost
 
 # stuff for performing updates
-lrt = sharedX(0.0001)
+lrt = sharedX(0.0002)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -642,7 +642,7 @@ sample_z0mb = rand_gen(size=(200, nz0))       # root noise for visualizing sampl
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    extra_kld = max(0.0, 1.0 - (epoch/100.0))
+    extra_kld = 0.0 #max(0.0, 1.0 - (epoch/100.0))
     kld_scale = 1.0 + extra_kld
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(5)]
