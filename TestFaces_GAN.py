@@ -262,7 +262,7 @@ BasicConvModule(
     mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_3, gen_module_4,
+gen_modules = [gen_module_1, gen_module_2, gen_module_3, gen_module_4,
                gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
@@ -436,6 +436,9 @@ _train_d = theano.function([X, Z0, Xer], all_costs, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
 _disc = theano.function([X], d_cost_obs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
+# test disc cost func
+temp = _disc(train_transform(Xtr[0:50,:]))
+print("temp.shape: {}".format(temp.shape))
 
 
 # initialize an experience replay buffer

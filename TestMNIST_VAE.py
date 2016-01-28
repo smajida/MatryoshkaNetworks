@@ -7,6 +7,9 @@ from tqdm import tqdm
 from matplotlib import pyplot as plt
 from sklearn.externals import joblib
 
+import sys
+sys.setrecursionlimit(100000)
+
 import theano
 import theano.tensor as T
 
