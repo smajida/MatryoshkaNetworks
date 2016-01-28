@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_tanh_mods_2abc_4ab_no_td_cond_no_bn'
+desc = 'test_vae_relu_mods_2abc_4abc_no_td_cond'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -60,7 +60,7 @@ niter = 400       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 men_samples = 1   # number of samples to use in MEN bound
 log_men_samples = floatX(np.log(men_samples))
@@ -181,8 +181,23 @@ GenConvResModule(
     mod_name='td_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
-# (14, 14) -> (28, 28)
+# (14, 14) -> (14, 14)
 td_module_4b = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    us_stride=1,
+    mod_name='td_mod_4b'
+) # output is (batch, ngf*2, 14, 14)
+
+# (14, 14) -> (28, 28)
+td_module_4c = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -193,7 +208,7 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     us_stride=2,
-    mod_name='td_mod_4b'
+    mod_name='td_mod_4c'
 ) # output is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
@@ -210,7 +225,7 @@ BasicConvModule(
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4a, td_module_4b, td_module_5]
+              td_module_3, td_module_4a, td_module_4b, td_module_4c, td_module_5]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -225,7 +240,7 @@ InfFCModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -239,7 +254,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -253,7 +268,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -267,7 +282,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_2c'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -281,7 +296,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -295,12 +310,26 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
-# (28, 28) -> (14, 14)
+# (14, 14) -> (14, 14)
 bu_module_4b = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func='relu',
+    mod_name='bu_mod_4b'
+) # output is (batch, ngf*2, 14, 14)
+
+# (28, 28) -> (14, 14)
+bu_module_4c = \
 BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
@@ -309,8 +338,8 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='tanh',
-    mod_name='bu_mod_4b'
+    act_func='relu',
+    mod_name='bu_mod_4c'
 ) # output is (batch, ngf*2, 14, 14)
 
 # (28, 28) -> (28, 28)
@@ -321,13 +350,13 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
-    act_func='tanh',
+    act_func='relu',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_5, bu_module_4b, bu_module_4a, bu_module_3,
-              bu_module_2c, bu_module_2b, bu_module_2a,
+bu_modules = [bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a,
               bu_module_1]
 
 #########################################
@@ -343,7 +372,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
   # over the rand_vals used in td_mod_2a.
@@ -357,7 +386,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
   # over the rand_vals used in td_mod_2b.
@@ -371,7 +400,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
   # over the rand_vals used in td_mod_2c.
@@ -385,7 +414,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -399,7 +428,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_4a'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -413,13 +442,27 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='tanh',
+    act_func='relu',
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
 
-im_modules = [im_module_2a, im_module_2b, im_module_2c, 
-              im_module_3, im_module_4a, im_module_4b]
+im_module_4c = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func='relu',
+    mod_name='im_mod_4c'
+) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
+  # over the rand_vals used in td_mod_4.
+
+im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_3,
+              im_module_4a, im_module_4b, im_module_4c]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -438,6 +481,7 @@ merge_info = {
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
     'td_mod_4a': {'bu_module': 'bu_mod_4a', 'im_module': 'im_mod_4a'},
     'td_mod_4b': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4b'},
+    'td_mod_4c': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4c'}
 }
 
 # construct the "wrapper" object for managing all our modules
