@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_2abc_4bc_no_bn'
+desc = 'test_vae_relu_mods_2abc_4bc_no_bn_iwae_50x10'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -52,7 +52,7 @@ Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 50      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -65,8 +65,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-men_samples = 1   # number of samples to use in MEN bound
-log_men_samples = floatX(np.log(men_samples))
+iwae_samples = 10   # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 
@@ -243,7 +242,7 @@ InfFCModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -257,7 +256,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -271,7 +270,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -285,7 +284,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_2c'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -299,7 +298,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -313,7 +312,7 @@ BasicConvResModule(
 #    use_conv=use_conv,
 #    apply_bn=use_bn,
 #    stride='single',
-#    act_func='lrelu',
+#    act_func='relu',
 #    mod_name='bu_mod_4a'
 #) # output is (batch, ngf*2, 14, 14)
 
@@ -327,7 +326,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -341,7 +340,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_4c'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -353,7 +352,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
@@ -375,7 +374,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
   # over the rand_vals used in td_mod_2a.
@@ -389,7 +388,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
   # over the rand_vals used in td_mod_2b.
@@ -403,7 +402,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
   # over the rand_vals used in td_mod_2c.
@@ -417,7 +416,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -431,7 +430,7 @@ InfConvMergeModule(
 #    use_conv=True,
 #    apply_bn=use_bn,
 #    use_td_cond=use_td_cond,
-#    act_func='lrelu',
+#    act_func='relu',
 #    mod_name='im_mod_4a'
 #) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
 #  # over the rand_vals used in td_mod_4.
@@ -445,7 +444,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -459,7 +458,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='im_mod_4c'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -569,12 +568,12 @@ else:
     ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
     ws_mat = T.exp(ws_mat)
     nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-    nis_weights = T.gradient.disconnected_grad(nis_weights)
+    nis_weights = theano.gradient.disconnected_grad(nis_weights)
 
     vae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
                             T.sum((nis_weights * T.log(nis_weights)), axis=1))
 
-    vae_cost = T.mean(vae_obs_costs)
+    vae_cost = T.mean(vae_obs_costs) + vae_reg_cost
 
     # compute a VAE-style reconstruction cost averaged over IWAE samples
     vae_obs_nlls = -1.0 * T.mean(log_p_x.reshape((batch_size, iwae_samples)), axis=1)
