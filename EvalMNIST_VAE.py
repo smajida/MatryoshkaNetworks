@@ -583,12 +583,11 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 for epoch in range(3):
-    Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    Xva_short = Xva[0:1000,:]
+    obs_count = Xva.shape[0]
     g_epoch_costs = [0. for c in g_basic_costs]
     g_batch_count = 0.
-    for imb in tqdm(iter_data(Xva_short, size=nbatch), total=ntrain/nbatch):
+    for imb in tqdm(iter_data(Xva, size=nbatch), total=obs_count/nbatch):
         # transform validation batch to "image format"
         imb_img = train_transform(imb)
         # train vae on training batch
