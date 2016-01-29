@@ -19,6 +19,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
+from lib.ops import log_mean_exp
 from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
@@ -532,6 +533,7 @@ iwae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
                          T.sum((nis_weights * T.log(nis_weights)), axis=1))
 
 iwae_bound = T.mean(iwae_obs_costs)
+iwae_bound_lme = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
 
 ########################################
 # Compute VAE bound using same samples #
@@ -569,9 +571,11 @@ sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling cost computing functions...")
 # collect costs for generator parameters
-g_basic_costs = [iwae_bound, vae_bound, vae_nll_cost, vae_kld_cost]
+g_basic_costs = [iwae_bound, vae_bound, vae_nll_cost, vae_kld_cost,
+                 iwae_bound_lme]
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['iwae_bound', 'vae_bound', 'vae_nll_cost', 'vae_kld_cost']
+g_bc_names = ['iwae_bound', 'vae_bound', 'vae_nll_cost', 'vae_kld_cost',
+              'iwae_bound_lme']
 # compile function for computing generator costs and updates
 g_eval_func = theano.function([Xg], g_basic_costs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)

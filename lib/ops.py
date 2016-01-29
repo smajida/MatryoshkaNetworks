@@ -9,6 +9,11 @@ from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 from rng import t_rng, cu_rng
 
+def log_mean_exp(x, axis=None):
+    assert (axis is not None), "please provide an axis along which to compute."
+    m = T.max(x, axis=axis, keepdims=True)
+    return m + T.log(T.mean(T.exp(x - m), axis=axis, keepdims=True))
+
 def l2normalize(x, axis=1, e=1e-8, keepdims=True):
     return x/l2norm(x, axis=axis, e=e, keepdims=keepdims)
 
