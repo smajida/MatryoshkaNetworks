@@ -557,7 +557,7 @@ else:
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
-    
+
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
                     do_sum=False), axis=1)
@@ -727,8 +727,8 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe: {2:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4], (v_epoch_costs[3]+v_epoch_costs[4]))
+    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
+            v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
     joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
