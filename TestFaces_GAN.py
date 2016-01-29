@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 EXP_DIR = "./faces_celeba"
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_short_model_double_buffer'
+desc = 'test_gan_double_short_model_double_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -318,28 +318,28 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*8, 4, 4)
 
-disc_module_5 = \
-DiscConvResModule(
-    in_chans=(ndf*8),
-    out_chans=(ndf*8),
-    conv_chans=ndf,
-    filt_shape=(3,3),
-    use_conv=False,
-    ds_stride=2,
-    mod_name='disc_mod_5'
-) # output is (batch, ndf*8, 2, 2)
+#disc_module_5 = \
+#DiscConvResModule(
+#    in_chans=(ndf*8),
+#    out_chans=(ndf*8),
+#    conv_chans=ndf,
+#    filt_shape=(3,3),
+#    use_conv=False,
+#    ds_stride=2,
+#    mod_name='disc_mod_5'
+#) # output is (batch, ndf*8, 2, 2)
 
 disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
-    in_dim=(ndf*8*2*2),
+    in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
     mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5, disc_module_6]
+                disc_module_4, disc_module_6]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -422,7 +422,7 @@ g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
-lrd = sharedX(lr/2.0)
+lrd = sharedX(lr/1.5)
 d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
 g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
@@ -566,14 +566,14 @@ for epoch in range(1, niter+niter_decay+1):
         old_lr = lrt.get_value(borrow=False)
         new_lr = 0.5 * old_lr
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/2.0))
+        lrd.set_value(floatX(new_lr/1.5))
     if n_epochs > niter:
         # reduce learning rate and keep discriminator at half rate
         iters_left = (niter_decay + niter) - n_epochs + 1
         old_lr = lrt.get_value(borrow=False)
         new_lr = old_lr - (old_lr / iters_left)
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/2.0))
+        lrd.set_value(floatX(new_lr/1.5))
 
 
 

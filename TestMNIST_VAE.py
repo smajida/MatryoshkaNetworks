@@ -52,7 +52,7 @@ Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 50      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
