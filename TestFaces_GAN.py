@@ -384,7 +384,7 @@ scale = sum(d_weights)
 d_weights = [w/scale for w in d_weights]
 scale = sum(g_weights)
 g_weights = [w/scale for w in g_weights]
-print("Discriminator signal weights {}...".format(weights))
+print("Discriminator signal weights {}...".format(d_weights))
 d_cost_real = sum([w*c for w, c in zip(d_weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(d_weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(d_weights, d_cost_ers)])
