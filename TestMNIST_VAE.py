@@ -508,7 +508,7 @@ inf_gen_model = InfGenModel(
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=sigmoid)
 
-inf_gen_model.load_params(inf_gen_param_file)
+#inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
