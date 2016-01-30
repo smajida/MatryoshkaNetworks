@@ -194,7 +194,7 @@ class FuzzyAdam(Update):
             v_t = self.b2*v + (1. - self.b2)*(g**2.)
             if type(p) == type(self.n):
                 step_t = (m_t / (T.sqrt(v_t) + self.e)) + \
-                         (self.n[0] * cu_rng.normal(size=p.shape))
+                         (self.n[0] * (cu_rng.uniform(size=p.shape)-0.5))
             else:
                 step_t = m_t / (T.sqrt(v_t) + self.e)
             p_t = p - (self.lr * step_t)

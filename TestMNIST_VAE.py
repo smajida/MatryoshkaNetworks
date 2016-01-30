@@ -663,7 +663,7 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # set gradient noise
-    eg_noise_ary = (grad_noise / np.sqrt(float(epoch))) + np.zeros((2,))
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((2,))
     gen_updater.n.set_value(floatX(eg_noise_ary))
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays

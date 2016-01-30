@@ -83,8 +83,8 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
-niter_decay = 400 # # of iter to linearly decay learning rate to zero
+niter = 300       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.00015       # initial learning rate for adam
 slow_buffer_size = 200000  # size of slow replay buffer
 fast_buffer_size = 20000   # size of fast replay buffer
@@ -93,6 +93,7 @@ multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
+grad_noise = 0.04
 
 
 def train_transform(X):
@@ -422,9 +423,9 @@ g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
-lrd = sharedX(lr/1.5)
-d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
-g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+lrd = sharedX(lr/1.0)
+d_updater = updates.FuzzyAdam(lr=lrd, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
+g_updater = updates.FuzzyAdam(lr=lrt, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates
@@ -483,6 +484,11 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
+    # set gradient noise
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/4.)) + np.zeros((2,))
+    g_updater.n.set_value(floatX(eg_noise_ary))
+    d_updater.n.set_value(floatX(eg_noise_ary))
+    # initialize cost recording arrays
     g_costs = [0. for c in all_costs]
     d_costs = [0. for c in all_costs]
     gc_iter = 0

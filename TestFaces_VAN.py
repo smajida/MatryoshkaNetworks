@@ -488,9 +488,9 @@ d_params = disc_network.params
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
-obs_logvar = sharedX(np.zeros((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(np.ones((2,)).astype(theano.config.floatX))
+lam_kld = sharedX(np.ones((2,)).astype(theano.config.floatX))
+obs_logvar = sharedX(np.zeros((2,)).astype(theano.config.floatX))
 bounded_logvar = 1.25 * tanh((1.0/2.0) * obs_logvar)
 gen_params = [obs_logvar] + inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
