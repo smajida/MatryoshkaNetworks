@@ -37,7 +37,7 @@ EXP_DIR = "./lsun_bedrooms"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model'
+desc = 'test_gan_double_short_model_double_buffer'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -75,7 +75,7 @@ set_seed(1)     # seed for shared rngs
 k = 1            # # of discrim updates for each gen update
 b1 = 0.5         # momentum term of adam
 nc = 3           # # of channels in image
-nbatch = 64      # # of examples in batch
+nbatch = 100     # # of examples in batch
 npx = 64         # # of pixels width/height of images
 nz0 = 128         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -84,17 +84,17 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
-lr = 0.0002       # initial learning rate for adam
-er_buffer_size = DATA_SIZE # size of "experience replay" buffer
-dn = 0.0          # standard deviation of activation noise in discriminator
+niter = 300       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
+lr = 0.00015       # initial learning rate for adam
+slow_buffer_size = 200000  # size of slow replay buffer
+fast_buffer_size = 20000   # size of fast replay buffer
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
-
+grad_noise = 0.04
 
 
 def train_transform(X):
@@ -174,7 +174,6 @@ tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
-
 ###############################
 # Setup the generator network #
 ###############################
@@ -184,12 +183,25 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
 
-gen_module_2 = \
+#gen_module_2 = \
+#GenConvResModule(
+#   in_chans=(ngf*8),
+#   out_chans=(ngf*8),
+#   conv_chans=(ngf*4),
+#   filt_shape=(3,3),
+#   rand_chans=nz1,
+#   use_rand=multi_rand,
+#   use_conv=use_conv,
+#   us_stride=2,
+#   mod_name='gen_mod_2'
+#) # output is (batch, ngf*8, 4, 4)
+
+gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
@@ -199,10 +211,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_2'
+    mod_name='gen_mod_3'
 ) # output is (batch, ngf*4, 8, 8)
 
-gen_module_3 = \
+gen_module_4 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -212,10 +224,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_3'
+    mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 16, 16)
 
-gen_module_4 = \
+gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -225,35 +237,35 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_4'
+    mod_name='gen_mod_5'
 ) # output is (batch, ngf*2, 32, 32)
 
-gen_module_5 = \
+gen_module_6 = \
 GenConvResModule(
     in_chans=(ngf*1),
-    out_chans=32,
-    conv_chans=32,
+    out_chans=40,
+    conv_chans=40,
     filt_shape=(3,3),
     rand_chans=nz1,
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_5'
+    mod_name='gen_mod_6'
 ) # output is (batch, ngf*1, 64, 64)
 
-gen_module_6 = \
+gen_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=32,
+    in_chans=40,
     out_chans=nc,
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='gen_mod_6'
+    mod_name='gen_mod_7'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_2, gen_module_3,
-               gen_module_4, gen_module_5, gen_module_6]
+gen_modules = [gen_module_1, gen_module_3, gen_module_4,
+               gen_module_5, gen_module_6, gen_module_7]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -295,7 +307,7 @@ DiscConvResModule(
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
-) # output is (batch, ndf*2, 8, 8)
+) # output is (batch, ndf*4, 8, 8)
 
 disc_module_4 = \
 DiscConvResModule(
@@ -306,19 +318,30 @@ DiscConvResModule(
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
-) # output is (batch, ndf*2, 4, 4)
+) # output is (batch, ndf*8, 4, 4)
 
-disc_module_5 = \
+#disc_module_5 = \
+#DiscConvResModule(
+#    in_chans=(ndf*8),
+#    out_chans=(ndf*8),
+#    conv_chans=ndf,
+#    filt_shape=(3,3),
+#    use_conv=False,
+#    ds_stride=2,
+#    mod_name='disc_mod_5'
+#) # output is (batch, ndf*8, 2, 2)
+
+disc_module_6 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
-    mod_name='disc_mod_5'
+    mod_name='disc_mod_6'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_5]
+                disc_module_4, disc_module_6]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -332,7 +355,7 @@ print("data_files[0]: {}".format(data_files[0]))
 
 print("Xtr.shape: {}".format(Xtr.shape))
 
-Xtr_rec = Xtr[0:200,:]
+Xtr_rec = Xtr[0:100,:]
 Mtr_rec = floatX(np.ones(Xtr_rec.shape))
 print("Building VarInfModel...")
 VIM = VarInfModel(Xtr_rec, Mtr_rec, gen_network, post_logvar=-4.0)
@@ -340,7 +363,7 @@ print("Testing VarInfModel...")
 opt_cost, vfe_bounds = VIM.train(0.001)
 vfe_bounds = VIM.sample_vfe_bounds()
 test_recons = VIM.sample_Xg()
-color_grid_vis(draw_transform(Xtr_rec), (10, 20), "{}/Xtr_rec.png".format(result_dir))
+color_grid_vis(draw_transform(Xtr_rec), (10, 10), "{}/Xtr_rec.png".format(result_dir))
 
 
 ####################################
@@ -370,12 +393,15 @@ p_er = disc_network.apply(input=Xer, ret_vals=ret_vals, app_sigm=False)
 print("Gathering discriminator signal from {} layers...".format(len(p_er)))
 
 # compute costs based on discriminator output for real/generated data
+d_cost_obs = sum([T.mean(bce(sigmoid(p), T.ones(p.shape)), axis=1) for p in p_real])
 d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
 d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
+g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 weights = [1.0 for i in range(1,len(p_gen)+1)]
+weights[0] = 0.0
 scale = sum(weights)
 weights = [w/scale for w in weights]
 print("Discriminator signal weights {}...".format(weights))
@@ -383,6 +409,7 @@ d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
 g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
+g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
 
 
 # switch costs based on use of experience replay
@@ -394,12 +421,12 @@ d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
          (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
-all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er]
+all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
-lrd = sharedX(lr/2.0)
-d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
-g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
+lrd = sharedX(lr/1.0)
+d_updater = updates.FuzzyAdam(lr=lrd, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
+g_updater = updates.FuzzyAdam(lr=lrt, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates
@@ -409,20 +436,35 @@ t = time()
 _train_g = theano.function([X, Z0, Xer], all_costs, updates=g_updates)
 _train_d = theano.function([X, Z0, Xer], all_costs, updates=d_updates)
 _gen = theano.function([Z0], XIZ0)
+_disc = theano.function([X], d_cost_obs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
+# test disc cost func
+temp = _disc(train_transform(Xtr[0:50,:]))
+print("temp.shape: {}".format(temp.shape))
+
 
 # initialize an experience replay buffer
-er_buffer = floatX(np.zeros((er_buffer_size, nc*npx*npx)))
+slow_buffer = floatX(np.zeros((slow_buffer_size, nc*npx*npx)))
+fast_buffer = floatX(np.zeros((fast_buffer_size, nc*npx*npx)))
 start_idx = 0
-end_idx = 200
-print("Initializing experience replay buffer...")
-while start_idx < er_buffer_size:
-    samples = gen_network.generate_samples(200)
-    samples = samples.reshape((200,-1))
-    end_idx = min(end_idx, er_buffer_size)
-    er_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
-    start_idx += 200
-    end_idx += 200
+end_idx = 100
+print("Initializing experience replay buffers...")
+while start_idx < slow_buffer_size:
+    samples = gen_network.generate_samples(100)
+    samples = samples.reshape((100,-1))
+    end_idx = min(end_idx, slow_buffer_size)
+    slow_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
+    start_idx += 100
+    end_idx += 100
+start_idx = 0
+end_idx = 100
+while start_idx < fast_buffer_size:
+    samples = gen_network.generate_samples(100)
+    samples = samples.reshape((100,-1))
+    end_idx = min(end_idx, fast_buffer_size)
+    slow_buffer[start_idx:end_idx,:] = samples[:(end_idx-start_idx),:]
+    start_idx += 100
+    end_idx += 100
 print("DONE.")
 
 print desc.upper()
@@ -436,13 +478,18 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 30) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
     Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
+    # set gradient noise
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/4.)) + np.zeros((2,))
+    g_updater.n.set_value(floatX(eg_noise_ary))
+    d_updater.n.set_value(floatX(eg_noise_ary))
+    # initialize cost recording arrays
     g_costs = [0. for c in all_costs]
     d_costs = [0. for c in all_costs]
     gc_iter = 0
@@ -462,14 +509,18 @@ for epoch in range(1, niter+niter_decay+1):
         z0mb = rand_gen(size=(len(imb), nz0))
         if n_updates % (k+1) == 0:
             # sample data from experience replay buffer
-            xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
+            xsb = train_transform(sample_exprep_buffer(slow_buffer, len(imb)/2))
+            xfb = train_transform(sample_exprep_buffer(fast_buffer, len(imb)/2))
+            xer = np.concatenate([xsb, xfb], axis=0)
             # compute generator cost and apply update
             result = _train_g(imb, z0mb, xer)
             g_costs = [(v1 + v2) for v1, v2 in zip(g_costs, result)]
             gc_iter += 1
         else:
             # sample data from experience replay buffer
-            xer = train_transform(sample_exprep_buffer(er_buffer, len(imb)))
+            xsb = train_transform(sample_exprep_buffer(slow_buffer, len(imb)/2))
+            xfb = train_transform(sample_exprep_buffer(fast_buffer, len(imb)/2))
+            xer = np.concatenate([xsb, xfb], axis=0)
             # compute discriminator cost and apply update
             result = _train_d(imb, z0mb, xer)
             d_costs = [(v1 + v2) for v1, v2 in zip(d_costs, result)]
@@ -481,9 +532,12 @@ for epoch in range(1, niter+niter_decay+1):
             rec_iter += 1
         n_updates += 1
         n_examples += len(imb)
-        # update experience replay buffer (a better update schedule may be helpful)
-        if ((n_updates % (min(10,epoch)*15)) == 0) and use_er:
-            update_exprep_buffer(er_buffer, gen_network, replace_frac=0.10)
+        # update slow replay buffer
+        if ((n_updates % (min(10,epoch)*10)) == 0) and use_er:
+            update_exprep_buffer(slow_buffer, gen_network, replace_frac=0.10)
+        # update fast replay buffer
+        if ((n_updates % (min(10,epoch)*2)) == 0) and use_er:
+            update_exprep_buffer(fast_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #
     ###################
@@ -500,23 +554,33 @@ for epoch in range(1, niter+niter_decay+1):
             g_costs[0], d_costs[1], rec_cost)
     str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
             g_costs[2], d_costs[3], d_costs[4], d_costs[5])
-    joint_str = "\n".join([str1, str2, str3])
+    str4 = "    -- g_cost_ds: {}".format( \
+            ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[6:])]))
+    joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
     n_epochs += 1
     # generate some samples from the model, for visualization
-    samples = np.asarray(_gen(sample_z0mb))
+    samples = floatX( _gen(sample_z0mb) )
+    d_cost_samps = _disc(samples)
+    sort_idx = np.argsort(-1.0 * d_cost_samps)
+    samples = samples[sort_idx,:,:,:]
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
+    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 150):
+        old_lr = lrt.get_value(borrow=False)
+        new_lr = 0.5 * old_lr
+        lrt.set_value(floatX(new_lr))
+        lrd.set_value(floatX(new_lr/1.5))
     if n_epochs > niter:
         # reduce learning rate and keep discriminator at half rate
         iters_left = (niter_decay + niter) - n_epochs + 1
         old_lr = lrt.get_value(borrow=False)
         new_lr = old_lr - (old_lr / iters_left)
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/2.0))
+        lrd.set_value(floatX(new_lr/1.5))
 
 
 
