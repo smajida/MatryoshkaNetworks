@@ -280,40 +280,40 @@ def load_udm_ss(dataset, sup_count, im_dim=28):
         old_shape = (28,28)
         print("resizing images from {} to {}".format(old_shape, new_shape))
 
-        print("   -- resizing Xtr_su...")
+        print("  -- resizing Xtr_su...")
         Xtr_su_new = np.zeros((Xtr_su.shape[0], im_dim*im_dim),
                               dtype=theano.config.floatX)
         for i in range(Xtr_su.shape[0]):
             x_old = Xtr_su[i,:].reshape(old_shape)
             x_new = scipy_misc.imresize(x_old, size=new_shape, mode='F')
-            Xtr_su_new[i,:] = x_new[:]
+            Xtr_su_new[i,:] = x_new.ravel()
         Xtr_su = Xtr_su_new
 
-        print("    -- resizing Xtr_un...")
+        print("  -- resizing Xtr_un...")
         Xtr_un_new = np.zeros((Xtr_un.shape[0], im_dim*im_dim),
                               dtype=theano.config.floatX)
         for i in range(Xtr_un.shape[0]):
             x_old = Xtr_un[i,:].reshape(old_shape)
             x_new = scipy_misc.imresize(x_old, size=new_shape, mode='F')
-            Xtr_un_new[i,:] = x_new[:]
+            Xtr_un_new[i,:] = x_new.ravel()
         Xtr_un = Xtr_un_new
 
-        print("    -- resizing Xva...")
+        print("  -- resizing Xva...")
         Xva_new = np.zeros((Xva.shape[0], im_dim*im_dim),
                               dtype=theano.config.floatX)
         for i in range(Xva.shape[0]):
             x_old = Xva[i,:].reshape(old_shape)
             x_new = scipy_misc.imresize(x_old, size=new_shape, mode='F')
-            Xva_new[i,:] = x_new[:]
+            Xva_new[i,:] = x_new.ravel()
         Xva = Xva_new
 
-        print("    -- resizing Xte...")
+        print("  -- resizing Xte...")
         Xte_new = np.zeros((Xte.shape[0], im_dim*im_dim),
                               dtype=theano.config.floatX)
         for i in range(Xte.shape[0]):
             x_old = Xte[i,:].reshape(old_shape)
             x_new = scipy_misc.imresize(x_old, size=new_shape, mode='F')
-            Xte_new[i,:] = x_new[:]
+            Xte_new[i,:] = x_new.ravel()
         Xte = Xte_new
 
     # package the data for the user
