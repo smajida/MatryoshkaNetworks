@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_2abc_4bc_no_bn_iwae_50x15_faster'
+desc = 'test_vae_relu_mods_2abc_4bc_no_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -69,8 +69,8 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 15   # number of samples to use in MEN bound
-grad_noise = 0.01 # initial noise for the gradients
+iwae_samples = 20   # number of samples to use in MEN bound
+grad_noise = 0.02 # initial noise for the gradients
 
 ntrain = Xtr.shape[0]
 
@@ -508,13 +508,13 @@ inf_gen_model = InfGenModel(
 # create a model of just the generator
 gen_network = GenNetworkGAN(modules=td_modules, output_transform=sigmoid)
 
-
+inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(np.ones((2,)).astype(theano.config.floatX))
+lam_kld = sharedX(np.ones((2,)).astype(theano.config.floatX))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -561,7 +561,7 @@ if iwae_samples == 1:
     vae_obs_costs = vae_obs_nlls + vae_obs_klds
     # cost used by the optimizer
     full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
-    full_cost_inf = full_cost_gen 
+    full_cost_inf = full_cost_gen
 else:
     # run an inference and reconstruction pass through the generative stuff
     batch_size = Xg.shape[0]
@@ -616,7 +616,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.0005)
+lrt = sharedX(0.0002)
 b1t = sharedX(0.8)
 gen_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
                                 n=grad_noise, clipnorm=1000.0)
@@ -663,7 +663,7 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # set gradient noise
-    eg_noise_ary = (grad_noise / np.sqrt(float(epoch))) + np.zeros((1,))
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch))) + np.zeros((2,))
     gen_updater.n.set_value(floatX(eg_noise_ary))
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays
@@ -702,8 +702,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 10) or (epoch == 30) or (epoch == 60) or \
-       (epoch == 100) or (epoch == 200):
+    if (epoch == 40) or (epoch == 80) or (epoch == 160):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0

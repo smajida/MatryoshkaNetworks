@@ -282,14 +282,14 @@ class VarInfModel(object):
         # get samples from self.gen_network using self.rv_mean/self.rv_logvar
         self.Xg = self.gen_network.apply(rand_vals=self.rand_vals)
         # self.output_logvar modifies the output distribution
-        self.output_logvar = sharedX(np.zeros((1,)), name='VIM.output_logvar')
+        self.output_logvar = sharedX(np.zeros((2,)), name='VIM.output_logvar')
         self.bounded_logvar = 5.0 * T.tanh((1.0/5.0) * self.output_logvar[0])
         # compute reconstruction/NLL cost using self.Xg
         self.nlls = self._construct_nlls(x=self.X, m=self.M, x_hat=self.Xg,
                                          out_logvar=self.bounded_logvar)
         # construct symbolic vars for KL divergences between our reparametrized
         # Gaussians, and some ZMUV Gaussians.
-        self.lam_kld = sharedX(np.ones((1,)), name='VIM.lam_kld')
+        self.lam_kld = sharedX(np.ones((2,)), name='VIM.lam_kld')
         self.set_lam_kld(lam_kld=1.0)
         self.klds = self._construct_klds()
         # make symbolic vars for the overall optimization objective
@@ -321,7 +321,7 @@ class VarInfModel(object):
         """
         Set the relative weight of KL-divergence vs. data likelihood.
         """
-        zero_ary = np.zeros((1,))
+        zero_ary = np.zeros((2,))
         new_lam = zero_ary + lam_kld
         self.lam_kld.set_value(floatX(new_lam))
         return
@@ -414,7 +414,7 @@ class InfGenModel(object):
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
-        self.dist_scale = sharedX( floatX([0.1]) )
+        self.dist_scale = sharedX( floatX([0.1,0.1]) )
         self.inf_params.append(self.dist_scale)
         # store a list of all parameters in this network
         self.params = self.inf_params + self.gen_params
@@ -472,6 +472,7 @@ class InfGenModel(object):
             mod.load_params(param_dict=param_dict)
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
+        ds_ary = np.zeros((2,)) + ds_ary[0]
         self.dist_scale.set_value(floatX(ds_ary))
         pickle_file.close()
         return

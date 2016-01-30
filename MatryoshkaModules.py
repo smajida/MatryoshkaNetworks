@@ -167,14 +167,20 @@ class BasicConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
+        np_ary = np.zeros((2,)) + param_dict['g2'][0]
+        self.g2.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b2'][0]
+        self.b2.set_value(floatX(np_ary))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
+        self.g_prj.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
+        self.b_prj.set_value(floatX(np_ary))
         return
 
     def dump_params(self):
@@ -306,8 +312,10 @@ class BasicConvModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         return
 
     def dump_params(self):
@@ -429,8 +437,10 @@ class DiscFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
         self.w3.set_value(floatX(param_dict['w3']))
         return
@@ -565,14 +575,20 @@ class DiscConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
+        np_ary = np.zeros((2,)) + param_dict['g2'][0]
+        self.g2.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b2'][0]
+        self.b2.set_value(floatX(np_ary))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
+        self.g_prj.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
+        self.b_prj.set_value(floatX(np_ary))
         self.wd.set_value(floatX(param_dict['wd']))
         return
 
@@ -714,14 +730,20 @@ class GenFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
+        np_ary = np.zeros((2,)) + param_dict['g2'][0]
+        self.g2.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b2'][0]
+        self.b2.set_value(floatX(np_ary))
         self.w3.set_value(floatX(param_dict['w3']))
-        self.g3.set_value(floatX(param_dict['g3']))
-        self.b3.set_value(floatX(param_dict['b3']))
+        np_ary = np.zeros((2,)) + param_dict['g3'][0]
+        self.g3.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b3'][0]
+        self.b3.set_value(floatX(np_ary))
         return
 
     def dump_params(self):
@@ -785,199 +807,6 @@ class GenFCModule(object):
             result = h2
         return result
 
-
-# ##################################################
-# # GENERATOR DOUBLE CONVOLUTIONAL RESIDUAL MODULE #
-# ##################################################
-#
-# class GenConvDblResModule(object):
-#     """
-#     Module structure is based on the "bottleneck" modules of MSR's residual
-#     network that won the 2015 Imagenet competition(s).
-#
-#     First layer is a 1x1 convolutional layer with batch normalization.
-#
-#     Second layer is a 3x3 convolutional layer with batch normalization.
-#
-#     Third layer is a 1x1 convolutional layer.
-#
-#     Output of the third layer is added to the result of a conv layer applied
-#     directly to the input, and the resulting sum is batch normalized.
-#
-#     Process: IN -> fc1(IN) -> conv(fc1) -> fc2(conv) -> relu(fc2 + IN)
-#
-#     Params:
-#         in_chans: number of channels in the inputs to module
-#         out_chans: number of channels in the outputs from module
-#         conv_chans: number of channels in convolutional layer
-#         rand_chans: number of random channels to augment input
-#         use_rand: flag for whether or not to augment inputs with noise
-#         use_conv: flag for whether or not to use internal conv layers
-#         us_stride: upsampling ratio in the fractionally strided convolution
-#         mod_name: text name for identifying module in theano graph
-#     """
-#     def __init__(self,
-#                  in_chans, out_chans, conv_chans, rand_chans,
-#                  use_rand=True, use_conv=True, us_stride=2,
-#                  mod_name='gm_conv'):
-#         assert ((us_stride == 1) or (us_stride == 2)), \
-#             "upsampling stride (i.e. us_stride) must be 1 or 2."
-#         self.in_chans = in_chans
-#         self.out_chans = out_chans
-#         self.conv_chans = conv_chans
-#         self.rand_chans = rand_chans
-#         self.use_rand = use_rand
-#         self.use_conv = use_conv
-#         self.us_stride = us_stride
-#         self.mod_name = mod_name
-#         # use small dummy rand size if we won't use random vars
-#         if not self.use_rand:
-#             self.rand_chans = 4
-#         self._init_params() # initialize parameters
-#         return
-#
-#     def _init_params(self):
-#         """
-#         Initialize parameters for the layers in this generator module.
-#         """
-#         self.params = []
-#         weight_ifn = inits.Normal(scale=0.02)
-#         gain_ifn = inits.Normal(loc=1., scale=0.02)
-#         bias_ifn = inits.Constant(c=0.)
-#         #
-#         # Initialize parameters for first 1x1 convolutional layer.
-#         #
-#         # input shape : (batch, in_chans+rand_chans, rows, cols)
-#         # output shape: (batch, conv_chans, rows, cols)
-#         #
-#         self.w_fc1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
-#                                 "{}_w_fc1".format(self.mod_name))
-#         self.g_fc1 = gain_ifn((self.conv_chans), "{}_g_fc1".format(self.mod_name))
-#         self.b_fc1 = bias_ifn((self.conv_chans), "{}_b_fc1".format(self.mod_name))
-#         self.params.extend([self.w_fc1, self.g_fc1, self.b_fc1])
-#         #
-#         # Initialize parameters for 3x3 convolutional layer.
-#         #
-#         # input shape : (batch, conv_chans, rows, cols)
-#         # output shape: (batch, conv_chans, rows/us_stride, cols/us_stride)
-#         #
-#         self.w_conv = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
-#                                  "{}_w_conv".format(self.mod_name))
-#         self.g_conv = gain_ifn((self.conv_chans), "{}_g_conv".format(self.mod_name))
-#         self.b_conv = bias_ifn((self.conv_chans), "{}_b_conv".format(self.mod_name))
-#         self.params.extend([self.w_conv, self.g_conv, self.b_conv])
-#         #
-#         # Initialize parameters for second 1x1 convolutional layer.
-#         #
-#         # input shape : (batch, conv_chans, rows/us_stride, cols/us_stride)
-#         # output shape: (batch, out_chans, rows/us_stride, cols/us_stride)
-#         #
-#         self.w_fc2 = weight_ifn((self.out_chans, self.conv_chans, 1, 1),
-#                                 "{}_w_fc2".format(self.mod_name))
-#         self.g_fc2 = gain_ifn((self.out_chans), "{}_g_fc2".format(self.mod_name))
-#         self.b_fc2 = bias_ifn((self.out_chans), "{}_b_fc2".format(self.mod_name))
-#         self.params.extend([self.w_fc2, self.g_fc2, self.b_fc2])
-#         #
-#         # Initialize parameters for pass-through convolution and merging layer.
-#         #
-#         # input shape : (batch, in_chans, rows, cols)
-#         # output shape: (batch, out_chans, rows, cols)
-#         #
-#         self.w_out = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), 3, 3),
-#                                 "{}_w_out".format(self.mod_name))
-#         self.g_out = gain_ifn((self.out_chans), "{}_g_out".format(self.mod_name))
-#         self.b_out = bias_ifn((self.out_chans), "{}_b_out".format(self.mod_name))
-#         self.params.extend([self.w_out, self.g_out, self.b_out])
-#         return
-#
-#     def load_params(self, param_dict):
-#         """
-#         Load model params directly from a dict of numpy arrays.
-#         """
-#         self.w_fc1.set_value(floatX(param_dict['w_fc1']))
-#         self.g_fc1.set_value(floatX(param_dict['g_fc1']))
-#         self.b_fc1.set_value(floatX(param_dict['b_fc1']))
-#         self.w_fc2.set_value(floatX(param_dict['w_fc2']))
-#         self.g_fc2.set_value(floatX(param_dict['g_fc2']))
-#         self.b_fc2.set_value(floatX(param_dict['b_fc2']))
-#         self.w_conv.set_value(floatX(param_dict['w_conv']))
-#         self.g_conv.set_value(floatX(param_dict['g_conv']))
-#         self.b_conv.set_value(floatX(param_dict['b_conv']))
-#         self.w_out.set_value(floatX(param_dict['w_out']))
-#         self.g_out.set_value(floatX(param_dict['g_out']))
-#         self.b_out.set_value(floatX(param_dict['b_out']))
-#         return
-#
-#     def dump_params(self):
-#         """
-#         Dump model params directly to a dict of numpy arrays.
-#         """
-#         param_dict = {}
-#         param_dict['w_fc1'] = self.w_fc1.get_value(borrow=False)
-#         param_dict['g_fc1'] = self.g_fc1.get_value(borrow=False)
-#         param_dict['b_fc1'] = self.b_fc1.get_value(borrow=False)
-#         param_dict['w_fc2'] = self.w_fc2.get_value(borrow=False)
-#         param_dict['g_fc2'] = self.g_fc2.get_value(borrow=False)
-#         param_dict['b_fc2'] = self.b_fc2.get_value(borrow=False)
-#         param_dict['w_conv'] = self.w_conv.get_value(borrow=False)
-#         param_dict['g_conv'] = self.g_conv.get_value(borrow=False)
-#         param_dict['b_conv'] = self.b_conv.get_value(borrow=False)
-#         param_dict['w_out'] = self.w_out.get_value(borrow=False)
-#         param_dict['g_out'] = self.g_out.get_value(borrow=False)
-#         param_dict['b_out'] = self.b_out.get_value(borrow=False)
-#         return param_dict
-#
-#     def apply(self, input, rand_vals=None, rand_shapes=False):
-#         """
-#         Apply this generator module to some input.
-#         """
-#         batch_size = input.shape[0] # number of inputs in this batch
-#         ss = self.us_stride         # stride for upsampling
-#
-#         # get shape for random values that we'll append to module input
-#         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
-#         if rand_vals is None:
-#             if self.use_rand:
-#                 # generate random values to append to module input
-#                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
-#                                           dtype=theano.config.floatX)
-#             else:
-#                 rand_vals = T.zeros(rand_shape)
-#         else:
-#             if not self.use_rand:
-#                 # mask out random values, so they won't get used
-#                 rand_vals = 0.0 * rand_vals
-#         rand_shape = rand_vals.shape # return vals must be theano vars
-#
-#         # stack random values on top of input
-#         input_and_rvs = T.concatenate([rand_vals, input], axis=1)
-#
-#         if self.use_conv:
-#             # apply first 1x1 conv layer
-#             h1 = dnn_conv(input_and_rvs, self.w_fc1, subsample=(1, 1), border_mode=(0, 0))
-#             h1 = batchnorm(h1, g=self.g_fc1, b=self.b_fc1)
-#             h1 = relu(h1)
-#             # apply 3x3 conv layer (might upsample)
-#             h2 = deconv(h1, self.w_conv, subsample=(ss, ss), border_mode=(1, 1))
-#             h2 = batchnorm(h2, g=self.g_conv, b=self.b_conv)
-#             h2 = relu(h2)
-#             # apply second 1x1 conv layer
-#             h3 = dnn_conv(h2, self.w_fc2, subsample=(1, 1), border_mode=(0, 0))
-#             # apply pass-through convolution to input (might upsample)
-#             h4 = deconv(input_and_rvs, self.w_out, subsample=(ss, ss), border_mode=(1, 1))
-#             # merge output of internal conv layers with the pass-through result
-#             output = h3 + h4
-#         else:
-#             # apply pass-through convolution to input (might upsample)
-#             output = deconv(input_and_rvs, self.w_out, subsample=(ss, ss), border_mode=(1, 1))
-#         output = batchnorm(output, g=self.g_out, b=self.b_out)
-#         output = relu(output)
-#         # decide what to return: output only, or output and rand_vals.shape...
-#         if rand_shapes:
-#             result = [output, rand_shape]
-#         else:
-#             result = output
-#         return result
 
 
 #########################################
@@ -1079,14 +908,20 @@ class GenConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
+        np_ary = np.zeros((2,)) + param_dict['g2'][0]
+        self.g2.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b2'][0]
+        self.b2.set_value(floatX(np_ary))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
+        self.g_prj.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
+        self.b_prj.set_value(floatX(np_ary))
         return
 
     def dump_params(self):
@@ -1276,16 +1111,20 @@ class InfConvMergeModule(object):
         """
         # load info-merge parameters
         self.w1_im.set_value(floatX(param_dict['w1_im']))
-        self.g1_im.set_value(floatX(param_dict['g1_im']))
-        self.b1_im.set_value(floatX(param_dict['b1_im']))
+        np_ary = np.zeros((2,)) + param_dict['g1_im'][0]
+        self.g1_im.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1_im'][0]
+        self.b1_im.set_value(floatX(np_ary))
         self.w2_im.set_value(floatX(param_dict['w2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         # load top-down conditioning parameters
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
-            self.g1_td.set_value(floatX(param_dict['g1_td']))
-            self.b1_td.set_value(floatX(param_dict['b1_td']))
+            np_ary = np.zeros((2,)) + param_dict['g1_td'][0]
+            self.g1_td.set_value(floatX(np_ary))
+            np_ary = np.zeros((2,)) + param_dict['b1_td'][0]
+            self.b1_td.set_value(floatX(np_ary))
             self.w2_td.set_value(floatX(param_dict['w2_td']))
             self.w3_td.set_value(floatX(param_dict['w3_td']))
             self.b3_td.set_value(floatX(param_dict['b3_td']))
@@ -1454,8 +1293,10 @@ class InfFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
+        np_ary = np.zeros((2,)) + param_dict['g1'][0]
+        self.g1.set_value(floatX(np_ary))
+        np_ary = np.zeros((2,)) + param_dict['b1'][0]
+        self.b1.set_value(floatX(np_ary))
         self.w2.set_value(floatX(param_dict['w2']))
         self.w_out.set_value(floatX(param_dict['w_out']))
         self.b_out.set_value(floatX(param_dict['b_out']))
