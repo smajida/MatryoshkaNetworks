@@ -84,7 +84,7 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 300       # # of iter at starting learning rate
+niter = 200       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.00015       # initial learning rate for adam
 slow_buffer_size = 200000  # size of slow replay buffer
@@ -94,7 +94,7 @@ multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
-grad_noise = 0.04
+grad_noise = 0.05
 
 
 def train_transform(X):
@@ -188,20 +188,7 @@ GenFCModule(
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
 
-#gen_module_2 = \
-#GenConvResModule(
-#   in_chans=(ngf*8),
-#   out_chans=(ngf*8),
-#   conv_chans=(ngf*4),
-#   filt_shape=(3,3),
-#   rand_chans=nz1,
-#   use_rand=multi_rand,
-#   use_conv=use_conv,
-#   us_stride=2,
-#   mod_name='gen_mod_2'
-#) # output is (batch, ngf*8, 4, 4)
-
-gen_module_3 = \
+gen_module_2 = \
 GenConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
@@ -211,10 +198,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_3'
+    mod_name='gen_mod_2'
 ) # output is (batch, ngf*4, 8, 8)
 
-gen_module_4 = \
+gen_module_3 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -224,10 +211,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_4'
+    mod_name='gen_mod_3'
 ) # output is (batch, ngf*2, 16, 16)
 
-gen_module_5 = \
+gen_module_4 = \
 GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
@@ -237,10 +224,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_5'
+    mod_name='gen_mod_4'
 ) # output is (batch, ngf*2, 32, 32)
 
-gen_module_6 = \
+gen_module_5 = \
 GenConvResModule(
     in_chans=(ngf*1),
     out_chans=40,
@@ -250,10 +237,10 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
-    mod_name='gen_mod_6'
+    mod_name='gen_mod_5'
 ) # output is (batch, ngf*1, 64, 64)
 
-gen_module_7 = \
+gen_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=40,
@@ -261,11 +248,11 @@ BasicConvModule(
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='gen_mod_7'
+    mod_name='gen_mod_6'
 ) # output is (batch, c, 64, 64)
 
-gen_modules = [gen_module_1, gen_module_3, gen_module_4,
-               gen_module_5, gen_module_6, gen_module_7]
+gen_modules = [gen_module_1, gen_module_2, gen_module_3,
+               gen_module_4, gen_module_5, gen_module_6]
 
 # Initialize the generator network
 gen_network = GenNetworkGAN(modules=gen_modules, output_transform=tanh)
@@ -320,28 +307,18 @@ DiscConvResModule(
     mod_name='disc_mod_4'
 ) # output is (batch, ndf*8, 4, 4)
 
-#disc_module_5 = \
-#DiscConvResModule(
-#    in_chans=(ndf*8),
-#    out_chans=(ndf*8),
-#    conv_chans=ndf,
-#    filt_shape=(3,3),
-#    use_conv=False,
-#    ds_stride=2,
-#    mod_name='disc_mod_5'
-#) # output is (batch, ndf*8, 2, 2)
-
-disc_module_6 = \
+disc_module_5 = \
 DiscFCModule(
     fc_dim=ndfc,
     in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
-    mod_name='disc_mod_6'
+    unif_drop=0.5,
+    mod_name='disc_mod_5'
 ) # output is (batch, 1)
 
 disc_modules = [disc_module_1, disc_module_2, disc_module_3,
-                disc_module_4, disc_module_6]
+                disc_module_4, disc_module_5]
 
 # Initialize the discriminator network
 disc_network = DiscNetworkGAN(modules=disc_modules)
@@ -400,16 +377,20 @@ d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
-weights = [1.0 for i in range(1,len(p_gen)+1)]
-weights[0] = 0.0
-scale = sum(weights)
-weights = [w/scale for w in weights]
+d_weights = [1.0 for i in range(1,len(p_gen)+1)]
+d_weights[0] = 0.0
+g_weights = [w for w in d_weights]
+g_weights[-1] = 2.0
+scale = sum(d_weights)
+d_weights = [w/scale for w in d_weights]
+scale = sum(g_weights)
+g_weights = [w/scale for w in g_weights]
 print("Discriminator signal weights {}...".format(weights))
-d_cost_real = sum([w*c for w, c in zip(weights, d_cost_reals)])
-d_cost_gen = sum([w*c for w, c in zip(weights, d_cost_gens)])
-d_cost_er = sum([w*c for w, c in zip(weights, d_cost_ers)])
-g_cost_d = sum([w*c for w, c in zip(weights, g_cost_ds)])
-g_cost_h = sum([w*c for w, c in zip(weights, g_cost_hs)])
+d_cost_real = sum([w*c for w, c in zip(d_weights, d_cost_reals)])
+d_cost_gen = sum([w*c for w, c in zip(d_weights, d_cost_gens)])
+d_cost_er = sum([w*c for w, c in zip(d_weights, d_cost_ers)])
+g_cost_d = sum([w*c for w, c in zip(g_weights, g_cost_ds)])
+g_cost_h = sum([w*c for w, c in zip(g_weights, g_cost_hs)])
 
 
 # switch costs based on use of experience replay
@@ -478,7 +459,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 50) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.1, 1.0, 30) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
@@ -573,14 +554,14 @@ for epoch in range(1, niter+niter_decay+1):
         old_lr = lrt.get_value(borrow=False)
         new_lr = 0.5 * old_lr
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/1.5))
+        lrd.set_value(floatX(new_lr/1.))
     if n_epochs > niter:
         # reduce learning rate and keep discriminator at half rate
         iters_left = (niter_decay + niter) - n_epochs + 1
         old_lr = lrt.get_value(borrow=False)
         new_lr = old_lr - (old_lr / iters_left)
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/1.5))
+        lrd.set_value(floatX(new_lr/1.0))
 
 
 
