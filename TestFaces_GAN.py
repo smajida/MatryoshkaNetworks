@@ -379,7 +379,7 @@ g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 d_weights = [1.0 for i in range(1,len(p_gen)+1)]
 d_weights[0] = 0.0
 g_weights = [w for w in d_weights]
-g_weights[-1] = 2.0
+g_weights[-1] = 3.0
 scale = sum(d_weights)
 d_weights = [w/scale for w in d_weights]
 scale = sum(g_weights)
@@ -534,9 +534,11 @@ for epoch in range(1, niter+niter_decay+1):
             g_costs[0], d_costs[1], rec_cost)
     str3 = "    -- g_cost_d: {0:.4f}, d_cost_real: {1:.4f}, d_cost_gen: {2:.4f}, d_cost_er: {3:.4f}".format( \
             g_costs[2], d_costs[3], d_costs[4], d_costs[5])
-    str4 = "    -- g_cost_ds: {}".format( \
+    str4 = "    -- g_cost_g_train: {}".format( \
+            ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(g_costs[6:])]))
+    str5 = "    -- g_cost_d_train: {}".format( \
             ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[6:])]))
-    joint_str = "\n".join([str1, str2, str3, str4])
+    joint_str = "\n".join([str1, str2, str3, str4, str5])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
