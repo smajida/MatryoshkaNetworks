@@ -4,6 +4,7 @@ import numpy as np
 
 from theano_utils import shared0s, floatX, sharedX
 from ops import l2norm
+from rng import cu_rng
 
 def clip_norm(g, c, n):
     if c > 1e-3:
@@ -171,6 +172,41 @@ class Adam(Update):
             result = updates
         return result
 
+class FuzzyAdam(Update):
+
+    def __init__(self, lr=0.001, b1=0.9, b2=0.999, e=1e-8, n=0.0, *args, **kwargs):
+        Update.__init__(self, *args, **kwargs)
+        self.__dict__.update(locals())
+        self.n = theano.shared(floatX(n+np.zeros((1,))))
+        return
+
+    def __call__(self, params, cost, return_grads=False):
+        updates = []
+        grads_pre_clip = T.grad(cost, params)
+        grads = clip_norms(grads_pre_clip, self.clipnorm)
+        t = theano.shared(floatX(1.))
+
+        for p, g in zip(params, grads):
+            m = theano.shared(p.get_value() * 0.)
+            v = theano.shared(p.get_value() * 0.)
+
+            m_t = self.b1*m + (1. - self.b1)*g
+            v_t = self.b2*v + (1. - self.b2)*(g**2.)
+            if type(p) == type(self.n):
+                step_t = (m_t / (T.sqrt(v_t) + self.e)) + \
+                         (self.n[0] * cu_rng.normal(size=p.shape))
+            else:
+                step_t = m_t / (T.sqrt(v_t) + self.e)
+            p_t = p - (self.lr * step_t)
+            updates.append((m, m_t))
+            updates.append((v, v_t))
+            updates.append((p, p_t))
+        updates.append((t, t + 1.))
+        if return_grads:
+            result = [updates, grads_pre_clip]
+        else:
+            result = updates
+        return result
 
 class Adagrad(Update):
 

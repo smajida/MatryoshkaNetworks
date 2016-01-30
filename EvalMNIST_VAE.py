@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_2abc_4bc_no_bn'
+desc = 'test_vae_relu_mods_2abc_4bc_no_bn_iwae_50x10'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -49,11 +49,12 @@ if not os.path.exists(result_dir):
 # load binarized MNIST dataset
 data_path = "{}/data/".format(EXP_DIR)
 Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
+Xva = Xte[:,:]
 
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 10       # # of examples in batch
+nbatch = 4       # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -64,7 +65,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-iwae_samples = 100   # number of samples to use in MEN bound
+iwae_samples = 512  # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 
@@ -586,6 +587,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
+#Xva = Xva[0:1000,:]
 for epoch in range(3):
     Xva = shuffle(Xva)
     obs_count = Xva.shape[0]
