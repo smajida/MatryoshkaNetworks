@@ -102,68 +102,49 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (7, 7)
+# FC -> (2, 2)
 td_module_1 = \
 GenFCModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 7, 7),
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
-    act_func=act_func,
     mod_name='td_mod_1'
-) # output is (batch, ngf*4, 7, 7)
+) # output is (batch, ngf*8, 2, 2)
 
-# (7, 7) -> (7, 7)
-td_module_2a = \
+# (2, 2) -> (4, 4)
+td_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*8),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2a'
-) # output is (batch, ngf*4, 7, 7)
+    us_stride=2,
+    mod_name='td_mod_2'
+) # output is (batch, ngf*4, 4, 4)
 
-# (7, 7) -> (7, 7)
-td_module_2b = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2b'
-) # output is (batch, ngf*4, 7, 7)
-
-# (7, 7) -> (7, 7)
-td_module_2c = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2c'
-) # output is (batch, ngf*2, 7, 7)
-
-# (7, 7) -> (14, 14)
+# (4, 4) -> (8, 8)
 td_module_3 = \
+GenConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    us_stride=2,
+    mod_name='td_mod_3'
+) # output is (batch, ngf*4, 8, 8)
+
+# (8, 8) -> (16, 16)
+td_module_4 = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -173,10 +154,24 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
     us_stride=2,
-    mod_name='td_mod_3'
-) # output is (batch, ngf*2, 14, 14)
+    mod_name='td_mod_4'
+) # output is (batch, ngf*2, 16, 16)
+
+# (16, 16) -> (32, 32)
+td_module_5 = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    us_stride=2,
+    mod_name='td_mod_5'
+) # output is (batch, ngf*1, 32, 32)
 
 # (14, 14) -> (14, 14)
 td_module_4a = \
@@ -189,7 +184,6 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
@@ -205,7 +199,6 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
@@ -221,7 +214,6 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
     us_stride=2,
     mod_name='td_mod_4c'
 ) # output is (batch, ngf*1, 28, 28)
