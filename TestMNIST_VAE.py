@@ -69,7 +69,7 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 20   # number of samples to use in MEN bound
+iwae_samples = 25 # number of samples to use in MEN bound
 grad_noise = 0.02 # initial noise for the gradients
 
 ntrain = Xtr.shape[0]

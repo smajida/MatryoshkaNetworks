@@ -167,20 +167,14 @@ class BasicConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
-        np_ary = np.zeros((2,)) + param_dict['g2'][0]
-        self.g2.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b2'][0]
-        self.b2.set_value(floatX(np_ary))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
-        self.g_prj.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
-        self.b_prj.set_value(floatX(np_ary))
+        self.g_prj.set_value(floatX(param_dict['g_prj']))
+        self.b_prj.set_value(floatX(param_dict['b_prj']))
         return
 
     def dump_params(self):
@@ -312,10 +306,8 @@ class BasicConvModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         return
 
     def dump_params(self):
@@ -437,10 +429,8 @@ class DiscFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
         self.w3.set_value(floatX(param_dict['w3']))
         return
@@ -575,20 +565,14 @@ class DiscConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
-        np_ary = np.zeros((2,)) + param_dict['g2'][0]
-        self.g2.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b2'][0]
-        self.b2.set_value(floatX(np_ary))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
-        self.g_prj.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
-        self.b_prj.set_value(floatX(np_ary))
+        self.g_prj.set_value(floatX(param_dict['g_prj']))
+        self.b_prj.set_value(floatX(param_dict['b_prj']))
         self.wd.set_value(floatX(param_dict['wd']))
         return
 
@@ -730,20 +714,14 @@ class GenFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
-        np_ary = np.zeros((2,)) + param_dict['g2'][0]
-        self.g2.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b2'][0]
-        self.b2.set_value(floatX(np_ary))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
         self.w3.set_value(floatX(param_dict['w3']))
-        np_ary = np.zeros((2,)) + param_dict['g3'][0]
-        self.g3.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b3'][0]
-        self.b3.set_value(floatX(np_ary))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         return
 
     def dump_params(self):
@@ -806,7 +784,6 @@ class GenFCModule(object):
         else:
             result = h2
         return result
-
 
 
 #########################################
@@ -908,20 +885,14 @@ class GenConvResModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
-        np_ary = np.zeros((2,)) + param_dict['g2'][0]
-        self.g2.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b2'][0]
-        self.b2.set_value(floatX(np_ary))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
         self.w_prj.set_value(floatX(param_dict['w_prj']))
-        np_ary = np.zeros((2,)) + param_dict['g_prj'][0]
-        self.g_prj.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b_prj'][0]
-        self.b_prj.set_value(floatX(np_ary))
+        self.g_prj.set_value(floatX(param_dict['g_prj']))
+        self.b_prj.set_value(floatX(param_dict['b_prj']))
         return
 
     def dump_params(self):
@@ -1111,20 +1082,16 @@ class InfConvMergeModule(object):
         """
         # load info-merge parameters
         self.w1_im.set_value(floatX(param_dict['w1_im']))
-        np_ary = np.zeros((2,)) + param_dict['g1_im'][0]
-        self.g1_im.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1_im'][0]
-        self.b1_im.set_value(floatX(np_ary))
+        self.g1_im.set_value(floatX(param_dict['g1_im']))
+        self.b1_im.set_value(floatX(param_dict['b1_im']))
         self.w2_im.set_value(floatX(param_dict['w2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         # load top-down conditioning parameters
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
-            np_ary = np.zeros((2,)) + param_dict['g1_td'][0]
-            self.g1_td.set_value(floatX(np_ary))
-            np_ary = np.zeros((2,)) + param_dict['b1_td'][0]
-            self.b1_td.set_value(floatX(np_ary))
+            self.g1_td.set_value(floatX(param_dict['g1_td']))
+            self.b1_td.set_value(floatX(param_dict['b1_td']))
             self.w2_td.set_value(floatX(param_dict['w2_td']))
             self.w3_td.set_value(floatX(param_dict['w3_td']))
             self.b3_td.set_value(floatX(param_dict['b3_td']))
@@ -1293,10 +1260,8 @@ class InfFCModule(object):
         Load model params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
-        np_ary = np.zeros((2,)) + param_dict['g1'][0]
-        self.g1.set_value(floatX(np_ary))
-        np_ary = np.zeros((2,)) + param_dict['b1'][0]
-        self.b1.set_value(floatX(np_ary))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
         self.w_out.set_value(floatX(param_dict['w_out']))
         self.b_out.set_value(floatX(param_dict['b_out']))
