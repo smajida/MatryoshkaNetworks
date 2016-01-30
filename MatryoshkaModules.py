@@ -15,6 +15,7 @@ sigmoid = activations.Sigmoid()
 lrelu = activations.LeakyRectify()
 bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
+elu = activations.ELU()
 
 def tanh_clip(x, scale=10.0):
     """
@@ -93,7 +94,7 @@ class BasicConvResModule(object):
         filt_shape: size of filters (either (3, 3) or (5, 5))
         use_conv: flag for whether to use "internal" convolution layer
         stride: allowed strides are 'double', 'single', and 'half'
-        act_func: allowed activations are 'ident', 'tanh', 'relu', and 'lrelu'
+        act_func: --
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
@@ -107,8 +108,8 @@ class BasicConvResModule(object):
                  use_bn_params=True, mod_name='basic_conv_res'):
         assert (stride in ['single', 'double', 'half']), \
                 "stride must be 'double', 'single', or 'half'."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu']), \
-                "act_func must be 'ident', 'relu', or 'lrelu'."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
                 "filt_shape must be (3,3) or (5,5)."
         self.in_chans = in_chans
@@ -121,6 +122,8 @@ class BasicConvResModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -260,7 +263,7 @@ class BasicConvModule(object):
         out_chans: number of channels to produce as output
         stride: whether to use 'double', 'single', or 'half' stride.
         apply_bn: whether to apply batch normalization after conv
-        act_func: should be "ident", "tanh", "relu", or "lrelu"
+        act_func: --
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         use_bn_params: whether to use params for BN
@@ -274,6 +277,8 @@ class BasicConvModule(object):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
                 "stride should be 'single', 'double', or 'half'."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.filt_dim = filt_shape[0]
         self.in_chans = in_chans
         self.out_chans = out_chans
@@ -348,6 +353,8 @@ class BasicConvModule(object):
             pass # apply identity activation function...
         elif self.act_func == 'tanh':
             h1 = tanh(h1)
+        elif self.act_func == 'elu':
+            h1 = elu(h1)
         elif self.act_func == 'lrelu':
             h1 = lrelu(h1)
         elif self.act_func == 'relu':
@@ -376,7 +383,7 @@ class DiscFCModule(object):
         use_fc: whether or not to use the hidden layer
         apply_bn: whether to apply batch normalization at fc layer
         unif_drop: drop rate for uniform dropout
-        act_func: activation function in ['relu', 'lrelu', 'tanh', 'ident']
+        act_func: --
         use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
@@ -386,6 +393,8 @@ class DiscFCModule(object):
                  act_func='lrelu',
                  use_bn_params=True,
                  mod_name='dm_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.fc_dim = fc_dim
         self.in_dim = in_dim
         self.use_fc = use_fc
@@ -395,6 +404,8 @@ class DiscFCModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -491,7 +502,7 @@ class DiscConvResModule(object):
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
-        act_func: activation function in ['relu', 'lrelu', 'tanh', 'ident']
+        act_func: ---
         use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
@@ -506,6 +517,8 @@ class DiscConvResModule(object):
                 "ds_stride must be 1 or 2."
         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
                 "filt_shape must be (3,3) or (5,5)."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.conv_chans = conv_chans
@@ -518,6 +531,8 @@ class DiscConvResModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -659,8 +674,8 @@ class GenFCModule(object):
                  mod_name='dm_fc'):
         assert (len(out_shape) == 3), \
                 "out_shape should describe the input to a conv layer."
-        assert (act_func in ['relu', 'lrelu', 'tanh', 'ident']), \
-                "act_func must be in ['relu', 'lrelu', 'tanh', 'ident']."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.rand_dim = rand_dim
         self.out_shape = out_shape
         self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
@@ -673,6 +688,8 @@ class GenFCModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -809,7 +826,7 @@ class GenConvResModule(object):
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
         use_bn_params: whether to use BN params
-        act_func: allowed activations are 'ident', 'tanh', 'relu', and 'lrelu'
+        act_func: ---
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
@@ -822,8 +839,8 @@ class GenConvResModule(object):
                 "us_stride must be 1 or 2."
         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
                 "filt_shape must be (3,3) or (5,5)."
-        assert (act_func in ['relu', 'lrelu', 'tanh', 'ident']), \
-                "act_func must be in ['relu', 'lrelu', 'tanh', 'ident']."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.conv_chans = conv_chans
@@ -840,6 +857,8 @@ class GenConvResModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -991,7 +1010,7 @@ class InfConvMergeModule(object):
         rand_chans: number of latent channels that we want conditionals for
         conv_chans: number of channels in the "internal" convolution layer
         use_conv: flag for whether to use "internal" convolution layer
-        act_func: in ['ident', 'tanh', 'relu', 'lrelu']
+        act_func: ---
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
@@ -1007,6 +1026,8 @@ class InfConvMergeModule(object):
                  use_td_cond=False,
                  use_bn_params=True,
                  mod_name='gm_conv'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
@@ -1016,6 +1037,8 @@ class InfConvMergeModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:
@@ -1201,7 +1224,7 @@ class InfFCModule(object):
         fc_chans: dimension of the fully connected layer
         rand_chans: dimension of the Gaussian latent vars of interest
         use_fc: flag for whether to use the hidden fully connected layer
-        act_func: in ['ident', 'tanh', 'relu', 'lrelu']
+        act_func: ---
         unif_drop: drop rate for unifor dropout
         apply_bn: whether to use batchnormalization
         use_bn_params: whether to use BN params
@@ -1212,6 +1235,8 @@ class InfFCModule(object):
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True,
                  mod_name='dm_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
         self.rand_chans = rand_chans
@@ -1220,6 +1245,8 @@ class InfFCModule(object):
             self.act_func = lambda x: x
         elif act_func == 'tanh':
             self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
         elif act_func == 'relu':
             self.act_func = lambda x: relu(x)
         else:

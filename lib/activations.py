@@ -53,11 +53,25 @@ class LeakyRectify(object):
 
     def __init__(self, leak=0.2):
         self.leak = leak
+        return
 
     def __call__(self, x):
         f1 = 0.5 * (1 + self.leak)
         f2 = 0.5 * (1 - self.leak)
         return f1 * x + f2 * abs(x)
+
+class ELU(object):
+
+    def __init__(self, alpha=1.0):
+        self.alpha = alpha
+        return
+
+    def __call__(self, x):
+        f1 = x
+        f2 = self.alpha * (T.exp(x) - 1.0)
+        mask = (x >= 0)
+        f3 = (mask * f1) + ((1.0 - mask) * f2)
+        return f3
 
 class Prelu(object):
 

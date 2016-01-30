@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_2abc_4bc_no_bn'
+desc = 'test_vae_elu_mods_2abc_4bc_no_bn_iwae_50x15'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,9 +68,9 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 25 # number of samples to use in MEN bound
-grad_noise = 0.02 # initial noise for the gradients
+act_func = 'elu' # activation func to use where they can be selected
+iwae_samples = 15 # number of samples to use in MEN bound
+grad_noise = 0.04 # initial noise for the gradients
 
 ntrain = Xtr.shape[0]
 
@@ -513,8 +513,8 @@ inf_gen_model.load_params(inf_gen_param_file)
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.ones((2,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((2,)).astype(theano.config.floatX))
+lam_vae = sharedX(np.zeros((1,)).astype(theano.config.floatX))
+lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -585,9 +585,7 @@ else:
     nis_weights = theano.gradient.disconnected_grad(nis_weights)
 
     vae_obs_costs = -1.0 * T.sum((nis_weights * log_ws_mat), axis=1)
-    # costs used by the optimizer
-    full_cost_gen = T.mean(vae_obs_costs) + vae_reg_cost
-    full_cost_inf = full_cost_gen
+
     # free-energy log likelihood bound...
     vae_cost = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
 
@@ -602,6 +600,12 @@ else:
     vae_obs_klds = sum([T.mean(mod_kld.reshape((batch_size, iwae_samples)), axis=1) \
                          for mod_name, mod_kld in kld_tuples])
     vae_kld_cost = T.mean(vae_obs_klds)
+
+    # costs used by the optimizer -- train on combined VAE/IWAE costs
+    full_cost_gen = ((1.0 - lam_vae[0]) * T.mean(vae_obs_costs)) + \
+                    (lam_vae[0] * (vae_nll_cost + vae_kld_cost)) + \
+                    vae_reg_cost
+    full_cost_inf = full_cost_gen
 
     # get simple reconstruction, for other purposes
     im_rd = inf_gen_model.apply_im(Xg)
@@ -658,12 +662,13 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-sample_z0mb = rand_gen(size=(200, nz0))       # root noise for visualizing samples
+lam_vae.set_value(floatX([0.5]))
+sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # set gradient noise
-    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((2,))
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((1,))
     gen_updater.n.set_value(floatX(eg_noise_ary))
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays
@@ -702,7 +707,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 40) or (epoch == 80) or (epoch == 160):
+    if (epoch == 25) or (epoch == 50) or (epoch == 100) or (epoch == 200):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -710,6 +715,9 @@ for epoch in range(1, niter+niter_decay+1):
         b1 = b1t.get_value(borrow=False)
         b1 = b1 + ((0.95 - b1) / 2.0)
         b1t.set_value(floatX(b1))
+        lv = lam_vae.get_value(borrow=False)
+        lv = lv / 2.0
+        lam_vae.set_value(floatX(lv))
     if epoch > niter:
         # linearly decay learning rate
         lr = lrt.get_value(borrow=False)
