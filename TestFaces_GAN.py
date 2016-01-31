@@ -551,11 +551,11 @@ for epoch in range(1, niter+niter_decay+1):
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
-    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 150):
+    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 200):
         old_lr = lrt.get_value(borrow=False)
         new_lr = 0.5 * old_lr
         lrt.set_value(floatX(new_lr))
-        lrd.set_value(floatX(new_lr/1.))
+        lrd.set_value(floatX(new_lr/1.0))
     if n_epochs > niter:
         # reduce learning rate and keep discriminator at half rate
         iters_left = (niter_decay + niter) - n_epochs + 1
@@ -563,6 +563,18 @@ for epoch in range(1, niter+niter_decay+1):
         new_lr = old_lr - (old_lr / iters_left)
         lrt.set_value(floatX(new_lr))
         lrd.set_value(floatX(new_lr/1.0))
+    # tweak discriminator learning rate to keep it just ahead of the generator
+    if g_costs[-1] > 1.2:
+        old_lr = lrd.get_value(borrow=False)
+        min_lr = 0.1 * lrt.get_value(borrow=False)
+        new_lr = np.maximum(min_lr, 0.9*old_lr)
+        lrd.set_value(floatX(new_lr))
+    else:
+        old_lr = lrd.get_value(borrow=False)
+        max_lr = 1.0 * lrt.get_value(borrow=False)
+        new_lr = np.minimum(max_lr, 1.1*old_lr)
+        lrd.set_value(floatX(new_lr))
+
 
 
 
