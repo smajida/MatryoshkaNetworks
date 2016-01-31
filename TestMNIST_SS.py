@@ -370,8 +370,9 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_cls_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -381,53 +382,80 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
-Yg = T.vector()   # symbolic vae for labels
-Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
+Xg = T.tensor4()  # symbolic var for inputs for generative loss
+Xc = T.tensor4()  # symbolic var for inputs for classification loss
+Yc = T.vector()   # symbolic vae for labels for classification loss
+Z0 = T.matrix()   # symbolic var for "noise" inputs to the generator
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
-# parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
-
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg)
 Xg_recon = im_res_dict['td_output']
-kld_dict = im_res_dict['kld_dict']
-log_p_z = sum(im_res_dict['log_p_z'])
-log_q_z = sum(im_res_dict['log_q_z'])
-
-log_p_x = T.sum(log_prob_bernoulli( \
-                T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                do_sum=False), axis=1)
+vae_kld_dict = im_res_dict['kld_dict']
+vae_log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                    do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x
+vae_obs_nlls = -1.0 * vae_log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
-kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+vae_kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) \
+                  for mod_name, mod_kld in vae_kld_dict.items()]
+vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) \
+                  for mod_name, mod_kld in vae_kld_tuples])
+vae_layer_names = [mod_name for mod_name, mod_kld in vae_kld_tuples]
 # compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in vae_kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
-# combined cost for generator stuff
+# combined cost for free-energy stuff
 vae_cost = vae_nll_cost + vae_kld_cost
-vae_obs_costs = vae_obs_nlls + vae_obs_klds
-# cost used by the optimizer
-full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
-full_cost_inf = full_cost_gen
+
+##########################################################
+# CONSTRUCT COST VARIABLES FOR THE CLS PART OF OBJECTIVE #
+##########################################################
+# run an inference and reconstruction pass through the generative stuff
+im_res_dict = inf_gen_model.apply_im(Xc)
+Xc_recon = im_res_dict['td_output']
+cls_kld_dict = im_res_dict['kld_dict']
+cls_z_dict = im_res_dict['z_dict']
+
+# compute reconstruction error part of free-energy
+cls_log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xc,2), T.flatten(Xc_recon,2),
+                    do_sum=False), axis=1)
+cls_obs_nlls = -1.0 * cls_log_p_x
+cls_nll_cost = T.mean(cls_obs_nlls)
+
+# compute per-layer KL-divergence part of cost
+cls_kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) \
+                  for mod_name, mod_kld in cls_kld_dict.items()]
+cls_layer_klds = T.as_tensor_variable([T.mean(mod_kld) \
+                  for mod_name, mod_kld in cls_kld_tuples])
+cls_layer_names = [mod_name for mod_name, mod_kld in cls_kld_tuples]
+# compute total per-observation KL-divergence part of cost
+cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
+cls_kld_cost = T.mean(cls_obs_klds)
+
+# combined cost for generator stuff
+cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
+           (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
+
+#################################################################
+# COMBINE VAE AND CLS OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
+#################################################################
+# parameter regularization part of cost
+reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+# full joint cost -- a weighted combination of free-energy and classification
+full_cost = (lam_vae[0] * vae_cost) + (lam_cls[0] * cls_cost) + reg_cost
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
-
-#################################################################
-# COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
-#################################################################
 
 # stuff for performing updates
 lrt = sharedX(0.0002)
@@ -440,27 +468,26 @@ inf_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
-inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
-g_updates = gen_updates + inf_updates
+gen_updates, gen_grads = gen_updater(gen_params, full_cost, return_grads=True)
+inf_updates, inf_grads = inf_updater(inf_params, full_cost, return_grads=True)
+all_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr_un[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr_un[0:100,:]))
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
-                 vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs, vae_layer_klds]
+g_train_costs = [full_cost, vae_cost, cls_cost, vae_nll_cost, vae_kld_cost,
+                 cls_nll_cost, cls_kld_cost, cls_cls_cost, vae_layer_klds]
+
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
-              'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs', 'vae_layer_klds']
-g_cost_outputs = g_basic_costs
+g_bc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
+              'vae_kld_cost', 'cls_nll_cost', 'cls_kld_cost',
+              'cls_cls_cost', 'vae_layer_klds']
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
+train_func = theano.function([Xg, Xc, Yc], g_train_costs, updates=all_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -480,14 +507,10 @@ for epoch in range(1, niter+niter_decay+1):
     gen_updater.n.set_value(floatX(eg_noise_ary))
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays
-    g_epoch_costs = [0. for i in range(5)]
-    v_epoch_costs = [0. for i in range(5)]
+    epoch_costs = [0. for i in range(8)]
+    v_epoch_costs = [0. for i in range(8)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-    gen_grad_norms = []
-    inf_grad_norms = []
-    vae_nlls = []
-    vae_klds = []
-    g_batch_count = 0.
+    batch_count = 0.
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr_un, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
@@ -496,24 +519,18 @@ for epoch in range(1, niter+niter_decay+1):
             vmb = Xva[start_idx:(start_idx+nbatch),:]
         else:
             vmb = Xva[0:nbatch,:]
-        # transform noisy training batch and carry buffer to "image format"
+        # transform training batch to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
         # train vae on training batch
-        g_result = g_train_func(imb_img.astype(theano.config.floatX))
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1.*g_result[3])
-        vae_klds.append(1.*g_result[4])
-        gen_grad_norms.append(1.*g_result[5])
-        inf_grad_norms.append(1.*g_result[6])
-        batch_obs_costs = g_result[7]
-        batch_layer_klds = g_result[8]
-        epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
-        g_batch_count += 1
+        result = train_func(imb_img, imb_img, imb_img[:,0])
+        epoch_costs = [(v1 + v2) for v1, v2 in zip(result[:8], epoch_costs)]
+        epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(result[8], epoch_layer_klds)]
+        batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            v_result = g_train_func(vmb_img)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
+            v_result = train_func(vmb_img, vmb_img, vmb_img[:,0])
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:8], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 20) or (epoch == 50) or (epoch == 100) or (epoch == 200):
         # cut learning rate in half
@@ -535,32 +552,16 @@ for epoch in range(1, niter+niter_decay+1):
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
-    gen_grad_norms = np.asarray(gen_grad_norms)
-    inf_grad_norms = np.asarray(inf_grad_norms)
-    g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    epoch_costs = [(c / batch_count) for c in epoch_costs]
+    epoch_layer_klds = [(c / batch_count) for c in epoch_layer_klds]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
-    epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}:".format(epoch)
-    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(g_bc_idx[:8], g_bc_names[:8])]
     str2 = " ".join(g_bc_strs)
-    ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
-    ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
-    nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
-    str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
-    kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
-    str6 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
-    str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    str3 = "    module kld -- {}".format(" ".join(kld_strs))
+    joint_str = "\n".join([str1, str2, str3])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()

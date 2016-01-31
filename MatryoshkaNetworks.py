@@ -590,6 +590,7 @@ class InfGenModel(object):
         # set aside a dict for recording KLd info at each layer where we use
         # conditional distributions over the latent variables.
         kld_dict = {}
+        z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input)
@@ -654,6 +655,7 @@ class InfGenModel(object):
                                             do_sum=True)
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
+                z_dict[td_mod_name] = rand_vals
                 # record TD info produced by current module
                 td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
@@ -674,6 +676,7 @@ class InfGenModel(object):
         im_res_dict['kld_dict'] = kld_dict
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
+        im_res_dict['z_dict'] = z_dict
         im_res_dict['log_p_z'] = logz_dict['log_p_z']
         im_res_dict['log_q_z'] = logz_dict['log_q_z']
         return im_res_dict
