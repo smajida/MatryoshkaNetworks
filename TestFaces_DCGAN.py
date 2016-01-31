@@ -376,9 +376,7 @@ g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
 g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 d_weights = [1.0 for i in range(1,len(p_gen)+1)]
-d_weights[0] = 0.0
 g_weights = [w for w in d_weights]
-g_weights[-1] = 3.0
 scale = sum(d_weights)
 d_weights = [w/scale for w in d_weights]
 scale = sum(g_weights)
