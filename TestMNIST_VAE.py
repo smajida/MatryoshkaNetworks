@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_elu_mods_2abc_4bc_no_bn_bias'
+desc = 'test_vae_lrelu_mods_2abc_4bc_no_bn_iwae_bias'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -55,22 +55,21 @@ Xva = Xte
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 50      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 500       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter = 300       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'elu' # activation func to use where they can be selected
-iwae_samples = 1 # number of samples to use in MEN bound
-grad_noise = 0.04 # initial noise for the gradients
+act_func = 'lrelu' # activation func to use where they can be selected
+iwae_samples = 15 # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 
@@ -506,8 +505,6 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=sigmoid
 )
-# create a model of just the generator
-gen_network = GenNetworkGAN(modules=td_modules, output_transform=sigmoid)
 
 #inf_gen_model.load_params(inf_gen_param_file)
 
@@ -623,10 +620,8 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 # stuff for performing updates
 lrt = sharedX(0.0002)
 b1t = sharedX(0.8)
-gen_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
-                                n=grad_noise, clipnorm=1000.0)
-inf_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
-                                n=grad_noise, clipnorm=1000.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
@@ -668,10 +663,6 @@ sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    # set gradient noise
-    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((1,))
-    gen_updater.n.set_value(floatX(eg_noise_ary))
-    inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]

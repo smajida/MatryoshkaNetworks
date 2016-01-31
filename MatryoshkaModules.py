@@ -17,7 +17,7 @@ bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()
 
-USE_BIAS = False
+USE_BIAS = True
 
 def tanh_clip(x, scale=10.0):
     """
