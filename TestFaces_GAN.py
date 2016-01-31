@@ -93,7 +93,6 @@ multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
-grad_noise = 0.05
 
 
 def train_transform(X):
@@ -182,7 +181,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=True,
+    use_fc=False,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
@@ -379,7 +378,7 @@ g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 d_weights = [1.0 for i in range(1,len(p_gen)+1)]
 d_weights[0] = 0.0
 g_weights = [w for w in d_weights]
-g_weights[-1] = 3.0
+g_weights[-1] = 2.0
 scale = sum(d_weights)
 d_weights = [w/scale for w in d_weights]
 scale = sum(g_weights)
@@ -398,15 +397,15 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+         (3e-5 * sum([T.sum(p**2.0) for p in disc_params]))
 g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
 lrt = sharedX(lr)
 lrd = sharedX(lr/1.0)
-d_updater = updates.FuzzyAdam(lr=lrd, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
-g_updater = updates.FuzzyAdam(lr=lrt, b1=b1, b2=0.98, n=grad_noise, e=1e-4)
+d_updater = updates.Adam(lr=lrd, b1=b1, b2=0.98, e=1e-4)
+g_updater = updates.Adam(lr=lrt, b1=b1, b2=0.98, e=1e-4)
 d_updates = d_updater(disc_params, d_cost)
 g_updates = g_updater(gen_params, g_cost)
 updates = d_updates + g_updates
@@ -465,10 +464,6 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
     Xtr = shuffle(Xtr)
     ntrain = Xtr.shape[0]
-    # set gradient noise
-    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/4.)) + np.zeros((2,))
-    g_updater.n.set_value(floatX(eg_noise_ary))
-    d_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost recording arrays
     g_costs = [0. for c in all_costs]
     d_costs = [0. for c in all_costs]

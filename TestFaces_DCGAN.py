@@ -31,20 +31,20 @@ from MatryoshkaModules import DiscFCModule, GenFCModule, \
 from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 
 
+
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./lsun_bedrooms"
-DATA_SIZE = 250000
+EXP_DIR = "./faces_celeba"
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_paper_model'
+desc = 'test_dcgan_paper_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-# locations of 64x64 LSUN dataset -- stored as a collection of .npy files
-data_dir = "/NOBACKUP/lsun/bedroom_train_center_crop"
+# locations of 64x64 faces dataset -- stored as a collection of .npy files
+data_dir = "{}/data".format(EXP_DIR)
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
@@ -83,16 +83,16 @@ ndfc = 256        # # of discrim units for fully connected layers
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
+niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 lr = 0.00015       # initial learning rate for adam
 slow_buffer_size = 200000  # size of slow replay buffer
 fast_buffer_size = 20000   # size of fast replay buffer
-multi_rand = True   # whether to use stochastic variables at multiple scales
-multi_disc = True   # whether to use discriminator guidance at multiple scales
-use_er = True     # whether to use experience replay
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_annealing = True # whether to use "annealing" of the target distribution
+multi_rand = False   # whether to use stochastic variables at multiple scales
+multi_disc = False   # whether to use discriminator guidance at multiple scales
+use_er = False     # whether to use experience replay
+use_conv = False   # whether to use "internal" conv layers in gen/disc networks
+use_annealing = False # whether to use "annealing" of the target distribution
 
 
 def train_transform(X):
@@ -172,7 +172,7 @@ tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
-###############################
+################################
 # Setup the generator network #
 ###############################
 
@@ -378,7 +378,7 @@ g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 d_weights = [1.0 for i in range(1,len(p_gen)+1)]
 d_weights[0] = 0.0
 g_weights = [w for w in d_weights]
-g_weights[-1] = 2.0
+g_weights[-1] = 3.0
 scale = sum(d_weights)
 d_weights = [w/scale for w in d_weights]
 scale = sum(g_weights)
@@ -457,7 +457,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 30) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(1.0, 1.0, 50) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
@@ -508,10 +508,10 @@ for epoch in range(1, niter+niter_decay+1):
         n_updates += 1
         n_examples += len(imb)
         # update slow replay buffer
-        if ((n_updates % (min(10,epoch)*10)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*10)) == 0):
             update_exprep_buffer(slow_buffer, gen_network, replace_frac=0.10)
         # update fast replay buffer
-        if ((n_updates % (min(10,epoch)*2)) == 0) and use_er:
+        if ((n_updates % (min(10,epoch)*2)) == 0):
             update_exprep_buffer(fast_buffer, gen_network, replace_frac=0.10)
     ###################
     # SAVE PARAMETERS #
@@ -546,7 +546,7 @@ for epoch in range(1, niter+niter_decay+1):
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
-    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 150):
+    if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 200):
         old_lr = lrt.get_value(borrow=False)
         new_lr = 0.5 * old_lr
         lrt.set_value(floatX(new_lr))
@@ -569,6 +569,7 @@ for epoch in range(1, niter+niter_decay+1):
         max_lr = 1.0 * lrt.get_value(borrow=False)
         new_lr = np.minimum(max_lr, 1.1*old_lr)
         lrd.set_value(floatX(new_lr))
+
 
 
 
