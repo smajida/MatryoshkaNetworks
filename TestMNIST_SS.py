@@ -58,8 +58,6 @@ Xte, Yte = data_dict['Xte'], data_dict['Yte']
 Xtr_un = np.concatenate([Xtr_un, Xtr_su], axis=0)
 Ytr_un = np.concatenate([Ytr_un, Ytr_su], axis=0)
 
-ntrain = Xtr_un.shape[0]
-
 set_seed(1)       # seed for shared rngs
 sup_count = 100   # number of labeled examples
 nc = 1            # # of channels in image
@@ -384,7 +382,7 @@ g_params = gen_params + inf_params
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs for generative loss
 Xc = T.tensor4()  # symbolic var for inputs for classification loss
-Yc = T.vector()   # symbolic vae for labels for classification loss
+Yc = T.ivector()   # symbolic vae for labels for classification loss
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generator
 
 ##########################################################
@@ -442,6 +440,7 @@ cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
 cls_kld_cost = T.mean(cls_obs_klds)
 
 # combined cost for generator stuff
+cls_cls_cost = T.mean(T.cast(Yc, 'float32')**2.0)
 cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
 
@@ -479,15 +478,15 @@ sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr_un[0:100,:]))
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_train_costs = [full_cost, vae_cost, cls_cost, vae_nll_cost, vae_kld_cost,
+train_costs = [full_cost, vae_cost, cls_cost, vae_nll_cost, vae_kld_cost,
                  cls_nll_cost, cls_kld_cost, cls_cls_cost, vae_layer_klds]
 
-g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
+tc_idx = range(0, len(train_costs))
+tc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
               'vae_kld_cost', 'cls_nll_cost', 'cls_kld_cost',
               'cls_cls_cost', 'vae_layer_klds']
 # compile function for computing generator costs and updates
-train_func = theano.function([Xg, Xc, Yc], g_train_costs, updates=all_updates)
+train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -499,6 +498,9 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
+ntrain = Xtr_un.shape[0]
+batch_idx_un = np.arange(ntrain)
+batch_idx_un = np.concatenate([batch_idx_un[:,np.newaxis],batch_idx_un[:,np.newaxis]], axis=1)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr_un = shuffle(Xtr_un)
@@ -508,30 +510,37 @@ for epoch in range(1, niter+niter_decay+1):
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
-    v_epoch_costs = [0. for i in range(8)]
+    val_epoch_costs = [0. for i in range(8)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     batch_count = 0.
-    v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr_un, size=nbatch), total=ntrain/nbatch):
+    val_batch_count = 0.
+    for bidx in tqdm(iter_data(batch_idx_un, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
-        if v_batch_count < 50:
-            start_idx = int(v_batch_count)*nbatch
-            vmb = Xva[start_idx:(start_idx+nbatch),:]
+        if val_batch_count < 50:
+            start_idx = int(val_batch_count)*nbatch
+            vmb_x = Xva[start_idx:(start_idx+nbatch),:].copy()
+            vmb_y = Yva[start_idx:(start_idx+nbatch)].ravel()
         else:
-            vmb = Xva[0:nbatch,:]
+            vmb_x = Xva[0:nbatch,:].copy()
+            vmb_y = Yva[0:nbatch].ravel()
         # transform training batch to "image format"
-        imb_img = train_transform(imb)
-        vmb_img = train_transform(vmb)
+        bidx = bidx[:,0].ravel()
+        imb_x = Xtr_un[bidx,:].copy()
+        cmb_x = Xtr_su[0:50,:].copy()
+        cmb_y = Ytr_su[0:50].ravel()
+        imb_x_img = train_transform(imb_x)
+        cmb_x_img = train_transform(cmb_x)
+        vmb_x_img = train_transform(vmb_x)
         # train vae on training batch
-        result = train_func(imb_img, imb_img, imb_img[:,0])
+        result = train_func(imb_x_img, cmb_x_img, cmb_y.astype(np.int32))
         epoch_costs = [(v1 + v2) for v1, v2 in zip(result[:8], epoch_costs)]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(result[8], epoch_layer_klds)]
         batch_count += 1
         # evaluate vae on validation batch
-        if v_batch_count < 25:
-            v_result = train_func(vmb_img, vmb_img, vmb_img[:,0])
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:8], v_epoch_costs)]
-            v_batch_count += 1
+        if val_batch_count < 25:
+            val_result = train_func(vmb_x_img, vmb_x_img, vmb_y.astype(np.int32))
+            val_epoch_costs = [(v1 + v2) for v1, v2 in zip(val_result[:8], val_epoch_costs)]
+            val_batch_count += 1
     if (epoch == 20) or (epoch == 50) or (epoch == 100) or (epoch == 200):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
@@ -554,11 +563,11 @@ for epoch in range(1, niter+niter_decay+1):
     ##################################
     epoch_costs = [(c / batch_count) for c in epoch_costs]
     epoch_layer_klds = [(c / batch_count) for c in epoch_layer_klds]
-    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
+    val_epoch_costs = [(c / val_batch_count) for c in val_epoch_costs]
     str1 = "Epoch {}:".format(epoch)
-    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, epoch_costs[c_idx]) \
-                 for (c_idx, c_name) in zip(g_bc_idx[:8], g_bc_names[:8])]
-    str2 = " ".join(g_bc_strs)
+    tc_strs = ["{0:s}: {1:.2f},".format(c_name, epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(tc_idx[:8], tc_names[:8])]
+    str2 = " ".join(tc_strs)
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str3 = "    module kld -- {}".format(" ".join(kld_strs))
     joint_str = "\n".join([str1, str2, str3])
