@@ -312,7 +312,7 @@ DiscFCModule(
     in_dim=(ndf*8*4*4),
     use_fc=False,
     apply_bn=True,
-    unif_drop=0.5,
+    unif_drop=0.0,
     mod_name='disc_mod_5'
 ) # output is (batch, 1)
 

@@ -17,7 +17,7 @@ bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()
 
-USE_BIAS = True
+USE_BIAS = False
 
 def tanh_clip(x, scale=10.0):
     """
@@ -991,7 +991,7 @@ class GenConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params)
-            elif USE_RAND:
+            elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
