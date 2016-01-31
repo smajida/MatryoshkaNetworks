@@ -17,6 +17,8 @@ bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()
 
+USE_BIAS = True
+
 def tanh_clip(x, scale=10.0):
     """
     Do soft "tanh" clipping to put data in range -scale....+scale.
@@ -213,6 +215,8 @@ class BasicConvResModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                     use_gb=self.use_bn_params)
+                elif USE_BIAS:
+                    h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -227,6 +231,8 @@ class BasicConvResModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                     use_gb=self.use_bn_params)
+                elif USE_BIAS:
+                    h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -246,6 +252,8 @@ class BasicConvResModule(object):
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
                             use_gb=self.use_bn_params)
+        elif USE_BIAS:
+            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
         output = self.act_func(h4)
         return output
 
@@ -472,6 +480,8 @@ class DiscFCModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params, n=noise_sigma)
+            elif USE_BIAS:
+                h1 = h1 + self.b1.dimshuffle('x', 0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
@@ -624,6 +634,8 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params, n=noise_sigma)
+            elif USE_BIAS:
+                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -639,6 +651,8 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
                                 use_gb=self.use_bn_params, n=noise_sigma)
+            elif USE_BIAS:
+                h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h4)
         else:
             # apply direct input->output "projection" layer
@@ -646,6 +660,8 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj,
                                 use_gb=self.use_bn_params, n=noise_sigma)
+            elif USE_BIAS:
+                h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h3)
 
         # apply discriminator layer
@@ -784,6 +800,8 @@ class GenFCModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params)
+            elif USE_BIAS:
+                h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
@@ -792,6 +810,8 @@ class GenFCModule(object):
         if self.apply_bn:
             h2 = switchy_bn(h2, g=self.g3, b=self.b3,
                             use_gb=self.use_bn_params)
+        elif USE_BIAS:
+            h2 = h2 + self.b3.dimshuffle('x',0)
         h2 = self.act_func(h2)
         # reshape vector outputs for use as conv layer inputs
         h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
@@ -971,6 +991,8 @@ class GenConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params)
+            elif USE_RAND:
+                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -986,6 +1008,8 @@ class GenConvResModule(object):
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
                             use_gb=self.use_bn_params)
+        elif USE_BIAS:
+            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
         output = self.act_func(h4)
 
         if rand_shapes:
@@ -1153,6 +1177,8 @@ class InfConvMergeModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td,
                                     use_gb=self.use_bn_params)
+                elif USE_BIAS:
+                    h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply second internal conv layer
                 h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
@@ -1190,6 +1216,8 @@ class InfConvMergeModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im,
                                 use_gb=self.use_bn_params)
+            elif USE_BIAS:
+                h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1323,6 +1351,8 @@ class InfFCModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1,
                                 use_gb=self.use_bn_params)
+            elif USE_BIAS:
+                h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward to from fc layer to output
@@ -1339,6 +1369,91 @@ class InfFCModule(object):
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
 
+
+#####################################
+# Simple MLP fully connected module #
+#####################################
+
+class MlpFCModule(object):
+    """
+    Module that transforms values through a single fully connected layer.
+    """
+    def __init__(self,
+                 in_dim, out_dim,
+                 apply_bn=True,
+                 unif_drop=0.0,
+                 act_func='relu',
+                 use_bn_params=True,
+                 mod_name='dm_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.apply_bn = apply_bn
+        self.unif_drop = unif_drop
+        self.use_bn_params = use_bn_params
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize first layer parameters
+        self.w1 = weight_ifn((self.in_dim, self.out_dim),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.out_dim), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.out_dim), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input):
+        """
+        Apply this gfully connected module.
+        """
+        h1 = fc_drop_func(input, self.unif_drop)
+        h2 = T.dot(h1, self.w1)
+        if self.apply_bn:
+            h3 = switchy_bn(h2, g=self.g1, b=self.b1,
+                            use_gb=self.use_bn_params)
+        elif USE_BIAS:
+            h3 = h2 + self.b1.dimshuffle('x',0)
+        h4 = self.act_func(h3)
+        return h4
 
 
 

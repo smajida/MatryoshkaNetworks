@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_elu_mods_2abc_4bc_no_bn_iwae_50x15'
+desc = 'test_vae_elu_mods_2abc_4bc_no_bn_bias'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -55,7 +55,7 @@ Xva = Xte
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 50       # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -69,7 +69,7 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'elu' # activation func to use where they can be selected
-iwae_samples = 15 # number of samples to use in MEN bound
+iwae_samples = 1 # number of samples to use in MEN bound
 grad_noise = 0.04 # initial noise for the gradients
 
 ntrain = Xtr.shape[0]
@@ -239,8 +239,6 @@ BasicConvModule(
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
-#td_modules = [td_module_1, td_module_2c,
-#              td_module_3, td_module_4c, td_module_5]
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
               td_module_3, td_module_4b, td_module_4c, td_module_5]
 
@@ -372,12 +370,8 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-#bu_modules = [bu_module_5, bu_module_4c,
-#              bu_module_3, bu_module_2c,
-#              bu_module_1]
-bu_modules = [bu_module_5, bu_module_4c, bu_module_4b,
-              bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a,
-              bu_module_1]
+bu_modules = [bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
+              bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -483,7 +477,6 @@ InfConvMergeModule(
 
 im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_3,
               im_module_4b, im_module_4c]
-#im_modules = [im_module_2c, im_module_3, im_module_4c]
 
 #
 # Setup a description for where to get conditional distributions from. When

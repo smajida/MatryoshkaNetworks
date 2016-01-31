@@ -54,7 +54,7 @@ Xva = Xte[:,:]
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 4       # # of examples in batch
+nbatch = 2       # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -65,7 +65,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-iwae_samples = 512  # number of samples to use in MEN bound
+iwae_samples = 1024  # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 

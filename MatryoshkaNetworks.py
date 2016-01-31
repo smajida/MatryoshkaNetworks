@@ -255,7 +255,6 @@ class DiscNetworkGAN(object):
             result = ys
         return result
 
-
 ##############################################################
 # Model for doing mean-fieldish posterior inference in a GAN #
 ##############################################################
@@ -704,3 +703,58 @@ class InfGenModel(object):
         # variables used in the top-down generative model.
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
+
+########################################
+# Discriminator network for use in GAN #
+########################################
+
+class DiscNetworkMLP(object):
+    """
+    A simple discriminator network. This wraps a sequence of fully connected
+    modules from MatryoshkaModules.py.
+
+    Params:
+        modules: a list of the modules that make up this DiscNetworkMLP.
+    """
+    def __init__(self, modules):
+        self.modules = [m for m in modules]
+        self.params = []
+        for module in self.modules:
+            self.params.extend(module.params)
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file)
+        for param_dict, mod in zip(mod_param_dicts, self.modules):
+            mod.load_params(param_dict=param_dict)
+        pickle_file.close()
+        return
+
+    def apply(self, input):
+        """
+        Apply this DiscNetworkMLP to some input and return the output of
+        its final layer.
+        """
+        hs = [input]
+        for i, module in enumerate(self.modules):
+            hi = module.apply(T.flatten(hs[-1], 2))
+            hs.append(hi)
+        return hs[-1]
