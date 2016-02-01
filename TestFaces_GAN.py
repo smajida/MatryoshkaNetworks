@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 EXP_DIR = "./faces_celeba"
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_paper_model_small'
+desc = 'test_gan_paper_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -181,7 +181,7 @@ GenFCModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
-    use_fc=False,
+    use_fc=True,
     apply_bn=True,
     mod_name='gen_mod_1'
 ) # output is (batch, ngf*8, 4, 4)
@@ -193,7 +193,7 @@ GenConvResModule(
     conv_chans=(ngf*4),
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_2'
@@ -219,7 +219,7 @@ GenConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_4'
@@ -232,7 +232,7 @@ GenConvResModule(
     conv_chans=40,
     filt_shape=(3,3),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_conv=use_conv,
     us_stride=2,
     mod_name='gen_mod_5'
@@ -277,7 +277,7 @@ DiscConvResModule(
     in_chans=(ndf*1),
     out_chans=(ndf*2),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_2'
@@ -288,7 +288,7 @@ DiscConvResModule(
     in_chans=(ndf*2),
     out_chans=(ndf*4),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_3'
@@ -299,7 +299,7 @@ DiscConvResModule(
     in_chans=(ndf*4),
     out_chans=(ndf*8),
     conv_chans=ndf,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=False,
     ds_stride=2,
     mod_name='disc_mod_4'
@@ -397,8 +397,8 @@ if use_er:
 else:
     a1, a2 = 1.0, 0.0
 d_cost = d_cost_real + a1*d_cost_gen + a2*d_cost_er + \
-         (3e-5 * sum([T.sum(p**2.0) for p in disc_params]))
-g_cost = g_cost_d + (1e-5 * sum([T.sum(p**2.0) for p in gen_params]))
+         (2e-5 * sum([T.sum(p**2.0) for p in disc_params]))
+g_cost = g_cost_d + (2e-5 * sum([T.sum(p**2.0) for p in gen_params]))
 
 all_costs = [g_cost, d_cost, g_cost_d, d_cost_real, d_cost_gen, d_cost_er] + g_cost_ds
 
@@ -457,7 +457,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.1, 1.0, 20) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
