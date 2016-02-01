@@ -846,9 +846,9 @@ for epoch in range(1, niter+niter_decay+1):
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
-    sample_z0mb = np.repeat(rand_gen(size=(10, nz0)), 20, axis=0)
+    sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
