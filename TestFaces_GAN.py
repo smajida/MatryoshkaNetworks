@@ -36,7 +36,7 @@ from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
 EXP_DIR = "./faces_celeba"
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_paper_model'
+desc = 'test_gan_paper_model_grad_diags'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -353,6 +353,9 @@ Xer = T.tensor4() # symbolic var for samples from experience replay buffer
 gen_inputs = [Z0] + [None for gm in gen_modules[1:]]
 XIZ0 = gen_network.apply(rand_vals=gen_inputs, batch_size=None)
 
+# clip adversarial gradient that backpropagates into the generator
+#XIZ0_grad_clip = theano.gradient.grad_clip(XIZ0, -0.1, 0.1)
+
 # feed real data and generated data through discriminator
 #   -- optimize with respect to discriminator output from a subset of the
 #      discriminator's modules.
@@ -373,7 +376,6 @@ d_cost_reals = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_real]
 d_cost_gens  = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_gen]
 d_cost_ers   = [bce(sigmoid(p), T.zeros(p.shape)).mean() for p in p_er]
 g_cost_ds    = [bce(sigmoid(p), T.ones(p.shape)).mean() for p in p_gen]
-g_cost_hs    = [T.maximum((0.2-p), 0.0).mean() for p in p_gen]
 # reweight costs based on depth in discriminator (costs get heavier higher up)
 d_weights = [1.0 for i in range(1,len(p_gen)+1)]
 d_weights[0] = 0.0
@@ -388,7 +390,11 @@ d_cost_real = sum([w*c for w, c in zip(d_weights, d_cost_reals)])
 d_cost_gen = sum([w*c for w, c in zip(d_weights, d_cost_gens)])
 d_cost_er = sum([w*c for w, c in zip(d_weights, d_cost_ers)])
 g_cost_d = sum([w*c for w, c in zip(g_weights, g_cost_ds)])
-g_cost_h = sum([w*c for w, c in zip(g_weights, g_cost_hs)])
+
+# get symbolic gradient of generator's adversarial cost, w.r.t to images
+# sampled from the generator. 
+dGAC_XIZ0 = theano.gradient.grad(g_cost_d, XIZ0)
+
 
 
 # switch costs based on use of experience replay
@@ -414,8 +420,10 @@ print 'COMPILING'
 t = time()
 _train_g = theano.function([X, Z0, Xer], all_costs, updates=g_updates)
 _train_d = theano.function([X, Z0, Xer], all_costs, updates=d_updates)
-_gen = theano.function([Z0], XIZ0)
-_disc = theano.function([X], d_cost_obs)
+_gen = theano.function([Z0], XIZ0)             # sample from generator
+_gen_grads = theano.function([Z0], dGAC_XIZ0)  # sample generator's adversarial gradients
+_disc = theano.function([X], d_cost_obs)       # compute adversarial costs for samples from generator
+
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 # test disc cost func
 temp = _disc(train_transform(Xtr[0:50,:]))
@@ -458,7 +466,6 @@ n_updates = 0
 n_examples = 0
 t = time()
 gauss_blur_weights = np.linspace(0.0, 1.0, 40) # weights for distribution "annealing"
-sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
     Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
@@ -539,11 +546,14 @@ for epoch in range(1, niter+niter_decay+1):
     out_file.flush()
     n_epochs += 1
     # generate some samples from the model, for visualization
+    sample_z0mb = np.repeat(rand_gen(size=(10, nz0)), 20, axis=0)
     samples = floatX( _gen(sample_z0mb) )
-    d_cost_samps = _disc(samples)
-    sort_idx = np.argsort(-1.0 * d_cost_samps)
-    samples = samples[sort_idx,:,:,:]
+    grad_samples = floatX( _gen_grads(sample_z0mb) )
+    #d_cost_samps = _disc(samples)
+    #sort_idx = np.argsort(-1.0 * d_cost_samps)
+    #samples = samples[sort_idx,:,:,:]
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
+    color_grid_vis(draw_transform(grad_samples), (10, 20), "{}/grad_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if (n_epochs == 50) or (n_epochs == 100) or (n_epochs == 200):
