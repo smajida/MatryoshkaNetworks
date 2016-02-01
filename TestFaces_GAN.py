@@ -549,6 +549,12 @@ for epoch in range(1, niter+niter_decay+1):
     sample_z0mb = np.repeat(rand_gen(size=(10, nz0)), 20, axis=0)
     samples = floatX( _gen(sample_z0mb) )
     grad_samples = floatX( _gen_grads(sample_z0mb) )
+    grad_qtiles = np.percentile(grad_samples, [1., 5., 15., 85., 95., 99.])
+    str1 = "    -- q[1, 5, 15, 85, 95, 99](grad): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}, {5:.2f}\n".format( \
+            grad_qtiles[0], grad_qtiles[1], grad_qtiles[2], grad_qtiles[3], grad_qtiles[4], grad_qtiles[5])
+    print(str1)
+    out_file.write(str1+"\n")
+    out_file.flush()
     #d_cost_samps = _disc(samples)
     #sort_idx = np.argsort(-1.0 * d_cost_samps)
     #samples = samples[sort_idx,:,:,:]
