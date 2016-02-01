@@ -696,8 +696,7 @@ for epoch in range(1, niter+niter_decay+1):
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/eval_gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
-    tr_rec_batch = np.concatenate([carry_buffer, Xtr[0:100,:]], axis=0)
-    tr_rec_batch = tr_rec_batch[0:100,:]
+    tr_rec_batch = Xtr[0:100,:]
     va_rec_batch = Xva[0:100,:]
     # otherwise, use noise-free reconstruction targets
     tr_rb_fuzz = tr_rec_batch

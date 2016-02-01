@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop00_2_old_scaling'
+desc = 'test_van_match_dm3_drop00_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -54,10 +54,10 @@ data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 # stack data into a single array and rescale it into [-1,1] (per observation)
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xex']], axis=0)
 del data_dict
-#Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
-#Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
-Xtr = Xtr - np.min(Xtr)
-Xtr = Xtr / np.max(Xtr)
+Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr - np.min(Xtr)
+#Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
@@ -603,7 +603,7 @@ gan_nll_cost_exrep = sum(gan_layer_nlls_exrep)
 gan_nll_cost_gnrtr = sum(gan_layer_nlls_gnrtr)
 
 # parameter regularization parts of GAN cost
-gan_reg_cost_d = 2e-5 * sum([T.sum(p**2.0) for p in d_params])
+gan_reg_cost_d = 3e-5 * sum([T.sum(p**2.0) for p in d_params])
 gan_reg_cost_g = 1e-5 * sum([T.sum(p**2.0) for p in gen_params])
 # compute GAN cost for discriminator
 if use_er:
@@ -695,7 +695,6 @@ gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annea
 w1 = np.zeros((10,))
 w2 = np.linspace(0.0, 0.05, 20) # weights for vae "fade-in"
 lam_vae_weights = np.concatenate([w1, w2], axis=0)
-sample_z0mb = rand_gen(size=(200, nz0))        # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
@@ -847,6 +846,7 @@ for epoch in range(1, niter+niter_decay+1):
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
+    sample_z0mb = np.repeat(rand_gen(size=(10, nz0)), 20, axis=0)
     samples = np.asarray(sample_func(sample_z0mb))
     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
