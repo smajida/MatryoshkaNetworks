@@ -65,7 +65,8 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-iwae_samples = 2000  # number of samples to use in MEN bound
+act_func = 'lrelu'
+iwae_samples = 1500  # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 
@@ -104,6 +105,7 @@ GenFCModule(
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
+    act_func=act_func,
     mod_name='td_mod_1'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -118,6 +120,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
@@ -133,6 +136,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
@@ -148,6 +152,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_2c'
 ) # output is (batch, ngf*2, 7, 7)
@@ -163,6 +168,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=2,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
@@ -178,6 +184,7 @@ GenConvResModule(
 #    use_rand=multi_rand,
 #    use_conv=use_conv,
 #    apply_bn=use_bn,
+#    act_func=act_func,
 #    us_stride=1,
 #    mod_name='td_mod_4a'
 #) # output is (batch, ngf*2, 14, 14)
@@ -193,6 +200,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=1,
     mod_name='td_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
@@ -208,6 +216,7 @@ GenConvResModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
+    act_func=act_func,
     us_stride=2,
     mod_name='td_mod_4c'
 ) # output is (batch, ngf*1, 28, 28)
@@ -241,7 +250,7 @@ InfFCModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_1'
 ) # output is (batch, nz0), (batch, nz0)
 
@@ -255,7 +264,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -269,7 +278,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -283,7 +292,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_2c'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -297,7 +306,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -311,7 +320,7 @@ BasicConvResModule(
 #    use_conv=use_conv,
 #    apply_bn=use_bn,
 #    stride='single',
-#    act_func='lrelu',
+#    act_func=act_func,
 #    mod_name='bu_mod_4a'
 #) # output is (batch, ngf*2, 14, 14)
 
@@ -325,7 +334,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -339,7 +348,7 @@ BasicConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_4c'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -351,7 +360,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=False,
     stride='single',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
@@ -373,7 +382,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
   # over the rand_vals used in td_mod_2a.
@@ -387,7 +396,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
   # over the rand_vals used in td_mod_2b.
@@ -401,7 +410,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
   # over the rand_vals used in td_mod_2c.
@@ -415,7 +424,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
@@ -429,7 +438,7 @@ InfConvMergeModule(
 #    use_conv=True,
 #    apply_bn=use_bn,
 #    use_td_cond=use_td_cond,
-#    act_func='lrelu',
+#    act_func=act_func,
 #    mod_name='im_mod_4a'
 #) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
 #  # over the rand_vals used in td_mod_4.
@@ -443,7 +452,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
@@ -457,7 +466,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='im_mod_4c'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
   # over the rand_vals used in td_mod_4.
