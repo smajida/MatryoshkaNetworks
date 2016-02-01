@@ -373,7 +373,7 @@ for epoch in range(1, niter+niter_decay+1):
     d_costs = [(v / dc_iter) for v in d_costs]
     rec_cost = rec_cost / rec_iter
     str1 = "Epoch {}:".format(epoch)
-    str2 = "    d_cost: {1:.4f}, d_cost_real: {2:.4f}, d_cost_gen: {3:.4f}, rec_cost: {2:.4f}".format( \
+    str2 = "    d_cost: {1:.4f}, d_cost_real: {2:.4f}, d_cost_gen: {3:.4f}, rec_cost: {4:.4f}".format( \
             d_costs[0], d_costs[1], d_costs[2], rec_cost)
     str3 = "    -- g_cost_d_train: {}".format( \
             ", ".join(["{0:d}: {1:.2f}".format(j,c) for j, c in enumerate(d_costs[3:])]))
