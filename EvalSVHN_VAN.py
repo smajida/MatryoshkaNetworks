@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 200000
 
 # setup paths for dumping diagnostic info
-desc = 'test_van_match_dm3_drop00_disc_3x3_2'
+desc = 'test_van_match_dm3_paper_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -54,8 +54,10 @@ data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 # stack data into a single array and rescale it into [-1,1] (per observation)
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xex']], axis=0)
 del data_dict
-Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
-Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+Xtr = Xtr - np.min(Xtr)
+Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
@@ -694,7 +696,10 @@ for epoch in range(1, niter+niter_decay+1):
     # generate some samples from the model prior
     sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen1_{}.png".format(result_dir, epoch))
+    sample_z0mb = rand_gen(size=(400, nz0))
+    samples = np.asarray(sample_func(sample_z0mb))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen2_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     tr_rec_batch = Xtr[0:100,:]
     va_rec_batch = Xva[0:100,:]
