@@ -53,8 +53,10 @@ data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 # stack data into a single array and rescale it into [-1,1] (per observation)
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xex']], axis=0)
 del data_dict
-Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
-Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+Xtr = Xtr - np.min(Xtr)
+Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_mean = np.mean(Xtr, axis=0, keepdims=True)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
@@ -404,7 +406,7 @@ print("---DIAGNOSTICS>>>")
 
 vae_obs_nlls = T.sum(-1. * log_prob_gaussian(T.flatten(Xg,2), T.flatten(Xg_recon,2),
                                    log_vars=bounded_logvar[0], do_sum=False,
-                                   use_huber=0.25), axis=1)
+                                   use_huber=0.5), axis=1)
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
@@ -474,8 +476,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 5) # weights for distribution "annealing"
-sample_z0mb = rand_gen(size=(200, nz0))       # root noise for visualizing samples
+gauss_blur_weights = np.linspace(0.2, 1.0, 5) # weights for distribution "annealing"
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
@@ -598,8 +599,9 @@ for epoch in range(1, niter+niter_decay+1):
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
+    sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     if epoch < gauss_blur_weights.shape[0]:
         w_x = gauss_blur_weights[epoch]
