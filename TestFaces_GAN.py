@@ -85,13 +85,13 @@ ndf = 64          # # of discrim filters in first conv layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
-lr = 0.00015       # initial learning rate for adam
+lr = 0.0001       # initial learning rate for adam
 slow_buffer_size = 200000  # size of slow replay buffer
 fast_buffer_size = 20000   # size of fast replay buffer
 multi_rand = True   # whether to use stochastic variables at multiple scales
 multi_disc = True   # whether to use discriminator guidance at multiple scales
 use_er = True     # whether to use experience replay
-use_conv = False   # whether to use "internal" conv layers in gen/disc networks
+use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_annealing = True # whether to use "annealing" of the target distribution
 
 
@@ -457,7 +457,7 @@ n_epochs = 0
 n_updates = 0
 n_examples = 0
 t = time()
-gauss_blur_weights = np.linspace(0.0, 1.0, 25) # weights for distribution "annealing"
+gauss_blur_weights = np.linspace(0.0, 1.0, 40) # weights for distribution "annealing"
 sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     # load a file containing a subset of the large full training set
@@ -558,17 +558,6 @@ for epoch in range(1, niter+niter_decay+1):
         new_lr = old_lr - (old_lr / iters_left)
         lrt.set_value(floatX(new_lr))
         lrd.set_value(floatX(new_lr/1.0))
-    # tweak discriminator learning rate to keep it just ahead of the generator
-    if g_costs[-1] > 1.2:
-        old_lr = lrd.get_value(borrow=False)
-        min_lr = 0.1 * lrt.get_value(borrow=False)
-        new_lr = np.maximum(min_lr, 0.9*old_lr)
-        lrd.set_value(floatX(new_lr))
-    else:
-        old_lr = lrd.get_value(borrow=False)
-        max_lr = 1.0 * lrt.get_value(borrow=False)
-        new_lr = np.minimum(max_lr, 1.1*old_lr)
-        lrd.set_value(floatX(new_lr))
 
 
 
