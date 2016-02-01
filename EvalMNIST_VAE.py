@@ -622,6 +622,12 @@ for epoch in range(5):
         print(joint_str)
         out_file.write(joint_str+"\n")
         out_file.flush()
+        ######################
+        # DRAW SOME PICTURES #
+        ######################
+        sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
+        samples = np.asarray(sample_func(sample_z0mb))
+        grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}.png".format(result_dir, epoch, block_num))
 
 
 

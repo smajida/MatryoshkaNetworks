@@ -642,7 +642,6 @@ print("EXPERIMENT: {}".format(desc.upper()))
 
 n_updates = 0
 t = time()
-sample_z0mb = np.repeat(rand_gen(size=(10, nz0)), 20, axis=0)
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     vae_scale = 0.05 # 0.01
@@ -693,8 +692,9 @@ for epoch in range(1, niter+niter_decay+1):
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
+    sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
     samples = np.asarray(sample_func(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/eval_gen_{}.png".format(result_dir, epoch))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_{}.png".format(result_dir, epoch))
     # test reconstruction performance (inference + generation)
     tr_rec_batch = Xtr[0:100,:]
     va_rec_batch = Xva[0:100,:]
