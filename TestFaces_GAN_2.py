@@ -48,7 +48,7 @@ if not os.path.exists(result_dir):
 data_dir = "{}/data".format(EXP_DIR)
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
-data_files = os.listdir(data_dir)
+data_files = [f for f in os.listdir(data_dir) if (f.find('64x64') > -1)]
 data_files.sort()
 data_files = ["{}/{}".format(data_dir, file_name) for file_name in data_files]
 
