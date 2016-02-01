@@ -68,7 +68,7 @@ set_seed(1)       # seed for shared rngs
 l2 = 1.0e-5       # l2 weight decay
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
-nbatch = 128      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64         # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -666,7 +666,7 @@ for epoch in range(1, niter+niter_decay+1):
             epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(g_result[4], epoch_layer_klds)]
             g_batch_count += 1
         else:
-            d_result = d_train_func(imb_fuzz, z0)
+            d_result = d_train_func(imb_img, z0)
             d_epoch_costs = [(v1 + v2) for v1, v2 in zip(d_result, d_epoch_costs)]
             d_batch_count += 1
         n_updates += 1
