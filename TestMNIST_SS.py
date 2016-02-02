@@ -33,7 +33,7 @@ from load import load_udm_ss
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
-                              DiscConvResModule, DiscFCModule
+                              DiscConvResModule, DiscFCModule, MlpFCModule
 from MatryoshkaNetworks import InfGenModel, SimpleMLP
 
 # path for dumping experiment info and fetching dataset
@@ -510,7 +510,7 @@ cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
 cls_kld_cost = T.mean(cls_obs_klds)
 
 # combined cost for generator stuff
-cls_cls_cost = T.nnet.categorical_crossentropy(Yc, Yc_recon)
+cls_cls_cost = T.mean(T.nnet.categorical_crossentropy(Yc, Yc_recon))
 cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
 
@@ -560,7 +560,8 @@ tc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
               'vae_kld_cost', 'cls_nll_cost', 'cls_kld_cost',
               'cls_cls_cost', 'vae_layer_klds']
 # compile function for computing generator costs and updates
-train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
+train_func = theano.function([Xg, Xc, Yc], train_costs)
+#train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
