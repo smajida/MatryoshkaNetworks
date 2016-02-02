@@ -85,7 +85,7 @@ use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
 grad_noise = 0.04 # initial noise for the gradients
 
-def cls_accuracy(Y_true, Y_model, return_raw_count=False):
+def class_accuracy(Y_model, Y_true, return_raw_count=False):
     """
     Check the accuracy of predictions in Y_model, given the ground truth in
     Y_true. Make predictions by row-wise argmax, and assume Y_true is one-hot.
@@ -559,9 +559,10 @@ tc_idx = range(0, len(train_costs))
 tc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
               'vae_kld_cost', 'cls_nll_cost', 'cls_kld_cost',
               'cls_cls_cost', 'vae_layer_klds']
-# compile function for computing generator costs and updates
-train_func = theano.function([Xg, Xc, Yc], train_costs)
-#train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
+# compile functions for computing generator costs and updates
+cost_func = theano.function([Xg, Xc, Yc], train_costs)
+pred_func = theano.function([Xc], Yc_recon)
+train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -589,6 +590,7 @@ for epoch in range(1, niter+niter_decay+1):
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     batch_count = 0.
     val_batch_count = 0.
+    val_acc = 0.
     for bidx in tqdm(iter_data(batch_idx_un, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
         if val_batch_count < 50:
@@ -601,8 +603,8 @@ for epoch in range(1, niter+niter_decay+1):
         # transform training batch to "image format"
         bidx = bidx[:,0].ravel()
         imb_x = Xtr_un[bidx,:].copy()
-        cmb_x = Xtr_su[0:50,:].copy()
-        cmb_y = Ytr_su[0:50,:].copy()
+        cmb_x = Xtr_su[0:100,:].copy()
+        cmb_y = Ytr_su[0:100,:].copy()
         imb_x_img = train_transform(imb_x)
         cmb_x_img = train_transform(cmb_x)
         vmb_x_img = train_transform(vmb_x)
@@ -615,6 +617,8 @@ for epoch in range(1, niter+niter_decay+1):
         if val_batch_count < 25:
             val_result = train_func(vmb_x_img, vmb_x_img, vmb_y)
             val_epoch_costs = [(v1 + v2) for v1, v2 in zip(val_result[:8], val_epoch_costs)]
+            y_pred = pred_func(vmb_x_img)
+            val_acc += class_accuracy(y_pred, vmb_y, return_raw_count=False)
             val_batch_count += 1
     if (epoch == 20) or (epoch == 50) or (epoch == 100) or (epoch == 200):
         # cut learning rate in half
@@ -639,13 +643,15 @@ for epoch in range(1, niter+niter_decay+1):
     epoch_costs = [(c / batch_count) for c in epoch_costs]
     epoch_layer_klds = [(c / batch_count) for c in epoch_layer_klds]
     val_epoch_costs = [(c / val_batch_count) for c in val_epoch_costs]
+    val_acc = val_acc / val_batch_count
     str1 = "Epoch {}:".format(epoch)
     tc_strs = ["{0:s}: {1:.2f},".format(c_name, epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(tc_idx[:8], tc_names[:8])]
     str2 = " ".join(tc_strs)
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str3 = "    module kld -- {}".format(" ".join(kld_strs))
-    joint_str = "\n".join([str1, str2, str3])
+    str4 = "    val -- acc: {0:.4f}, cls_cls_cost: {1:.4f}".format(val_acc, val_epoch_costs[7])
+    joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
