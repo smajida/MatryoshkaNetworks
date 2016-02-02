@@ -53,6 +53,11 @@ Mon. January 25
 5. Write SVHN semi-supervised tests.
 
 
+Mon. February 1
+-----------------
+1. Write MNIST semi-supervised tests.
+2. Write SVHN semi-supervised tests.
+
 
 
 

@@ -400,6 +400,7 @@ merge_info = {
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = InfGenModelSS(
     nyc=nyc,                     # number of classes (i.e. indicator dim)
+    nbatch=nbatch,               # _fixed_ batch size for "marginalized" TD/BU passes
     q_aIx_model=q_aIx_model,     # model for q(a | x)
     q_yIax_model=q_yIax_model,   # model for q(y | a, x)
     q_z0Iyx_model=q_z0Iyx_model, # model for q(z0 | y, x)
@@ -414,38 +415,39 @@ inf_gen_model = InfGenModelSS(
 inf_gen_model.dump_params(f_name=inf_gen_param_file)
 inf_gen_model.load_params(f_name=inf_gen_param_file)
 
-# quick sample generation test
-Z0 = T.matrix()   # symbolic var for "noise" inputs to generator
-Yi = T.matrix()   # symbolic vae for indicator inputs to generator
-x_samps = inf_gen_model.apply_td(z0=Z0, y_ind=Yi)
 
-print("Compiling and testing sample generator...")
-sample_func = theano.function([Z0, Yi], x_samps)
-yimb = floatX( np.repeat(np.eye(nyc), 20, axis=0) )
-z0mb = rand_gen(size=(200, nz0))
-test_samps = sample_func(z0mb, yimb)
-grayscale_grid_vis(draw_transform(test_samps), (10, 20), "{}/TEST_GEN.png".format(result_dir))
+####################################
+# Setup the optimization objective #
+####################################
+lam_un_vae = sharedX(floatX(np.asarray([1.0])))
+lam_su_vae = sharedX(floatX(np.asarray([1.0])))
+lam_su_cls = sharedX(floatX(np.asarray([1.0])))
+all_params = inf_gen_model.params
 
-# ####################################
-# # Setup the optimization objective #
-# ####################################
-# lam_vae = sharedX(floatX(np.asarray([1.0])))
-# lam_cls = sharedX(floatX(np.asarray([1.0])))
-# lam_cls_cls = sharedX(floatX(np.asarray([1.0])))
-# gen_params = inf_gen_model.gen_params
-# inf_params = inf_gen_model.inf_params
-# cls_params = class_model.params
-# all_params = gen_params + inf_params + cls_params
+######################################################
+# BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
+######################################################
 
-# ######################################################
-# # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
-# ######################################################
+# Setup symbolic vars for the model inputs, outputs, and costs
+Xg = T.tensor4()  # symbolic var for inputs for unsupervised loss
+Xc = T.tensor4()  # symbolic var for inputs for supervised loss
+Yc = T.matrix()   # symbolic var for one-hot labels for supervised loss
+Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
-# # Setup symbolic vars for the model inputs, outputs, and costs
-# Xg = T.tensor4()  # symbolic var for inputs for generative loss
-# Xc = T.tensor4()  # symbolic var for inputs for classification loss
-# Yc = T.matrix()   # symbolic vae for one-hot labels for classification loss
-# Z0 = T.matrix()   # symbolic var for "noise" inputs to the generator
+# quick test of the marginalized BU/TD inference process
+im_res_dict = inf_gen_model.apply_im_y_marginalized_1(Xg)
+
+obs_nlls = im_res_dict['obs_nlls']
+obs_klds = im_res_dict['obs_klds']
+log_p_xIz = im_res_dict['log_p_xIz']
+kld_z = im_res_dict['kld_z']
+kld_a = im_res_dict['kld_a']
+kld_y = im_res_dict['kld_y']
+ent_y = im_res_dict['ent_y']
+
+test_func = theano.function([Xg], [obs_nlls, obs_klds])
+
+obs_nlls, obs_klds = test_func(train_transform(Xtr[0:nbatch,:]))
 
 # ##########################################################
 # # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
