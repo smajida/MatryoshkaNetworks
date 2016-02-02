@@ -433,9 +433,9 @@ class_model = SimpleMLP(modules=cls_modules)
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.ones((1,)).astype(theano.config.floatX))
-lam_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
-lam_cls_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(floatX(np.asarray([1.0])))
+lam_cls = sharedX(floatX(np.asarray([1.0])))
+lam_cls_cls = sharedX(floatX(np.asarray([1.0])))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 cls_params = class_model.params
@@ -577,19 +577,23 @@ t = time()
 ntrain = Xtr_un.shape[0]
 batch_idx_un = np.arange(ntrain)
 batch_idx_un = np.concatenate([batch_idx_un[:,np.newaxis],batch_idx_un[:,np.newaxis]], axis=1)
-sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr_un = shuffle(Xtr_un)
     # set gradient noise
     eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((1,))
     gen_updater.n.set_value(floatX(eg_noise_ary))
     inf_updater.n.set_value(floatX(eg_noise_ary))
+    # dset relative weights of objectives
+    lam_vae.set_value(floatX(np.asarray([1.0])))
+    lam_cls.set_value(floatX(np.asarray([0.2])))
+    lam_cls_cls.set_value(floatX(np.asarray([20.0])))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
     val_epoch_costs = [0. for i in range(8)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     batch_count = 0.
     val_batch_count = 0.
+    train_acc = 0.
     val_acc = 0.
     for bidx in tqdm(iter_data(batch_idx_un, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
@@ -612,6 +616,8 @@ for epoch in range(1, niter+niter_decay+1):
         result = train_func(imb_x_img, cmb_x_img, cmb_y)
         epoch_costs = [(v1 + v2) for v1, v2 in zip(result[:8], epoch_costs)]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(result[8], epoch_layer_klds)]
+        y_pred = pred_func(cmb_x_img)
+        train_acc += class_accuracy(y_pred, cmb_y, return_raw_count=False)
         batch_count += 1
         # evaluate vae on validation batch
         if val_batch_count < 25:
@@ -642,6 +648,7 @@ for epoch in range(1, niter+niter_decay+1):
     ##################################
     epoch_costs = [(c / batch_count) for c in epoch_costs]
     epoch_layer_klds = [(c / batch_count) for c in epoch_layer_klds]
+    train_acc = train_acc / batch_count
     val_epoch_costs = [(c / val_batch_count) for c in val_epoch_costs]
     val_acc = val_acc / val_batch_count
     str1 = "Epoch {}:".format(epoch)
@@ -650,11 +657,40 @@ for epoch in range(1, niter+niter_decay+1):
     str2 = " ".join(tc_strs)
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str3 = "    module kld -- {}".format(" ".join(kld_strs))
-    str4 = "    val -- acc: {0:.4f}, cls_cls_cost: {1:.4f}".format(val_acc, val_epoch_costs[7])
+    str4 = "    train_acc: {0:.4f}, val_acc: {0:.4f}, val_cls_cls_cost: {1:.4f}".format( \
+            train_acc, val_acc, val_epoch_costs[7])
     joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
+    #################################
+    # QUALITATIVE DIAGNOSTICS STUFF #
+    #################################
+    # generate some samples from the model prior
+    sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
+    samples = np.asarray(sample_func(sample_z0mb))
+    grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/gen_{}.png".format(result_dir, epoch))
+    # test reconstruction performance (inference + generation)
+    tr_rb = Xtr_un[0:100,:]
+    va_rb = Xva[0:100,:]
+    # get the model reconstructions
+    tr_rb = train_transform(tr_rb)
+    va_rb = train_transform(va_rb)
+    tr_recons = recon_func(tr_rb)
+    va_recons = recon_func(va_rb)
+    # stripe data for nice display (each reconstruction next to its target)
+    tr_vis_batch = np.zeros((200, nc, npx, npx))
+    va_vis_batch = np.zeros((200, nc, npx, npx))
+    for rec_pair in range(100):
+        idx_in = 2*rec_pair
+        idx_out = 2*rec_pair + 1
+        tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
+        tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
+        va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
+        va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
+    # draw images...
+    grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+    grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 
