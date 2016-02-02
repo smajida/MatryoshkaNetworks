@@ -428,6 +428,17 @@ all_params = inf_gen_model.params
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
 
+#
+# The cost for a labeled point (x, y) is:
+#   NLL_bound(x, y) - lam_su_cls*NLL(q(y|x))
+#
+# The cost for an unlabeled point x is:
+#   NLL_bound(x)
+#
+# The overall cost is given by:
+#  
+#
+
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs for unsupervised loss
 Xc = T.tensor4()  # symbolic var for inputs for supervised loss
@@ -435,7 +446,22 @@ Yc = T.matrix()   # symbolic var for one-hot labels for supervised loss
 Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
 # quick test of the marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_y_marginalized_1(Xg)
+im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
+
+obs_nlls = im_res_dict['obs_nlls']
+obs_klds = im_res_dict['obs_klds']
+log_p_xIz = im_res_dict['log_p_xIz']
+kld_z = im_res_dict['kld_z']
+kld_a = im_res_dict['kld_a']
+kld_y = im_res_dict['kld_y']
+ent_y = im_res_dict['ent_y']
+
+test_func = theano.function([Xg], [obs_nlls, obs_klds])
+
+obs_nlls, obs_klds = test_func(train_transform(Xtr[0:nbatch,:]))
+
+# quick test of the other marginalized BU/TD inference process
+im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
 
 obs_nlls = im_res_dict['obs_nlls']
 obs_klds = im_res_dict['obs_klds']
