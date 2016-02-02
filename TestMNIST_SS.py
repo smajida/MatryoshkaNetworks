@@ -510,8 +510,8 @@ cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
 cls_kld_cost = T.mean(cls_obs_klds)
 
 # combined cost for generator stuff
-cls_cls_cost = T.mean(T.nnet.categorical_crossentropy(Yc_recon, Yc))
-cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
+cls_cls_cost = lam_cls_cls[0] * T.mean(T.nnet.categorical_crossentropy(Yc_recon, Yc))
+cls_cost = cls_nll_cost + cls_kld_cost + cls_cls_cost + \
            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
 
 #################################################################
@@ -586,7 +586,7 @@ for epoch in range(1, niter+niter_decay+1):
     # dset relative weights of objectives
     lam_vae.set_value(floatX(np.asarray([1.0])))
     lam_cls.set_value(floatX(np.asarray([0.2])))
-    lam_cls_cls.set_value(floatX(np.asarray([20.0])))
+    lam_cls_cls.set_value(floatX(np.asarray([50.0])))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
     val_epoch_costs = [0. for i in range(8)]
