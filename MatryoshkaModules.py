@@ -1441,11 +1441,15 @@ class MlpFCModule(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input):
+    def apply(self, input, share_mask=False):
         """
         Apply this gfully connected module.
         """
-        h1 = fc_drop_func(input, self.unif_drop)
+        # flatten input to 1d per example
+        h1 = T.flatten(hq, 2)
+        # apply dropout
+        h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+        # feed-forward through layer
         h2 = T.dot(h1, self.w1)
         if self.apply_bn:
             h3 = switchy_bn(h2, g=self.g1, b=self.b1,

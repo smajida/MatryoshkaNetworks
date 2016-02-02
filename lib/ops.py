@@ -7,7 +7,16 @@ from theano.sandbox.cuda.basic_ops import (as_cuda_ndarray_variable,
 from theano.sandbox.cuda.dnn import GpuDnnConvDesc, GpuDnnConv, GpuDnnConvGradI, dnn_conv, dnn_pool
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-from rng import t_rng, cu_rng
+from rng import t_rng, cu_rng, np_rng
+
+def binarize_data(X):
+    """
+    Make a sample of bernoulli variables with probabilities given by X.
+    """
+    X_shape = X.shape
+    probs = np_rng.rand(*X_shape)
+    X_binary = 1.0 * (probs < X)
+    return X_binary.astype(theano.config.floatX)
 
 def log_mean_exp(x, axis=None):
     assert (axis is not None), "please provide an axis along which to compute."

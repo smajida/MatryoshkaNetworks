@@ -19,7 +19,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.ops import log_mean_exp, binarize_data
+from lib.ops import log_mean_exp
 from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
@@ -49,7 +49,7 @@ if not os.path.exists(result_dir):
 
 # load binarized MNIST dataset
 data_path = "{}/data/mnist.pkl.gz".format(EXP_DIR)
-data_dict = load_udm_ss(data_path, sup_count)
+data_dict = load_udm_ss(data_path, sup_count, im_dim=32)
 Xtr_su, Ytr_su = data_dict['Xtr_su'], data_dict['Ytr_su']
 Xtr_un, Ytr_un = data_dict['Xtr_un'], data_dict['Ytr_un']
 Xva, Yva = data_dict['Xva'], data_dict['Yva']
@@ -65,13 +65,14 @@ Ytr_un = floatX( OneHot(Ytr_un, n=nyc, negative_class=0.) )
 Yva = floatX( OneHot(Yva, n=nyc, negative_class=0.) )
 Yte = floatX( OneHot(Yte, n=nyc, negative_class=0.) )
 
-sup_count = Xtr_su.shape[0]   # number of labeled examples
 
 set_seed(1)       # seed for shared rngs
+sup_count = 100   # number of labeled examples
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
-npx = 28          # # of pixels width/height of images
+npx = 32          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
+nz0_c = 16        # # of dim in Z0 to use for classifying
 nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
@@ -83,6 +84,7 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
+grad_noise = 0.04 # initial noise for the gradients
 
 def class_accuracy(Y_model, Y_true, return_raw_count=False):
     """
@@ -125,21 +127,36 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (7, 7)
+# FC -> (2, 2)
 td_module_1 = \
 GenFCModule(
-    rand_dim=nz0+nyc,
-    out_shape=(ngf*4, 7, 7),
+    rand_dim=nz0,
+    out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
     mod_name='td_mod_1'
-) # output is (batch, ngf*4, 7, 7)
+) # output is (batch, ngf*8, 2, 2)
 
-# (7, 7) -> (7, 7)
+# (2, 2) -> (4, 4)
 td_module_2 = \
 GenConvResModule(
-    in_chans=(ngf*4)+nyc,
+    in_chans=(ngf*8),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    us_stride=2,
+    mod_name='td_mod_2'
+) # output is (batch, ngf*4, 4, 4)
+
+# (4, 4) -> (8, 8)
+td_module_3 = \
+GenConvResModule(
+    in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
     rand_chans=nz1,
@@ -148,13 +165,13 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     us_stride=2,
-    mod_name='td_mod_2'
-) # output is (batch, ngf*4, 7, 7)
+    mod_name='td_mod_3'
+) # output is (batch, ngf*4, 8, 8)
 
-# (7, 7) -> (14, 14)
-td_module_3 = \
+# (8, 8) -> (16, 16)
+td_module_4 = \
 GenConvResModule(
-    in_chans=(ngf*4)+nyc,
+    in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     rand_chans=nz1,
@@ -163,13 +180,13 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     us_stride=2,
-    mod_name='td_mod_3'
-) # output is (batch, ngf*2, 14, 14)
+    mod_name='td_mod_4'
+) # output is (batch, ngf*2, 16, 16)
 
-# (14, 14) -> (28, 28)
-td_module_4 = \
+# (16, 16) -> (32, 32)
+td_module_5 = \
 GenConvResModule(
-    in_chans=(ngf*2)+nyc,
+    in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=(ngf*1),
     rand_chans=nz1,
@@ -178,11 +195,11 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     us_stride=2,
-    mod_name='td_mod_4'
-) # output is (batch, ngf*1, 28, 28)
+    mod_name='td_mod_5'
+) # output is (batch, ngf*1, 32, 32)
 
-# (28, 28) -> (28, 28)
-td_module_5 = \
+# (32, 32) -> (32, 32)
+td_module_6 = \
 BasicConvModule(
     in_chans=(ngf*1),
     out_chans=nc,
@@ -190,11 +207,12 @@ BasicConvModule(
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_5'
-) # output is (batch, c, 28, 28)
+    mod_name='td_mod_6'
+) # output is (batch, c, 32, 32)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5]
+td_modules = [td_module_1, td_module_2, td_module_3,
+              td_module_4, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -284,8 +302,8 @@ BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
-    chan_drop=0.0,
-    unif_drop=0.2,
+    chan_drop=0.2,
+    unif_drop=0.0,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -523,9 +541,12 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 # stuff for performing updates
 lrt = sharedX(0.0002)
 b1t = sharedX(0.8)
-gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-cls_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+gen_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
+                                n=grad_noise, clipnorm=1000.0)
+inf_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
+                                n=grad_noise, clipnorm=1000.0)
+cls_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
+                                n=grad_noise, clipnorm=1000.0)
 
 
 # build training cost and update functions
@@ -570,10 +591,14 @@ batch_idx_un = np.arange(ntrain)
 batch_idx_un = np.concatenate([batch_idx_un[:,np.newaxis],batch_idx_un[:,np.newaxis]], axis=1)
 for epoch in range(1, niter+niter_decay+1):
     Xtr_un = shuffle(Xtr_un)
-    # set relative weights of objectives
+    # set gradient noise
+    eg_noise_ary = (grad_noise / np.sqrt(float(epoch)/2.0)) + np.zeros((1,))
+    gen_updater.n.set_value(floatX(eg_noise_ary))
+    inf_updater.n.set_value(floatX(eg_noise_ary))
+    # dset relative weights of objectives
     lam_vae.set_value(floatX(np.asarray([1.0])))
-    lam_cls.set_value(floatX(np.asarray([0.1])))
-    lam_cls_cls.set_value(floatX(np.asarray([10.0])))
+    lam_cls.set_value(floatX(np.asarray([0.2])))
+    lam_cls_cls.set_value(floatX(np.asarray([20.0])))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
     val_epoch_costs = [0. for i in range(8)]
