@@ -510,7 +510,7 @@ cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
 cls_kld_cost = T.mean(cls_obs_klds)
 
 # combined cost for generator stuff
-cls_cls_cost = T.mean(Yc_recon) # T.mean(T.nnet.categorical_crossentropy(Yc, Yc_recon))
+cls_cls_cost = T.mean(T.nnet.categorical_crossentropy(Yc_recon, Yc))
 cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
 
