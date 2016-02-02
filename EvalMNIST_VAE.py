@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_2abc_4bc_no_bn_bias'
+desc = 'test_vae_lrelu_mods_2abc_4bc_no_bn_iwae_bias'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -66,7 +66,7 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu'
-iwae_samples = 1500  # number of samples to use in MEN bound
+iwae_samples = 1600  # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
 

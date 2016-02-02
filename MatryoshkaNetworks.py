@@ -889,11 +889,11 @@ class InfGenModelSS(object):
         print("Compiling sample generator...")
         # test inputs to sample generator
         y_ind = floatX( np.eye(self.nyc) )
-        z0_dim = self.q_z0Iyx.modules[-1].rand_chans
+        z0_dim = self.q_z0Iyx_model.modules[-1].rand_chans
         z0_samps = floatX( npr.normal(size=(y_ind.shape[0], z0_dim)) )
         # compile and test sample generating function
         self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(z0_dim, y_ind)
+        samps = self.generate_samples(z0_samps, y_ind)
         print("DONE.")
         return
 

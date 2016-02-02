@@ -33,8 +33,8 @@ from load import load_udm_ss
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
-                              DiscConvResModule, DiscFCModule, MlpFCModule
-from MatryoshkaNetworks import InfGenModel, SimpleMLP
+                              MlpFCModule
+from MatryoshkaNetworks import InfGenModelSS, SimpleInfMLP
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
@@ -269,7 +269,7 @@ InfFCModule(
     act_func=act_func,
     mod_name='q_z0Iyx_module_1'
 )
-q_z0Iyx_modules = [ q_z0Iyx_modules ]
+q_z0Iyx_modules = [ q_z0Iyx_module_1 ]
 q_z0Iyx_model = SimpleInfMLP(modules=q_z0Iyx_modules)
 
 #############################################################################
