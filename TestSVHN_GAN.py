@@ -426,7 +426,6 @@ n_updates = 0
 n_examples = 0
 t = time()
 gauss_blur_weights = np.linspace(0.0, 1.0, 15) # weights for distribution "annealing"
-sample_z0mb = rand_gen(size=(200, nz0)) # noise samples for top generator module
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     g_costs = [0. for c in all_costs]
@@ -473,7 +472,8 @@ for epoch in range(1, niter+niter_decay+1):
     ###################
     # SAVE PARAMETERS #
     ###################
-
+    gen_network.dump_params(f_name=gen_param_file)
+    disc_network.dump_params(f_name=disc_param_file)
     ############################
     # QUANTITATIVE DIAGNOSTICS #
     ############################
@@ -493,8 +493,9 @@ for epoch in range(1, niter+niter_decay+1):
     out_file.flush()
     n_epochs += 1
     # generate some samples from the model, for visualization
+    sample_z0mb = rand_gen(size=(400, nz0))
     samples = np.asarray(_gen(sample_z0mb))
-    color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
+    color_grid_vis(draw_transform(samples), (20, 20), "{}/gen_{}.png".format(result_dir, n_epochs))
     test_recons = VIM.sample_Xg()
     color_grid_vis(draw_transform(test_recons), (10, 20), "{}/rec_{}.png".format(result_dir, n_epochs))
     if n_epochs > niter:
