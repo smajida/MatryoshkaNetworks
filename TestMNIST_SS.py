@@ -72,6 +72,7 @@ nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
+nz0_c = 16        # # of dim in Z0 to use for classifying
 nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
@@ -392,7 +393,7 @@ inf_gen_model = InfGenModel(
 
 # cls_module_1 = \
 # MlpFCModule(
-#     in_dim=nz0,
+#     in_dim=nz0_c,
 #     out_dim=64,
 #     apply_bn=False,
 #     unif_drop=0.0,
@@ -416,7 +417,7 @@ inf_gen_model = InfGenModel(
 
 cls_module_1 = \
 MlpFCModule(
-    in_dim=nz0,
+    in_dim=nz0_c,
     out_dim=nyc,
     apply_bn=False,
     unif_drop=0.0,
@@ -490,7 +491,7 @@ cls_z_dict = im_res_dict['z_dict']
 cls_z_top = cls_z_dict['td_mod_1']
 
 # apply classifier to the top-most set of latent variables, maybe good idea?
-Yc_recon = T.nnet.softmax( class_model.apply(cls_z_top) )
+Yc_recon = T.nnet.softmax( class_model.apply(cls_z_top[:,:nz0_c]) )
 
 # compute reconstruction error part of free-energy
 cls_log_p_x = T.sum(log_prob_bernoulli( \
@@ -586,7 +587,7 @@ for epoch in range(1, niter+niter_decay+1):
     # dset relative weights of objectives
     lam_vae.set_value(floatX(np.asarray([1.0])))
     lam_cls.set_value(floatX(np.asarray([0.2])))
-    lam_cls_cls.set_value(floatX(np.asarray([50.0])))
+    lam_cls_cls.set_value(floatX(np.asarray([20.0])))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
     val_epoch_costs = [0. for i in range(8)]
