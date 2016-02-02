@@ -414,6 +414,17 @@ inf_gen_model = InfGenModelSS(
 inf_gen_model.dump_params(f_name=inf_gen_param_file)
 inf_gen_model.load_params(f_name=inf_gen_param_file)
 
+# quick sample generation test
+Z0 = T.matrix()   # symbolic var for "noise" inputs to generator
+Yi = T.matrix()   # symbolic vae for indicator inputs to generator
+x_samps = inf_gen_model.apply_td(z0=Z0, y_ind=Yi)
+
+print("Compiling and testing sample generator...")
+sample_func = theano.function([Z0, Yi], x_samps)
+yimb = floatX( np.repeat(np.eye(nyc), 20, axis=0) )
+z0mb = rand_gen(size=(200, nz0))
+test_samps = sample_func(z0mb, yimb)
+grayscale_grid_vis(draw_transform(test_samps), (10, 20), "{}/TEST_GEN.png".format(result_dir))
 
 # ####################################
 # # Setup the optimization objective #
