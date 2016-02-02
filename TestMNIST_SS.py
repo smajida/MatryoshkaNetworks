@@ -302,8 +302,8 @@ BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
-    chan_drop=0.2,
-    unif_drop=0.0,
+    chan_drop=0.0,
+    unif_drop=0.2,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -597,8 +597,8 @@ for epoch in range(1, niter+niter_decay+1):
     inf_updater.n.set_value(floatX(eg_noise_ary))
     # dset relative weights of objectives
     lam_vae.set_value(floatX(np.asarray([1.0])))
-    lam_cls.set_value(floatX(np.asarray([0.2])))
-    lam_cls_cls.set_value(floatX(np.asarray([20.0])))
+    lam_cls.set_value(floatX(np.asarray([0.1])))
+    lam_cls_cls.set_value(floatX(np.asarray([10.0])))
     # initialize cost arrays
     epoch_costs = [0. for i in range(8)]
     val_epoch_costs = [0. for i in range(8)]
