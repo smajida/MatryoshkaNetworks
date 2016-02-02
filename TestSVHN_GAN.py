@@ -35,7 +35,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_gan_best_model_3x3'
+desc = 'test_gan_all_features'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 gen_param_file = "{}/gen_params.pkl".format(result_dir)
 disc_param_file = "{}/disc_params.pkl".format(result_dir)
@@ -52,29 +52,29 @@ data_dict = load_svhn(tr_file, te_file, ex_file=ex_file, ex_count=DATA_SIZE)
 # stack data into a single array and rescale it into [-1,1]
 Xtr = np.concatenate([data_dict['Xtr'], data_dict['Xte'], data_dict['Xex']], axis=0)
 del data_dict
-Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
-Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
-#Xtr = Xtr - np.min(Xtr)
-#Xtr = Xtr / np.max(Xtr)
+#Xtr = Xtr - np.min(Xtr, axis=1, keepdims=True)
+#Xtr = Xtr / np.max(Xtr, axis=1, keepdims=True)
+Xtr = Xtr - np.min(Xtr)
+Xtr = Xtr / np.max(Xtr)
 Xtr = 2.0 * (Xtr - 0.5)
 Xtr_std = np.std(Xtr, axis=0, keepdims=True)
 Xtr_var = Xtr_std**2.0
 
-set_seed(1)     # seed for shared rngs
+set_seed(1)       # seed for shared rngs
 k = 1             # # of discrim updates for each gen update
 b1 = 0.5          # momentum term of adam
 nc = 3            # # of channels in image
 nbatch = 128      # # of examples in batch
 npx = 32          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
-nz1 = 16           # # of dim for Z1
+nz1 = 16          # # of dim for Z1
 ngf = 64          # # of gen filters in first conv layer
 ndf = 64          # # of discrim filters in first conv layer
 ngfc = 256        # # of gen units for fully connected layers
 ndfc = 256        # # of discrim units for fully connected layers
 nx = npx*npx*nc   # # of dimensions in X
-niter = 75       # # of iter at starting learning rate
-niter_decay = 75 # # of iter to linearly decay learning rate to zero
+niter = 50        # # of iter at starting learning rate
+niter_decay = 50  # # of iter to linearly decay learning rate to zero
 lr = 0.0002       # initial learning rate for adam
 er_buffer_size = 250000 # size of "experience replay" buffer
 dn = 0.0          # standard deviation of activation noise in discriminator
@@ -473,6 +473,7 @@ for epoch in range(1, niter+niter_decay+1):
     ###################
     # SAVE PARAMETERS #
     ###################
+
     ############################
     # QUANTITATIVE DIAGNOSTICS #
     ############################

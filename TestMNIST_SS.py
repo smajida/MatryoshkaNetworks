@@ -657,7 +657,7 @@ for epoch in range(1, niter+niter_decay+1):
     str2 = " ".join(tc_strs)
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str3 = "    module kld -- {}".format(" ".join(kld_strs))
-    str4 = "    train_acc: {0:.4f}, val_acc: {0:.4f}, val_cls_cls_cost: {1:.4f}".format( \
+    str4 = "    train_acc: {0:.4f}, val_acc: {1:.4f}, val_cls_cls_cost: {2:.4f}".format( \
             train_acc, val_acc, val_epoch_costs[7])
     joint_str = "\n".join([str1, str2, str3, str4])
     print(joint_str)
