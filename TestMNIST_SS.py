@@ -24,7 +24,7 @@ from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
-from lib.data_utils import shuffle, iter_data
+from lib.data_utils import shuffle, iter_data, OneHot
 from load import load_udm_ss
 
 #
@@ -34,7 +34,7 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
-from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
+from MatryoshkaNetworks import InfGenModel, SimpleMLP
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
@@ -58,6 +58,14 @@ Xte, Yte = data_dict['Xte'], data_dict['Yte']
 Xtr_un = np.concatenate([Xtr_un, Xtr_su], axis=0)
 Ytr_un = np.concatenate([Ytr_un, Ytr_su], axis=0)
 
+# convert labels to one-hot representation
+nyc = 10
+Ytr_su = floatX( OneHot(Ytr_su, n=nyc, negative_class=0.) )
+Ytr_un = floatX( OneHot(Ytr_un, n=nyc, negative_class=0.) )
+Yva = floatX( OneHot(Yva, n=nyc, negative_class=0.) )
+Yte = floatX( OneHot(Yte, n=nyc, negative_class=0.) )
+
+
 set_seed(1)       # seed for shared rngs
 sup_count = 100   # number of labeled examples
 nc = 1            # # of channels in image
@@ -74,9 +82,22 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'relu' # activation func to use where they can be selected
+act_func = 'lrelu' # activation func to use where they can be selected
 grad_noise = 0.04 # initial noise for the gradients
 
+def cls_accuracy(Y_true, Y_model, return_raw_count=False):
+    """
+    Check the accuracy of predictions in Y_model, given the ground truth in
+    Y_true. Make predictions by row-wise argmax, and assume Y_true is one-hot.
+    """
+    yt = np.argmax(Y_true, axis=1)
+    ym = np.argmax(Y_model, axis=1)
+    hits = float( np.sum((yt == ym)) )
+    if return_raw_count:
+        res = hits
+    else:
+        res = hits / Y_true.shape[0]
+    return res
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
@@ -365,6 +386,50 @@ inf_gen_model = InfGenModel(
     output_transform=sigmoid
 )
 
+######################
+# Setup a classifier #
+######################
+
+# cls_module_1 = \
+# MlpFCModule(
+#     in_dim=nz0,
+#     out_dim=64,
+#     apply_bn=False,
+#     unif_drop=0.0,
+#     act_func='lrelu',
+#     use_bn_params=True,
+#     mod_name='cls_mod_1'
+# )
+#
+# cls_module_2 = \
+# MlpFCModule(
+#     in_dim=ngfc,
+#     out_dim=nyc,
+#     apply_bn=True,
+#     unif_drop=0.0,
+#     act_func='ident',
+#     use_bn_params=True,
+#     mod_name='cls_mod_2'
+# )
+#
+# cls_modules = [cls_module_1, cls_module_2]
+
+cls_module_1 = \
+MlpFCModule(
+    in_dim=nz0,
+    out_dim=nyc,
+    apply_bn=False,
+    unif_drop=0.0,
+    act_func='ident',
+    use_bn_params=True,
+    mod_name='cls_mod_1'
+)
+
+cls_modules = [ cls_module_1 ]
+
+class_model = SimpleMLP(modules=cls_modules)
+
+
 ####################################
 # Setup the optimization objective #
 ####################################
@@ -373,7 +438,8 @@ lam_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
 lam_cls_cls = sharedX(np.ones((1,)).astype(theano.config.floatX))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
-g_params = gen_params + inf_params
+cls_params = class_model.params
+all_params = gen_params + inf_params + cls_params
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
@@ -382,7 +448,7 @@ g_params = gen_params + inf_params
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs for generative loss
 Xc = T.tensor4()  # symbolic var for inputs for classification loss
-Yc = T.ivector()   # symbolic vae for labels for classification loss
+Yc = T.matrix()   # symbolic vae for one-hot labels for classification loss
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generator
 
 ##########################################################
@@ -421,6 +487,10 @@ im_res_dict = inf_gen_model.apply_im(Xc)
 Xc_recon = im_res_dict['td_output']
 cls_kld_dict = im_res_dict['kld_dict']
 cls_z_dict = im_res_dict['z_dict']
+cls_z_top = cls_z_dict['td_mod_1']
+
+# apply classifier to the top-most set of latent variables, maybe good idea?
+Yc_recon = T.nnet.softmax( class_model.apply(cls_z_top) )
 
 # compute reconstruction error part of free-energy
 cls_log_p_x = T.sum(log_prob_bernoulli( \
@@ -440,7 +510,7 @@ cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
 cls_kld_cost = T.mean(cls_obs_klds)
 
 # combined cost for generator stuff
-cls_cls_cost = T.mean(T.cast(Yc, 'float32')**2.0)
+cls_cls_cost = T.nnet.categorical_crossentropy(Yc, Yc_recon)
 cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
 
@@ -448,7 +518,7 @@ cls_cost = cls_nll_cost + cls_kld_cost + (lam_cls_cls[0] + cls_cls_cost) + \
 # COMBINE VAE AND CLS OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 # parameter regularization part of cost
-reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in all_params])
 # full joint cost -- a weighted combination of free-energy and classification
 full_cost = (lam_vae[0] * vae_cost) + (lam_cls[0] * cls_cost) + reg_cost
 
@@ -463,13 +533,17 @@ gen_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
                                 n=grad_noise, clipnorm=1000.0)
 inf_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
                                 n=grad_noise, clipnorm=1000.0)
+cls_updater = updates.FuzzyAdam(lr=lrt, b1=b1t, b2=0.98, e=1e-4,
+                                n=grad_noise, clipnorm=1000.0)
+
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
 gen_updates, gen_grads = gen_updater(gen_params, full_cost, return_grads=True)
 inf_updates, inf_grads = inf_updater(inf_params, full_cost, return_grads=True)
-all_updates = gen_updates + inf_updates
+cls_updates, cls_grads = inf_updater(cls_params, full_cost, return_grads=True)
+all_updates = gen_updates + inf_updates + cls_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
@@ -479,7 +553,7 @@ test_recons = recon_func(train_transform(Xtr_un[0:100,:]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 train_costs = [full_cost, vae_cost, cls_cost, vae_nll_cost, vae_kld_cost,
-                 cls_nll_cost, cls_kld_cost, cls_cls_cost, vae_layer_klds]
+               cls_nll_cost, cls_kld_cost, cls_cls_cost, vae_layer_klds]
 
 tc_idx = range(0, len(train_costs))
 tc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
@@ -519,26 +593,26 @@ for epoch in range(1, niter+niter_decay+1):
         if val_batch_count < 50:
             start_idx = int(val_batch_count)*nbatch
             vmb_x = Xva[start_idx:(start_idx+nbatch),:].copy()
-            vmb_y = Yva[start_idx:(start_idx+nbatch)].ravel()
+            vmb_y = Yva[start_idx:(start_idx+nbatch),:].copy()
         else:
             vmb_x = Xva[0:nbatch,:].copy()
-            vmb_y = Yva[0:nbatch].ravel()
+            vmb_y = Yva[0:nbatch,:].copy()
         # transform training batch to "image format"
         bidx = bidx[:,0].ravel()
         imb_x = Xtr_un[bidx,:].copy()
         cmb_x = Xtr_su[0:50,:].copy()
-        cmb_y = Ytr_su[0:50].ravel()
+        cmb_y = Ytr_su[0:50,:].copy()
         imb_x_img = train_transform(imb_x)
         cmb_x_img = train_transform(cmb_x)
         vmb_x_img = train_transform(vmb_x)
         # train vae on training batch
-        result = train_func(imb_x_img, cmb_x_img, cmb_y.astype(np.int32))
+        result = train_func(imb_x_img, cmb_x_img, cmb_y)
         epoch_costs = [(v1 + v2) for v1, v2 in zip(result[:8], epoch_costs)]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(result[8], epoch_layer_klds)]
         batch_count += 1
         # evaluate vae on validation batch
         if val_batch_count < 25:
-            val_result = train_func(vmb_x_img, vmb_x_img, vmb_y.astype(np.int32))
+            val_result = train_func(vmb_x_img, vmb_x_img, vmb_y)
             val_epoch_costs = [(v1 + v2) for v1, v2 in zip(val_result[:8], val_epoch_costs)]
             val_batch_count += 1
     if (epoch == 20) or (epoch == 50) or (epoch == 100) or (epoch == 200):

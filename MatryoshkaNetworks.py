@@ -704,19 +704,20 @@ class InfGenModel(object):
         shape_func = theano.function([batch_size], sym_shapes)
         return shape_func
 
-########################################
-# Discriminator network for use in GAN #
-########################################
+##########################################
+# SIMPLEST MLP EVER -- NO TIME TO WASTE! #
+##########################################
 
-class DiscNetworkMLP(object):
+class SimpleMLP(object):
     """
-    A simple discriminator network. This wraps a sequence of fully connected
+    A simple feedforward network. This wraps a sequence of fully connected
     modules from MatryoshkaModules.py.
 
     Params:
-        modules: a list of the modules that make up this DiscNetworkMLP.
+        modules: a list of the modules that make up this SimpleMLP.
     """
-    def __init__(self, modules):
+    def __init__(self, modules=None):
+        assert not (modules is None), "Don't be a dunce! Supply modules!"
         self.modules = [m for m in modules]
         self.params = []
         for module in self.modules:
@@ -750,7 +751,7 @@ class DiscNetworkMLP(object):
 
     def apply(self, input):
         """
-        Apply this DiscNetworkMLP to some input and return the output of
+        Apply this SimpleMLP to some input and return the output of
         its final layer.
         """
         hs = [input]
