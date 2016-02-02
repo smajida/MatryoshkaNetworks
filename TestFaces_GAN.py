@@ -550,7 +550,7 @@ for epoch in range(1, niter+niter_decay+1):
     samples = floatX( _gen(sample_z0mb) )
     grad_samples = floatX( _gen_grads(sample_z0mb) )
     grad_qtiles = np.percentile(grad_samples, [1., 5., 15., 85., 95., 99.])
-    str1 = "    -- q[1, 5, 15, 85, 95, 99](grad): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}, {5:.2f}\n".format( \
+    str1 = "    -- q[1, 5, 15, 85, 95, 99](grad): {0:.4f}, {1:.4f}, {2:.4f}, {3:.4f}, {4:.4f}, {5:.4f}\n".format( \
             grad_qtiles[0], grad_qtiles[1], grad_qtiles[2], grad_qtiles[3], grad_qtiles[4], grad_qtiles[5])
     print(str1)
     out_file.write(str1+"\n")

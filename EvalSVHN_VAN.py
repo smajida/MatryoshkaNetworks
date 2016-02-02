@@ -26,11 +26,11 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModulesSVHN import BasicConvModule, GenConvResModule, \
+from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                                   GenFCModule, InfConvMergeModule, \
                                   InfFCModule, BasicConvResModule, \
                                   DiscConvResModule, DiscFCModule
-from MatryoshkaNetworksSVHN import InfGenModel, DiscNetworkGAN, GenNetworkGAN
+from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./svhn"

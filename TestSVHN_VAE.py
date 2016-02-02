@@ -37,7 +37,7 @@ EXP_DIR = "./svhn"
 DATA_SIZE = 400000
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_1xKL_lv_bound_5'
+desc = 'test_vae_10xKL_lv_bound_5'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -86,7 +86,7 @@ multi_disc = True # whether to use discriminator feedback at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_er = True     # whether to use "experience replay"
 use_annealing = True # whether to anneal the target distribution while training
-use_carry = True     # whether to carry difficult VAE inputs to the next batch
+use_carry = False     # whether to carry difficult VAE inputs to the next batch
 carry_count = 16        # number of stubborn VAE inputs to carry to next batch
 drop_rate = 0.0
 ntrain = Xtr.shape[0]
@@ -480,10 +480,9 @@ gauss_blur_weights = np.linspace(0.2, 1.0, 5) # weights for distribution "anneal
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    kld_scale = 1.0
+    kld_scale = 10.0
     lam_kld.set_value(np.asarray([kld_scale]).astype(theano.config.floatX))
     g_epoch_costs = [0. for i in range(5)]
-    v_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
@@ -491,7 +490,6 @@ for epoch in range(1, niter+niter_decay+1):
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
-    v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         if epoch < gauss_blur_weights.shape[0]:
             w_x = gauss_blur_weights[epoch]
@@ -499,27 +497,18 @@ for epoch in range(1, niter+niter_decay+1):
             w_x = 1.0
         w_g = 1.0 - w_x
         # grab a validation batch, if required
-        if v_batch_count < 50:
-            start_idx = int(v_batch_count)*100
-            vmb = Xva[start_idx:(start_idx+100),:]
-        else:
-            vmb = Xva[0:100,:]
         if use_annealing and (w_x < 0.999):
             # add noise to both the current batch and the carry buffer
             imb_fuzz = np.clip(gauss_blur(imb, Xtr_std, w_x, w_g),
-                               a_min=-1.0, a_max=1.0)
-            vmb_fuzz = np.clip(gauss_blur(vmb, Xtr_std, w_x, w_g),
                                a_min=-1.0, a_max=1.0)
             cb_fuzz = np.clip(gauss_blur(carry_buffer, Xtr_std, w_x, w_g),
                               a_min=-1.0, a_max=1.0)
         else:
             # use noiseless versions of the current batch and the carry buffer
             imb_fuzz = imb.copy()
-            vmb_fuzz = vmb.copy()
             cb_fuzz = carry_buffer.copy()
         # transform noisy training batch and carry buffer to "image format"
         imb_fuzz = train_transform(imb_fuzz)
-        vmb_fuzz = train_transform(vmb_fuzz)
         cb_fuzz = train_transform(cb_fuzz)
         # compute model cost and apply update
         if use_carry:
@@ -542,11 +531,6 @@ for epoch in range(1, niter+niter_decay+1):
             carry_buffer[i,:] = full_batch[vae_cost_rank[i],:]
             carry_costs.append(batch_obs_costs[vae_cost_rank[i]])
         g_batch_count += 1
-        # evaluate vae on validation batch
-        if v_batch_count < 50:
-            v_result = g_train_func(vmb_fuzz)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
-            v_batch_count += 1
     if (epoch == 30) or (epoch == 60):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
@@ -567,7 +551,6 @@ for epoch in range(1, niter+niter_decay+1):
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
-    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}:".format(epoch)
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
@@ -589,9 +572,7 @@ for epoch in range(1, niter+niter_decay+1):
             min(carry_costs), sum(carry_costs)/len(carry_costs), max(carry_costs))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str8 = "    module kld -- {}".format(" ".join(kld_strs))
-    str9 = "    validation -- nll: {0:.2f}, kld: {1:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8, str9])
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
