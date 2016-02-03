@@ -1127,7 +1127,7 @@ class InfGenModelSS(object):
         kld_z = T.sum((y_probs * kld_z_mat), axis=1)
 
         # compute overall per-observation costs
-        obs_nlls = log_p_xIz
+        obs_nlls = -1.0 * log_p_xIz
         obs_klds = kld_a + kld_y + kld_z
 
         # package results for convenient processing
@@ -1254,7 +1254,7 @@ class InfGenModelSS(object):
         ent_y = T.mean(ent_y_mat, axis=1)
 
         # compute overall per-observation costs
-        obs_nlls = log_p_xIz
+        obs_nlls = -1.0 * log_p_xIz
         obs_klds = kld_a + kld_y + kld_z
 
         # package results for convenient processing
@@ -1365,7 +1365,7 @@ class InfGenModelSS(object):
         kld_z = sum(td_klds)
 
         # compute overall per-observation free-energy costs
-        obs_vae_nlls = log_p_xIz
+        obs_vae_nlls = -1.0 * log_p_xIz
         obs_vae_klds = kld_a + kld_y + kld_z
 
         # compute a classification-type loss for thes observations
