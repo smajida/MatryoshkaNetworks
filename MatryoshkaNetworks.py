@@ -14,7 +14,8 @@ from lib import updates
 from lib import inits
 from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat
+from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat, \
+                    mean_pool_rows
 from lib.theano_utils import floatX, sharedX
 from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 
@@ -1274,25 +1275,28 @@ class InfGenModelSS(object):
         """
         This version samples for a single indicator, provided in y.
         """
-        a_rpt_count = 20
         y_ind = y
         y_ind_conv = y.dimshuffle(0,1,'x','x')
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(x)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw multiple samples from q(a | x) for each input
+        a_rpt_count = 20
         x_info_rpt = T.extra_ops.repeat(x_info, a_rpt_count, axis=0)
-        # draw a sample from q(a | x) for each input
         a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info_rpt)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
-        kld_a = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
+        kld_a_rpt = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
                                 T.flatten(a_cond_logvar, 2),
                                 0.0, 0.0), axis=1)
+        kld_a = T.mean(kld_a_rpt.reshape((nbatch,a_rpt_count)), axis=1)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info)
-        y_probs = T.mean(T.nnet.softmax(y_unnorm).reshape((x_info.shape[0],a_rpt_count)), axis=0)
+        y_probs = mean_pool_rows(T.nnet.softmax(y_unnorm),
+                                 pool_count=self.nbatch,
+                                 pool_size=a_rpt_count)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)

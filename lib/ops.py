@@ -18,6 +18,17 @@ def binarize_data(X):
     X_binary = 1.0 * (probs < X)
     return X_binary.astype(theano.config.floatX)
 
+def mean_pool_rows(input, pool_count=None, pool_size=None):
+    """Apply mean pooling over rows of the matrix input."""
+    pooled_rows = []
+    for i in xrange(pool_count):
+        pool_start = i*pool_size
+        pool_end = i*pool_size + pool_size
+        pool_mean = T.mean(input[pool_start:pool_end,:], axis=0, keepdims=True)
+        pooled_rows.append(pool_mean)
+    mean_pooled_input = T.concatenate(pooled_rows, axis=0)
+    return mp_vals
+
 def log_mean_exp(x, axis=None):
     assert (axis is not None), "please provide an axis along which to compute."
     m = T.max(x, axis=axis, keepdims=True)
