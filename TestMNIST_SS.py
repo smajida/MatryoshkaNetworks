@@ -84,6 +84,16 @@ use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 
+def shared_shuffle(x1, x2):
+    """
+    Shuffle matrices x1 and x2 along axis 0 using the same permutation.
+    """
+    idx = np.arange(x1.shape[0])
+    npr.shuffle(idx)
+    x1 = x1[idx,:]
+    x2 = x2[idx,:]
+    return x1, x2
+
 def class_accuracy(Y_model, Y_true, return_raw_count=False):
     """
     Check the accuracy of predictions in Y_model, given the ground truth in
@@ -538,6 +548,7 @@ sample_func = inf_gen_model.generate_samples # takes inputs (z0, yi)
 # compile functions for computing model costs and updates
 #func_train = theano.function([Xg, Xc, Yc], train_outputs, updates=param_updates)
 func_train_costs = theano.function([Xg, Xc, Yc], train_outputs)
+func_train = func_train_costs
 
 print("Testing training cost evaluation...")
 # quick test of training function (without
@@ -554,127 +565,110 @@ print("-- {}".format(su_out_str))
 print("-- {}".format(un_out_str))
 
 # make file for recording test progress
-# log_name = "{}/RESULTS.txt".format(result_dir)
-# out_file = open(log_name, 'wb')
-#
-# print("EXPERIMENT: {}".format(desc.upper()))
+log_name = "{}/RESULTS.txt".format(result_dir)
+out_file = open(log_name, 'wb')
 
-# n_check = 0
-# n_updates = 0
-# t = time()
-# ntrain = Xtr_un.shape[0]
-# batch_idx_un = np.arange(ntrain)
-# batch_idx_un = np.concatenate([batch_idx_un[:,np.newaxis],batch_idx_un[:,np.newaxis]], axis=1)
-# for epoch in range(1, niter+niter_decay+1):
-#     Xtr_un = shuffle(Xtr_un)
-#     # set relative weights of objectives
-#     lam_vae.set_value(floatX(np.asarray([1.0])))
-#     lam_cls.set_value(floatX(np.asarray([0.1])))
-#     lam_cls_cls.set_value(floatX(np.asarray([10.0])))
-#     # initialize cost arrays
-#     epoch_costs = [0. for i in range(8)]
-#     val_epoch_costs = [0. for i in range(8)]
-#     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-#     batch_count = 0.
-#     val_batch_count = 0.
-#     train_acc = 0.
-#     val_acc = 0.
-#     for bidx in tqdm(iter_data(batch_idx_un, size=nbatch), total=ntrain/nbatch):
-#         # grab a validation batch, if required
-#         if val_batch_count < 50:
-#             start_idx = int(val_batch_count)*nbatch
-#             vmb_x = Xva[start_idx:(start_idx+nbatch),:].copy()
-#             vmb_y = Yva[start_idx:(start_idx+nbatch),:].copy()
-#         else:
-#             vmb_x = Xva[0:nbatch,:].copy()
-#             vmb_y = Yva[0:nbatch,:].copy()
-#         # transform training batch to "image format"
-#         bidx = bidx[:,0].ravel()
-#         imb_x = Xtr_un[bidx,:].copy()
-#         cmb_x = Xtr_su[0:100,:].copy()
-#         cmb_y = Ytr_su[0:100,:].copy()
-#         imb_x_img = train_transform(imb_x)
-#         cmb_x_img = train_transform(cmb_x)
-#         vmb_x_img = train_transform(vmb_x)
-#         # train vae on training batch
-#         result = train_func(imb_x_img, cmb_x_img, cmb_y)
-#         epoch_costs = [(v1 + v2) for v1, v2 in zip(result[:8], epoch_costs)]
-#         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(result[8], epoch_layer_klds)]
-#         y_pred = pred_func(cmb_x_img)
-#         train_acc += class_accuracy(y_pred, cmb_y, return_raw_count=False)
-#         batch_count += 1
-#         # evaluate vae on validation batch
-#         if val_batch_count < 25:
-#             val_result = train_func(vmb_x_img, vmb_x_img, vmb_y)
-#             val_epoch_costs = [(v1 + v2) for v1, v2 in zip(val_result[:8], val_epoch_costs)]
-#             y_pred = pred_func(vmb_x_img)
-#             val_acc += class_accuracy(y_pred, vmb_y, return_raw_count=False)
-#             val_batch_count += 1
-#     if (epoch == 20) or (epoch == 50) or (epoch == 100) or (epoch == 200):
-#         # cut learning rate in half
-#         lr = lrt.get_value(borrow=False)
-#         lr = lr / 2.0
-#         lrt.set_value(floatX(lr))
-#         b1 = b1t.get_value(borrow=False)
-#         b1 = b1 + ((0.95 - b1) / 2.0)
-#         b1t.set_value(floatX(b1))
-#     if epoch > niter:
-#         # linearly decay learning rate
-#         lr = lrt.get_value(borrow=False)
-#         remaining_epochs = (niter + niter_decay + 1) - epoch
-#         lrt.set_value(floatX(lr - (lr / remaining_epochs)))
-#     ###################
-#     # SAVE PARAMETERS #
-#     ###################
-#     inf_gen_model.dump_params(inf_gen_param_file)
-#     ##################################
-#     # QUANTITATIVE DIAGNOSTICS STUFF #
-#     ##################################
-#     epoch_costs = [(c / batch_count) for c in epoch_costs]
-#     epoch_layer_klds = [(c / batch_count) for c in epoch_layer_klds]
-#     train_acc = train_acc / batch_count
-#     val_epoch_costs = [(c / val_batch_count) for c in val_epoch_costs]
-#     val_acc = val_acc / val_batch_count
-#     str1 = "Epoch {}:".format(epoch)
-#     tc_strs = ["{0:s}: {1:.2f},".format(c_name, epoch_costs[c_idx]) \
-#                  for (c_idx, c_name) in zip(tc_idx[:8], tc_names[:8])]
-#     str2 = " ".join(tc_strs)
-#     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
-#     str3 = "    module kld -- {}".format(" ".join(kld_strs))
-#     str4 = "    train_acc: {0:.4f}, val_acc: {1:.4f}, val_cls_cls_cost: {2:.4f}".format( \
-#             train_acc, val_acc, val_epoch_costs[7])
-#     joint_str = "\n".join([str1, str2, str3, str4])
-#     print(joint_str)
-#     out_file.write(joint_str+"\n")
-#     out_file.flush()
-#     #################################
-#     # QUALITATIVE DIAGNOSTICS STUFF #
-#     #################################
-#     # generate some samples from the model prior
-#     sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
-#     samples = np.asarray(sample_func(sample_z0mb))
-#     grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/gen_{}.png".format(result_dir, epoch))
-#     # test reconstruction performance (inference + generation)
-#     tr_rb = Xtr_un[0:100,:]
-#     va_rb = Xva[0:100,:]
-#     # get the model reconstructions
-#     tr_rb = train_transform(tr_rb)
-#     va_rb = train_transform(va_rb)
-#     tr_recons = recon_func(tr_rb)
-#     va_recons = recon_func(va_rb)
-#     # stripe data for nice display (each reconstruction next to its target)
-#     tr_vis_batch = np.zeros((200, nc, npx, npx))
-#     va_vis_batch = np.zeros((200, nc, npx, npx))
-#     for rec_pair in range(100):
-#         idx_in = 2*rec_pair
-#         idx_out = 2*rec_pair + 1
-#         tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-#         tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-#         va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-#         va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-#     # draw images...
-#     grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-#     grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+print("EXPERIMENT: {}".format(desc.upper()))
+
+t = time()
+ntrain = Xtr_un.shape[0]
+batch_idx_un = np.arange(ntrain)
+batch_idx_un = np.concatenate([batch_idx_un[:,np.newaxis],batch_idx_un[:,np.newaxis]], axis=1)
+for epoch in range(1, niter+niter_decay+1):
+    # shuffle training and validation data
+    Xtr_un = shuffle(Xtr_un)
+    Xtr_su, Ytr_su = shared_shuffle(Xtr_su, Ytr_su)
+    Xva, Yva = shared_shuffle(Xva, Yva)
+    # initialize cost arrays
+    epoch_costs = [0. for i in range(len(train_outputs))]
+    val_epoch_costs = [0. for i in range(len(train_outputs))]
+    su_idx = 0
+    val_idx = 0
+    batch_count = 0.
+    val_batch_count = 0.
+    for bidx in tqdm(iter_data(batch_idx_un, size=nbatch), total=ntrain/nbatch):
+        # get a batch of unlabeled data
+        bidx = bidx[:,0].ravel()
+        imb_x = Xtr_un[bidx,:].copy()
+        # get a batch of labeled data
+        su_idx = su_idx + nbatch
+        if (su_idx + nbatch) > Xtr_su.shape[0]:
+            Xtr_su, Ytr_su = shared_shuffle(Xtr_su, Ytr_su)
+            su_idx = 0
+        end_idx = su_idx + nbatch
+        cmb_x = Xtr_su[su_idx:end_idx,:]
+        cmb_y = Ytr_su[su_idx:end_idx,:]
+        # transform training batches to "binary image format"
+        imb_x_img = train_transform(binarize_data(imb_x))
+        cmb_x_img = train_transform(binarize_data(cmb_x))
+        # train vae on training batch
+        result = func_train(imb_x_img, cmb_x_img, cmb_y)
+        epoch_costs = [(v1 + v2) for v1, v2 in zip(result, epoch_costs)]
+        batch_count += 1
+        # evaluate a validation batch, if required
+        if val_batch_count < 50:
+            val_idx = val_idx + nbatch
+            if (val_idx + nbatch) > Xva.shape[0]:
+                val_idx = 0
+            end_idx = val_idx + nbatch
+            vmb_x = Xva[val_idx:end_idx,:].copy()
+            vmb_y = Yva[val_idx:end_idx,:].copy()
+            vmb_x_img = train_transform(binarize_data(vmb_x))
+            result = func_train_costs(vmb_x_img, vmb_x_img, vmb_y)
+            val_epoch_costs = [(v1 + v2) for v1, v2 in zip(result, val_epoch_costs)]
+            val_batch_count += 1
+    if (epoch == 50) or (epoch == 100) or (epoch == 150):
+        # cut learning rate in half
+        lr = lrt.get_value(borrow=False)
+        lr = lr / 2.0
+        lrt.set_value(floatX(lr))
+        b1 = b1t.get_value(borrow=False)
+        b1 = b1 + ((0.95 - b1) / 2.0)
+        b1t.set_value(floatX(b1))
+    if epoch > niter:
+        # linearly decay learning rate
+        lr = lrt.get_value(borrow=False)
+        remaining_epochs = (niter + niter_decay + 1) - epoch
+        lrt.set_value(floatX(lr - (lr / remaining_epochs)))
+    ###################
+    # SAVE PARAMETERS #
+    ###################
+    inf_gen_model.dump_params(inf_gen_param_file)
+    ##################################
+    # QUANTITATIVE DIAGNOSTICS STUFF #
+    ##################################
+    epoch_costs = [(c / batch_count) for c in epoch_costs]
+    val_epoch_costs = [(c / val_batch_count) for c in val_epoch_costs]
+    str1 = "Epoch {}:".format(epoch)
+    # training diagnostics
+    tr_su_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                            n, v in zip(train_outputs_names, epoch_costs) if (n.find('su_') > -1)])
+    tr_un_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                            n, v in zip(train_outputs_names, epoch_costs) if (n.find('un_') > -1)])
+    tr_str1 = "    Train:"
+    tr_str2 = "    -- {}".format(tr_su_str)
+    tr_str3 = "    -- {}".format(tr_un_str)
+    # validation diagnostics
+    va_su_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                            n, v in zip(train_outputs_names, val_epoch_costs) if (n.find('su_') > -1)])
+    va_un_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                            n, v in zip(train_outputs_names, val_epoch_costs) if (n.find('un_') > -1)])
+    va_str1 = "    Valid:"
+    va_str2 = "    -- {}".format(va_su_str)
+    va_str3 = "    -- {}".format(va_un_str)
+    joint_str = "\n".join([str1, tr_str1, tr_str2, tr_str3,
+                           va_str1, va_str2, va_str3])
+    print(joint_str)
+    out_file.write(joint_str+"\n")
+    out_file.flush()
+    #################################
+    # QUALITATIVE DIAGNOSTICS STUFF #
+    #################################
+    # generate some samples from the model prior
+    sample_yi = np.concatenate([np.eye(nyc) for i in range(nyc)])
+    sample_z0 = np.repeat(rand_gen(size=(nyc, nz0)), nyc, axis=0)
+    samples = np.asarray(sample_func(sample_z0, sample_yi))
+    grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen_{}.png".format(result_dir, epoch))
 
 
 
