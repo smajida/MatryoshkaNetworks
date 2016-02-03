@@ -461,11 +461,11 @@ batch_ent_y = im_res_dict['batch_ent_y']
 
 
 test_func = theano.function([Xc, Yc], [obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y])
-x_in = train_transform(X_su[0:50,:])
-y_in = Y_su[0:50,:]
+x_in = train_transform(Xtr_su[0:50,:])
+y_in = Ytr_su[0:50,:]
 obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y = test_func(x_in, y_in)
 print("DONE. -- mean(obs_vae_nlls): {0:.4f}, mean(obs_vae_klds): {1:.4f}, mean(obs_cls_nlls): {2:.4f}, batch_ent_y: {3:.4f}".format( \
-        np.mean(obs_vae_nlls), np.mean(obs_vae_klds), np.mean(obs_cls_nlls), batch_ent_y))
+        np.mean(obs_vae_nlls), np.mean(obs_vae_klds), np.mean(obs_cls_nlls), 1.0*batch_ent_y))
 
 
 print("Compiling and testing type 1 inference...")

@@ -1143,7 +1143,7 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
-    def apply_im_unlabeled_2(self, input):
+    def apply_im_unlabeled_2(self, x):
         """
         This version repeats the input before sampling q(a|x) and q(y|a,x).
         """
