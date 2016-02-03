@@ -262,7 +262,7 @@ q_z0Iyx_module_1 = \
 InfFCModule(
     bu_chans=(ngf*4*7*7)+nyc, # input from BU net and class indicator
     fc_chans=ngfc,
-    rand_chans=nz0,           # output is mean and logvar for "z0"           
+    rand_chans=nz0,           # output is mean and logvar for "z0"
     use_fc=True,
     unif_drop=0.0,
     apply_bn=use_bn,
@@ -423,7 +423,7 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervised free-energy
 lam_su = sharedX(floatX(np.asarray([0.05])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([5.0])))  # weighting param for classification part of labeled cost
-lam_ent_y = sharedX(floatX(np.asarray([0.0])))   # weighting param for observation-wise entropy
+lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-10.0]))) # weighting param for batch-wise entropy
 all_params = inf_gen_model.params
 
@@ -457,9 +457,9 @@ su_inf_outputs_names = ['obs_vae_nlls', 'obs_vae_klds', 'obs_cls_nlls', 'kld_a',
 func_labeled_inf = theano.function([Xc, Yc], su_inf_outputs)
 x_in = train_transform(Xtr_su[0:50,:])
 y_in = Ytr_su[0:50,:]
-outputs = func_labeled_inf(x_in, y_in)
+result = func_labeled_inf(x_in, y_in)
 print("LABELED INFERENCE OUTPUTS:")
-su_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(su_inf_outputs_names, outputs)])
+su_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(su_inf_outputs_names, result)])
 print(su_out_str)
 
 # Gather symbolic outputs from inference with unlabeled data
@@ -478,9 +478,9 @@ un_batch_ent_y = im_res_dict['batch_ent_y']
 un_inf_outputs = [un_obs_nlls, un_obs_klds, un_kld_a, un_kld_z, un_ent_y, un_batch_ent_y]
 un_inf_outputs_names = ['obs_nlls', 'obs_klds', 'kld_a', 'kld_z', 'ent_y', 'batch_ent_y']
 func_unlabeled_inf = theano.function([Xg], un_inf_outputs)
-outputs = func_unlabeled_inf(train_transform(Xtr_un[0:nbatch,:]))
+result = func_unlabeled_inf(train_transform(Xtr_un[0:nbatch,:]))
 print("UNLABELED INFERENCE OUTPUTS:")
-un_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(un_inf_outputs_names, outputs)])
+un_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(un_inf_outputs_names, result)])
 print(un_out_str)
 
 #
@@ -491,52 +491,71 @@ print(un_out_str)
 #
 
 
-#################################################################
-# CONSTRUCT COST VARIABLES FOR THE SUPERVISED PART OF OBJECTIVE #
-#################################################################
+#######################################################
+# CONSTRUCT COST VARIABLES FOR THE TRAINING OBJECTIVE #
+#######################################################
 
-su_cost = T.mean(su_obs_vae_nlls) + T.mean(su_obs_vae_klds) + \
-            (lam_su_cls[0] * T.mean(su_obs_cls_nlls))
+su_vae_nll = T.mean(su_obs_vae_nlls)
+su_vae_kld = T.mean(su_obs_vae_klds)
+su_cls_nll = lam_su_cls[0] * T.mean(su_obs_cls_nlls)
+su_cost = su_vae_nll + su_vae_kld + su_cls_nll
 
+un_vae_nll = T.mean(un_obs_nlls)
+un_vae_kld = T.mean(un_obs_klds)
+un_oent_y = lam_obs_ent_y[0] * T.mean(un_ent_y)
+un_bent_y = lam_batch_ent_y[0] * un_batch_ent_y
+un_cost = un_vae_nll + un_vae_kld + un_oent_y + un_bent_y
+
+# The full cost requires inputs Xg, Xc, and Yc. Respectively, these are the
+# unlabeled observations, the labeled observations, and the latter's labels.
+full_cost = su_cost + un_cost
+
+# Collect costs that we should evaluate and track during training
+train_outputs = [su_cost, su_vae_nll, su_vae_kld, su_cls_nll,
+                 un_cost, un_vae_nll, un_vae_kld, un_oent_y, un_bent_y]
+train_outputs_names = ['su_cost', 'su_vae_nll', 'su_vae_kld',
+                       'su_cls_nll', 'un_cost', 'un_vae_nll',
+                       'un_vae_kld', 'un_oent_y', 'un_bent_y']
+
+#####################################################
+# CONSTRUCT PARAMETER UPDATES AND TRAINING FUNCTION #
+#####################################################
 
 # stuff for performing updates
 lrt = sharedX(0.0002)
 b1t = sharedX(0.8)
 param_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
-
 # # build training cost and update functions
-# t = time()
-# print("Computing gradients...")
-# gen_updates, gen_grads = gen_updater(gen_params, full_cost, return_grads=True)
-# inf_updates, inf_grads = inf_updater(inf_params, full_cost, return_grads=True)
-# cls_updates, cls_grads = inf_updater(cls_params, full_cost, return_grads=True)
-# all_updates = gen_updates + inf_updates + cls_updates
-# gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
-# inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
-# print("Compiling sampling and reconstruction functions...")
-# recon_func = theano.function([Xg], Xg_recon)
-# sample_func = theano.function([Z0], Xd_model)
-# test_recons = recon_func(train_transform(Xtr_un[0:100,:]))
-# print("Compiling training functions...")
-# # collect costs for generator parameters
-# train_costs = [full_cost, vae_cost, cls_cost, vae_nll_cost, vae_kld_cost,
-#                cls_nll_cost, cls_kld_cost, cls_cls_cost, vae_layer_klds]
+t = time()
+print("Computing gradients...")
+param_updates, param_grads = param_updater(gen_params, full_cost,
+                                           return_grads=True)
+print("Compiling training functions...")
+# grab the model's sampling function
+sample_func = inf_gen_model.generate_samples # takes inputs (z0, yi)
+# compile functions for computing model costs and updates
+#func_train = theano.function([Xg, Xc, Yc], train_outputs, updates=param_updates)
+func_train_costs = theano.function([Xg, Xc, Yc], train_outputs)
 
-# tc_idx = range(0, len(train_costs))
-# tc_names = ['full_cost', 'vae_cost', 'cls_cost', 'vae_nll_cost',
-#               'vae_kld_cost', 'cls_nll_cost', 'cls_kld_cost',
-#               'cls_cls_cost', 'vae_layer_klds']
-# # compile functions for computing generator costs and updates
-# cost_func = theano.function([Xg, Xc, Yc], train_costs)
-# pred_func = theano.function([Xc], Yc_recon)
-# train_func = theano.function([Xg, Xc, Yc], train_costs, updates=all_updates)
-# print "{0:.2f} seconds to compile theano functions".format(time()-t)
+print("Testing training cost evaluation...")
+# quick test of training function (without
+xg = train_transform(Xtr_un[0:nbatch,:])
+xc = train_transform(Xtr_su[0:nbatch,:])
+yc = Ytr_su[0:nbatch,:]
+result = func_train_costs(xg, xc, yc)
 
-# # make file for recording test progress
+su_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                        n, v in zip(train_outputs_names, result) if (n.find('su_') > -1)])
+un_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
+                        n, v in zip(train_outputs_names, result) if (n.find('un_') > -1)])
+print("-- {}".format(su_out_str))
+print("-- {}".format(un_out_str))
+
+# make file for recording test progress
 # log_name = "{}/RESULTS.txt".format(result_dir)
 # out_file = open(log_name, 'wb')
-
+#
 # print("EXPERIMENT: {}".format(desc.upper()))
 
 # n_check = 0
