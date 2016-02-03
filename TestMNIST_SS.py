@@ -665,9 +665,9 @@ for epoch in range(1, niter+niter_decay+1):
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
     # generate some samples from the model prior
-    sample_yi = np.concatenate([np.eye(nyc) for i in range(nyc)])
+    sample_yi = np.concatenate([np.eye(nyc) for i in range(nyc)], axis=0)
     sample_z0 = np.repeat(rand_gen(size=(nyc, nz0)), nyc, axis=0)
-    samples = np.asarray(sample_func(sample_z0, sample_yi))
+    samples = np.asarray(sample_func(floatX(sample_z0), floatX(sample_yi)))
     grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen_{}.png".format(result_dir, epoch))
 
 
