@@ -869,20 +869,20 @@ class InfGenModelSS(object):
         self.im_modules = [m for m in im_modules]
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         # get parameters from top-most inference models
-        self.all_params = []
-        self.all_params.extend(self.q_aIx_model.params)
-        self.all_params.extend(self.q_yIax_model.params)
-        self.all_params.extend(self.q_z0Iyx_model.params)
+        self.params = []
+        self.params.extend(self.q_aIx_model.params)
+        self.params.extend(self.q_yIax_model.params)
+        self.params.extend(self.q_z0Iyx_model.params)
         # get parameters from module lists
         for module in self.td_modules:
-            self.all_params.extend(module.params)
+            self.params.extend(module.params)
         for module in self.bu_modules:
-            self.all_params.extend(module.params)
+            self.params.extend(module.params)
         for module in self.im_modules:
-            self.all_params.extend(module.params)
+            self.params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
         self.dist_scale = sharedX( floatX([0.1]) )
-        self.all_params.append(self.dist_scale)
+        self.params.append(self.dist_scale)
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # keep a transform that we'll apply to generator output
@@ -1048,7 +1048,7 @@ class InfGenModelSS(object):
         x_info_rpt = T.extra_ops.repeat(x_info, self.nyc, axis=0)
         # sample from q(z | y, x) for the repeated inputs
         yx_info = T.concatenate([y_ind, x_info_rpt], axis=1)
-        z0_cond_mean, z0_cond_logvar = self.q_zIyx_model.apply(yx_info)
+        z0_cond_mean, z0_cond_logvar = self.q_z0Iyx_model.apply(yx_info)
         z0_cond_mean = self.dist_scale[0] * z0_cond_mean
         z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
         z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
