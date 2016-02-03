@@ -431,10 +431,10 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.05])))     # weighting param for total labeled cost
+lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([5.0])))  # weighting param for classification part of labeled cost
-lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
-lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0]))) # weighting param for batch-wise entropy
+lam_obs_ent_y = sharedX(floatX(np.asarray([0.1])))     # weighting param for observation-wise entropy
+lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
 all_params = inf_gen_model.params
 
 
@@ -454,11 +454,11 @@ im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
 su_obs_vae_nlls = im_res_dict['obs_vae_nlls']
 su_obs_vae_klds = im_res_dict['obs_vae_klds']
 su_obs_cls_nlls = im_res_dict['obs_cls_nlls']
-su_log_p_xIz = im_res_dict['log_p_xIz']
-su_kld_a = im_res_dict['kld_a']
-su_kld_y = im_res_dict['kld_y']
-su_kld_z = im_res_dict['kld_z']
-su_ent_y = im_res_dict['ent_y']
+su_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
+su_kld_a = T.mean(im_res_dict['kld_a'])
+su_kld_y = T.mean(im_res_dict['kld_y'])
+su_kld_z = T.mean(im_res_dict['kld_z'])
+su_ent_y = T.mean(im_res_dict['ent_y'])
 su_batch_y_prob = im_res_dict['batch_y_prob']
 su_batch_ent_y = im_res_dict['batch_ent_y']
 
@@ -478,11 +478,11 @@ print("Compiling and testing type 1 inference...")
 im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
 un_obs_nlls = im_res_dict['obs_nlls']
 un_obs_klds = im_res_dict['obs_klds']
-un_log_p_xIz = im_res_dict['log_p_xIz']
-un_kld_z = im_res_dict['kld_z']
-un_kld_a = im_res_dict['kld_a']
-un_kld_y = im_res_dict['kld_y']
-un_ent_y = im_res_dict['ent_y']
+un_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
+un_kld_z = T.mean(im_res_dict['kld_z'])
+un_kld_a = T.mean(im_res_dict['kld_a'])
+un_kld_y = T.mean(im_res_dict['kld_y'])
+un_ent_y = T.mean(im_res_dict['ent_y'])
 un_batch_ent_y = im_res_dict['batch_ent_y']
 
 un_inf_outputs = [un_obs_nlls, un_obs_klds, un_kld_a, un_kld_z, un_ent_y, un_batch_ent_y]
@@ -512,21 +512,22 @@ su_cost = su_vae_nll + su_vae_kld + su_cls_nll
 
 un_vae_nll = T.mean(un_obs_nlls)
 un_vae_kld = T.mean(un_obs_klds)
-un_oent_y = lam_obs_ent_y[0] * T.mean(un_ent_y)
+un_oent_y = lam_obs_ent_y[0] * un_ent_y
 un_bent_y = lam_batch_ent_y[0] * un_batch_ent_y
 un_cost = un_vae_nll + un_vae_kld + un_oent_y + un_bent_y
 
 # The full cost requires inputs Xg, Xc, and Yc. Respectively, these are the
 # unlabeled observations, the labeled observations, and the latter's labels.
 reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in all_params])
-full_cost = su_cost + un_cost + reg_cost
+full_cost = (lam_su[0] * su_cost) + un_cost + reg_cost
 
 # Collect costs that we should evaluate and track during training
-train_outputs = [su_cost, su_vae_nll, su_vae_kld, su_cls_nll,
-                 un_cost, un_vae_nll, un_vae_kld, un_oent_y, un_bent_y]
+train_outputs = [su_cost, su_vae_nll, su_vae_kld, su_cls_nll, un_cost,
+                 un_vae_nll, un_kld_a, un_kld_z, un_oent_y, un_bent_y]
 train_outputs_names = ['su_cost', 'su_vae_nll', 'su_vae_kld',
                        'su_cls_nll', 'un_cost', 'un_vae_nll',
-                       'un_vae_kld', 'un_oent_y', 'un_bent_y']
+                       'un_kld_a', 'un_kld_z', 'un_oent_y',
+                       'un_bent_y']
 
 #####################################################
 # CONSTRUCT PARAMETER UPDATES AND TRAINING FUNCTION #
@@ -563,6 +564,19 @@ un_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for \
                         n, v in zip(train_outputs_names, result) if (n.find('un_') > -1)])
 print("-- {}".format(su_out_str))
 print("-- {}".format(un_out_str))
+
+# compile a function for predicting y, and wrap it for multi-sample evaluation
+y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg)
+func_predict_y = theano.function([Xg], [y_softmax, y_unnorm])
+def predict_y(xg, sample_count=10):
+    y_sm, y_un = func_predict_y(xg)
+    if sample_count > 1:
+        for s in range(sample_count-1):
+            ysm, yun = func_predict_y(xg)
+            y_sm = y_sm + ysm
+            y_un = y_un + yun
+    return y_sm, y_un
+
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
@@ -634,6 +648,15 @@ for epoch in range(1, niter+niter_decay+1):
     # SAVE PARAMETERS #
     ###################
     inf_gen_model.dump_params(inf_gen_param_file)
+    ####################################
+    # EVALUATE CLASSIFICATION ACCURACY #
+    ####################################
+    max_idx = min(Xtr_su.shape[0], 500)
+    y_sm_su, y_un_su = predict_y(Xtr_su[:max_idx,:])
+    tr_acc = class_accuracy(y_sm_su, Ytr_su[:max_idx,:])
+    max_idx = min(Xva.shape[0], 500)
+    y_sm_va, y_un_va = predict_y(Xva[:max_idx,:])
+    va_acc = class_accuracy(y_sm_va, Yva[:max_idx,:])
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -656,8 +679,9 @@ for epoch in range(1, niter+niter_decay+1):
     va_str1 = "    Valid:"
     va_str2 = "    -- {}".format(va_su_str)
     va_str3 = "    -- {}".format(va_un_str)
+    acc_str = "    ACC: tr={0:.2f}, va={1:.2f}".format(tr_acc, va_acc)
     joint_str = "\n".join([str1, tr_str1, tr_str2, tr_str3,
-                           va_str1, va_str2, va_str3])
+                           va_str1, va_str2, va_str3, acc_str])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
