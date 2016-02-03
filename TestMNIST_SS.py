@@ -424,7 +424,7 @@ lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervi
 lam_su = sharedX(floatX(np.asarray([0.05])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([5.0])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
-lam_batch_ent_y = sharedX(floatX(np.asarray([-10.0]))) # weighting param for batch-wise entropy
+lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0]))) # weighting param for batch-wise entropy
 all_params = inf_gen_model.params
 
 
@@ -508,7 +508,8 @@ un_cost = un_vae_nll + un_vae_kld + un_oent_y + un_bent_y
 
 # The full cost requires inputs Xg, Xc, and Yc. Respectively, these are the
 # unlabeled observations, the labeled observations, and the latter's labels.
-full_cost = su_cost + un_cost
+reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in all_params])
+full_cost = su_cost + un_cost + reg_cost
 
 # Collect costs that we should evaluate and track during training
 train_outputs = [su_cost, su_vae_nll, su_vae_kld, su_cls_nll,
@@ -529,7 +530,7 @@ param_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 # # build training cost and update functions
 t = time()
 print("Computing gradients...")
-param_updates, param_grads = param_updater(gen_params, full_cost,
+param_updates, param_grads = param_updater(all_params, full_cost,
                                            return_grads=True)
 print("Compiling training functions...")
 # grab the model's sampling function
