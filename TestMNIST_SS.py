@@ -446,6 +446,28 @@ Xc = T.tensor4()  # symbolic var for inputs for supervised loss
 Yc = T.matrix()   # symbolic var for one-hot labels for supervised loss
 Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
+print("Compiling and testing labeled inference...")
+im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
+obs_vae_nlls = im_res_dict['obs_vae_nlls']
+obs_vae_klds = im_res_dict['obs_vae_klds']
+obs_cls_nlls = im_res_dict['obs_cls_nlls']
+log_p_xIz = im_res_dict['log_p_xIz']
+kld_a = im_res_dict['kld_a']
+kld_y = im_res_dict['kld_y']
+kld_z = im_res_dict['kld_z']
+ent_y = im_res_dict['ent_y']
+batch_y_prob = im_res_dict['batch_y_prob']
+batch_ent_y = im_res_dict['batch_ent_y']
+
+
+test_func = theano.function([Xc, Yc], [obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y])
+x_in = train_transform(X_su[0:50,:])
+y_in = Y_su[0:50,:]
+obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y = test_func(x_in, y_in)
+print("DONE. -- mean(obs_vae_nlls): {0:.4f}, mean(obs_vae_klds): {1:.4f}, mean(obs_cls_nlls): {2:.4f}, batch_ent_y: {3:.4f}".format( \
+        np.mean(obs_vae_nlls), np.mean(obs_vae_klds), np.mean(obs_cls_nlls), batch_ent_y))
+
+
 print("Compiling and testing type 1 inference...")
 # quick test of the marginalized BU/TD inference process
 im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
