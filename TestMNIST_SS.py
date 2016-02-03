@@ -465,15 +465,15 @@ su_batch_ent_y = im_res_dict['batch_ent_y']
 su_inf_outputs = [su_obs_vae_nlls, su_obs_vae_klds, su_obs_cls_nlls, su_kld_a, su_kld_z, su_ent_y]
 su_inf_outputs_names = ['obs_vae_nlls', 'obs_vae_klds', 'obs_cls_nlls', 'kld_a', 'kld_z', 'ent_y']
 func_labeled_inf = theano.function([Xc, Yc], su_inf_outputs)
-x_in = train_transform(Xtr_su[0:50,:])
-y_in = Ytr_su[0:50,:]
+x_in = train_transform(Xtr_su[0:nbatch,:])
+y_in = Ytr_su[0:nbatch,:]
 result = func_labeled_inf(x_in, y_in)
 print("LABELED INFERENCE OUTPUTS:")
 su_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(su_inf_outputs_names, result)])
 print(su_out_str)
 
 # Gather symbolic outputs from inference with unlabeled data
-print("Compiling and testing type 1 inference...")
+print("Compiling and testing unlabeled inference...")
 # quick test of the marginalized BU/TD inference process
 im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
 un_obs_nlls = im_res_dict['obs_nlls']

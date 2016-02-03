@@ -1290,7 +1290,7 @@ class InfGenModelSS(object):
         kld_a_rpt = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
                                 T.flatten(a_cond_logvar, 2),
                                 0.0, 0.0), axis=1)
-        kld_a = T.mean(kld_a_rpt.reshape((nbatch,a_rpt_count)), axis=1)
+        kld_a = T.mean(kld_a_rpt.reshape((self.nbatch,a_rpt_count)), axis=1)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info)
@@ -1372,7 +1372,7 @@ class InfGenModelSS(object):
 
         # compute overall per-observation free-energy costs
         obs_vae_nlls = -1.0 * log_p_xIz
-        obs_vae_klds = kld_a + kld_y + kld_z
+        obs_vae_klds = kld_z # + kld_a + kld_y # latter KLds not needed here...
 
         # compute a classification-type loss for thes observations
         obs_cls_nlls = T.nnet.categorical_crossentropy(y_probs, y_ind)

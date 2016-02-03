@@ -27,7 +27,7 @@ def mean_pool_rows(input, pool_count=None, pool_size=None):
         pool_mean = T.mean(input[pool_start:pool_end,:], axis=0, keepdims=True)
         pooled_rows.append(pool_mean)
     mean_pooled_input = T.concatenate(pooled_rows, axis=0)
-    return mp_vals
+    return mean_pooled_input
 
 def log_mean_exp(x, axis=None):
     assert (axis is not None), "please provide an axis along which to compute."
