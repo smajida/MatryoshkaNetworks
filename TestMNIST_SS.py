@@ -652,10 +652,10 @@ for epoch in range(1, niter+niter_decay+1):
     # EVALUATE CLASSIFICATION ACCURACY #
     ####################################
     max_idx = min(Xtr_su.shape[0], 500)
-    y_sm_su, y_un_su = predict_y(Xtr_su[:max_idx,:])
+    y_sm_su, y_un_su = predict_y(train_transform(Xtr_su[:max_idx,:]))
     tr_acc = class_accuracy(y_sm_su, Ytr_su[:max_idx,:])
     max_idx = min(Xva.shape[0], 500)
-    y_sm_va, y_un_va = predict_y(Xva[:max_idx,:])
+    y_sm_va, y_un_va = predict_y(train_transform(Xva[:max_idx,:]))
     va_acc = class_accuracy(y_sm_va, Yva[:max_idx,:])
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
