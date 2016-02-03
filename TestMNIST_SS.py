@@ -429,78 +429,64 @@ all_params = inf_gen_model.params
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
 
-#
-# The cost for a labeled point (x, y) is:
-#   NLL_bound(x, y) - lam_su_cls*NLL(q(y|x))
-#
-# The cost for an unlabeled point x is:
-#   NLL_bound(x)
-#
-# The overall cost is given by:
-#  
-#
-
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs for unsupervised loss
 Xc = T.tensor4()  # symbolic var for inputs for supervised loss
 Yc = T.matrix()   # symbolic var for one-hot labels for supervised loss
 Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
+# Gather symbolic outputs from inference with labeled data
 print("Compiling and testing labeled inference...")
 im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
-obs_vae_nlls = im_res_dict['obs_vae_nlls']
-obs_vae_klds = im_res_dict['obs_vae_klds']
-obs_cls_nlls = im_res_dict['obs_cls_nlls']
-log_p_xIz = im_res_dict['log_p_xIz']
-kld_a = im_res_dict['kld_a']
-kld_y = im_res_dict['kld_y']
-kld_z = im_res_dict['kld_z']
-ent_y = im_res_dict['ent_y']
-batch_y_prob = im_res_dict['batch_y_prob']
-batch_ent_y = im_res_dict['batch_ent_y']
+su_obs_vae_nlls = im_res_dict['obs_vae_nlls']
+su_obs_vae_klds = im_res_dict['obs_vae_klds']
+su_obs_cls_nlls = im_res_dict['obs_cls_nlls']
+su_log_p_xIz = im_res_dict['log_p_xIz']
+su_kld_a = im_res_dict['kld_a']
+su_kld_y = im_res_dict['kld_y']
+su_kld_z = im_res_dict['kld_z']
+su_ent_y = im_res_dict['ent_y']
+su_batch_y_prob = im_res_dict['batch_y_prob']
+su_batch_ent_y = im_res_dict['batch_ent_y']
 
-
-test_func = theano.function([Xc, Yc], [obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y])
+su_inf_outputs = [su_obs_vae_nlls, su_obs_vae_klds, su_obs_cls_nlls, su_kld_a, su_kld_z, su_ent_y]
+su_inf_outputs_names = ['obs_vae_nlls', 'obs_vae_klds', 'obs_cls_nlls', 'kld_a', 'kld_z', 'ent_y']
+func_labeled_inf = theano.function([Xc, Yc], su_inf_outputs)
 x_in = train_transform(Xtr_su[0:50,:])
 y_in = Ytr_su[0:50,:]
-obs_vae_nlls, obs_vae_klds, obs_cls_nlls, batch_ent_y = test_func(x_in, y_in)
-print("DONE. -- mean(obs_vae_nlls): {0:.4f}, mean(obs_vae_klds): {1:.4f}, mean(obs_cls_nlls): {2:.4f}, batch_ent_y: {3:.4f}".format( \
-        np.mean(obs_vae_nlls), np.mean(obs_vae_klds), np.mean(obs_cls_nlls), 1.0*batch_ent_y))
+outputs = func_labeled_inf(x_in, y_in)
+print("LABELED INFERENCE OUTPUTS:")
+su_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(su_inf_outputs_names, outputs)])
+print(su_out_str)
 
-
+# Gather symbolic outputs from inference with unlabeled data
 print("Compiling and testing type 1 inference...")
 # quick test of the marginalized BU/TD inference process
 im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
+un_obs_nlls = im_res_dict['obs_nlls']
+un_obs_klds = im_res_dict['obs_klds']
+un_log_p_xIz = im_res_dict['log_p_xIz']
+un_kld_z = im_res_dict['kld_z']
+un_kld_a = im_res_dict['kld_a']
+un_kld_y = im_res_dict['kld_y']
+un_ent_y = im_res_dict['ent_y']
+un_batch_ent_y = im_res_dict['batch_ent_y']
 
-obs_nlls = im_res_dict['obs_nlls']
-obs_klds = im_res_dict['obs_klds']
-log_p_xIz = im_res_dict['log_p_xIz']
-kld_z = im_res_dict['kld_z']
-kld_a = im_res_dict['kld_a']
-kld_y = im_res_dict['kld_y']
-ent_y = im_res_dict['ent_y']
+un_inf_outputs = [un_obs_nlls, un_obs_klds, un_kld_a, un_kld_z, un_ent_y, un_batch_ent_y]
+un_inf_outputs_names = ['obs_nlls', 'obs_klds', 'kld_a', 'kld_z', 'ent_y', 'batch_ent_y']
+func_unlabeled_inf = theano.function([Xg], un_inf_outputs)
+outputs = func_unlabeled_inf(train_transform(Xtr_un[0:nbatch,:]))
+print("UNLABELED INFERENCE OUTPUTS:")
+un_out_str = ", ".join(["{0:s}: {1:.4f}".format(n, 1.0*np.mean(v)) for n, v in zip(un_inf_outputs_names, outputs)])
+print(un_out_str)
 
-test_func = theano.function([Xg], [obs_nlls, obs_klds])
-obs_nlls, obs_klds = test_func(train_transform(Xtr_un[0:nbatch,:]))
-print("DONE. -- np.mean(obs_nlls): {0:.4f}, np.mean(obs_klds): {1:.4f}".format( \
-        np.mean(obs_nlls), np.mean(obs_klds)))
+#
+# compiled functions (so far):
+# ---------------------------
+#   1. func_labeled_inf  : computes various outputs of inference for labeled data
+#   2. func_unlabeled_inf: computes various outputs of inference for unlabeled data
+#
 
-print("Compiling and testing type 2 inference...")
-# quick test of the other marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
-
-obs_nlls = im_res_dict['obs_nlls']
-obs_klds = im_res_dict['obs_klds']
-log_p_xIz = im_res_dict['log_p_xIz']
-kld_z = im_res_dict['kld_z']
-kld_a = im_res_dict['kld_a']
-kld_y = im_res_dict['kld_y']
-ent_y = im_res_dict['ent_y']
-
-test_func = theano.function([Xg], [obs_nlls, obs_klds])
-obs_nlls, obs_klds = test_func(train_transform(Xtr_un[0:nbatch,:]))
-print("DONE. -- np.mean(obs_nlls): {0:.4f}, np.mean(obs_klds): {1:.4f}".format( \
-        np.mean(obs_nlls), np.mean(obs_klds)))
 
 # ##########################################################
 # # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #

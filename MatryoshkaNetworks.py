@@ -1385,6 +1385,25 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
+    def apply_predict_y(self, x):
+        """
+        Do a one-sample prediction of y, conditioned on x.
+          -- return both unnormalized and normalized predictions.
+        """
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(x)
+        x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw a sample from q(a | x) for each input
+        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info)
+        a_cond_mean = self.dist_scale[0] * a_cond_mean
+        a_cond_logvar = self.dist_scale[0] * a_cond_logvar
+        a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
+        # feed BU features and a samples into q(y | a, x)
+        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info)
+        y_probs = T.nnet.softmax(y_unnorm)
+        return y_probs, y_unnorm
+
     def _construct_generate_samples(self):
         """
         Generate some samples from this network.
