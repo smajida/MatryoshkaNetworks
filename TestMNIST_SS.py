@@ -420,14 +420,17 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_un_vae = sharedX(floatX(np.asarray([1.0])))
-lam_su_vae = sharedX(floatX(np.asarray([1.0])))
-lam_su_cls = sharedX(floatX(np.asarray([1.0])))
+lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervised free-energy
+lam_su = sharedX(floatX(np.asarray([0.05])))     # weighting param for total labeled cost
+lam_su_cls = sharedX(floatX(np.asarray([5.0])))  # weighting param for classification part of labeled cost
+lam_ent_y = sharedX(floatX(np.asarray([0.0])))   # weighting param for observation-wise entropy
+lam_batch_ent_y = sharedX(floatX(np.asarray([-10.0]))) # weighting param for batch-wise entropy
 all_params = inf_gen_model.params
 
-######################################################
-# BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
-######################################################
+
+########################################################
+# GATHER SYMBOLIC OUTPUTS REQUIRED FOR COMPUTING COSTS #
+########################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs for unsupervised loss
@@ -488,87 +491,18 @@ print(un_out_str)
 #
 
 
-# ##########################################################
-# # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
-# ##########################################################
-# # run an inference and reconstruction pass through the generative stuff
-# im_res_dict = inf_gen_model.apply_im(Xg)
-# Xg_recon = im_res_dict['td_output']
-# vae_kld_dict = im_res_dict['kld_dict']
-# vae_log_p_x = T.sum(log_prob_bernoulli( \
-#                     T.flatten(Xg,2), T.flatten(Xg_recon,2),
-#                     do_sum=False), axis=1)
+#################################################################
+# CONSTRUCT COST VARIABLES FOR THE SUPERVISED PART OF OBJECTIVE #
+#################################################################
 
-# # compute reconstruction error part of free-energy
-# vae_obs_nlls = -1.0 * vae_log_p_x
-# vae_nll_cost = T.mean(vae_obs_nlls)
+su_cost = T.mean(su_obs_vae_nlls) + T.mean(su_obs_vae_klds) + \
+            (lam_su_cls[0] * T.mean(su_obs_cls_nlls))
 
-# # compute per-layer KL-divergence part of cost
-# vae_kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) \
-#                   for mod_name, mod_kld in vae_kld_dict.items()]
-# vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) \
-#                   for mod_name, mod_kld in vae_kld_tuples])
-# vae_layer_names = [mod_name for mod_name, mod_kld in vae_kld_tuples]
-# # compute total per-observation KL-divergence part of cost
-# vae_obs_klds = sum([mod_kld for mod_name, mod_kld in vae_kld_tuples])
-# vae_kld_cost = T.mean(vae_obs_klds)
 
-# # combined cost for free-energy stuff
-# vae_cost = vae_nll_cost + vae_kld_cost
-
-# ##########################################################
-# # CONSTRUCT COST VARIABLES FOR THE CLS PART OF OBJECTIVE #
-# ##########################################################
-# # run an inference and reconstruction pass through the generative stuff
-# im_res_dict = inf_gen_model.apply_im(Xc)
-# Xc_recon = im_res_dict['td_output']
-# cls_kld_dict = im_res_dict['kld_dict']
-# cls_z_dict = im_res_dict['z_dict']
-# cls_z_top = cls_z_dict['td_mod_1']
-
-# # apply classifier to the top-most set of latent variables, maybe good idea?
-# Yc_recon = T.nnet.softmax( class_model.apply(cls_z_top[:,:nz0_c]) )
-
-# # compute reconstruction error part of free-energy
-# cls_log_p_x = T.sum(log_prob_bernoulli( \
-#                     T.flatten(Xc,2), T.flatten(Xc_recon,2),
-#                     do_sum=False), axis=1)
-# cls_obs_nlls = -1.0 * cls_log_p_x
-# cls_nll_cost = T.mean(cls_obs_nlls)
-
-# # compute per-layer KL-divergence part of cost
-# cls_kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) \
-#                   for mod_name, mod_kld in cls_kld_dict.items()]
-# cls_layer_klds = T.as_tensor_variable([T.mean(mod_kld) \
-#                   for mod_name, mod_kld in cls_kld_tuples])
-# cls_layer_names = [mod_name for mod_name, mod_kld in cls_kld_tuples]
-# # compute total per-observation KL-divergence part of cost
-# cls_obs_klds = sum([mod_kld for mod_name, mod_kld in cls_kld_tuples])
-# cls_kld_cost = T.mean(cls_obs_klds)
-
-# # combined cost for generator stuff
-# cls_cls_cost = lam_cls_cls[0] * T.mean(T.nnet.categorical_crossentropy(Yc_recon, Yc))
-# cls_cost = cls_nll_cost + cls_kld_cost + cls_cls_cost + \
-#            (T.mean(Yc**2.0) * T.sum(cls_z_dict['td_mod_1']**2.0))
-
-# #################################################################
-# # COMBINE VAE AND CLS OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
-# #################################################################
-# # parameter regularization part of cost
-# reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in all_params])
-# # full joint cost -- a weighted combination of free-energy and classification
-# full_cost = (lam_vae[0] * vae_cost) + (lam_cls[0] * cls_cost) + reg_cost
-
-# # run an un-grounded pass through generative stuff for sampling from model
-# td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-# Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
-
-# # stuff for performing updates
-# lrt = sharedX(0.0002)
-# b1t = sharedX(0.8)
-# gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-# inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-# cls_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+# stuff for performing updates
+lrt = sharedX(0.0002)
+b1t = sharedX(0.8)
+param_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 
 # # build training cost and update functions
