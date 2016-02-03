@@ -408,6 +408,7 @@ inf_gen_model = InfGenModelSS(
     td_modules=td_modules,       # modules for TD (generator) conv net
     im_modules=im_modules,       # modules for q(zi | y, x) within TD conv net
     merge_info=merge_info,       # piping for input/output of TD/IM/BU modules
+    use_bernoulli=True,          # flag for using bernoulli/gaussian output
     output_transform=sigmoid     # transform to apply to generator output
 )
 
@@ -445,6 +446,7 @@ Xc = T.tensor4()  # symbolic var for inputs for supervised loss
 Yc = T.matrix()   # symbolic var for one-hot labels for supervised loss
 Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
+print("Compiling and testing type 1 inference...")
 # quick test of the marginalized BU/TD inference process
 im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
 
@@ -457,9 +459,11 @@ kld_y = im_res_dict['kld_y']
 ent_y = im_res_dict['ent_y']
 
 test_func = theano.function([Xg], [obs_nlls, obs_klds])
+obs_nlls, obs_klds = test_func(train_transform(Xtr_un[0:nbatch,:]))
+print("DONE. -- np.mean(obs_nlls): {0:.4f}, np.mean(obs_klds): {1:.4f}".format( \
+        np.mean(obs_nlls), np.mean(obs_klds)))
 
-obs_nlls, obs_klds = test_func(train_transform(Xtr[0:nbatch,:]))
-
+print("Compiling and testing type 2 inference...")
 # quick test of the other marginalized BU/TD inference process
 im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
 
@@ -472,8 +476,9 @@ kld_y = im_res_dict['kld_y']
 ent_y = im_res_dict['ent_y']
 
 test_func = theano.function([Xg], [obs_nlls, obs_klds])
-
-obs_nlls, obs_klds = test_func(train_transform(Xtr[0:nbatch,:]))
+obs_nlls, obs_klds = test_func(train_transform(Xtr_un[0:nbatch,:]))
+print("DONE. -- np.mean(obs_nlls): {0:.4f}, np.mean(obs_klds): {1:.4f}".format( \
+        np.mean(obs_nlls), np.mean(obs_klds)))
 
 # ##########################################################
 # # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #

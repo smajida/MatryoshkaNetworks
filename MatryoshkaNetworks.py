@@ -16,7 +16,7 @@ from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat
 from lib.theano_utils import floatX, sharedX
-from lib.costs import log_prob_gaussian, gaussian_kld
+from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 
 #
 # Phil's business
@@ -849,12 +849,13 @@ class InfGenModelSS(object):
                     participate in the top-down computation.
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
+        use_bernoulli: boolean flag for using bernoulli or gaussian output
         output_transform: transform to apply to outputs of the top-down model.
     """
     def __init__(self, nyc, nbatch,
                  q_aIx_model, q_yIax_model, q_z0Iyx_model,
                  bu_modules, td_modules, im_modules,
-                 merge_info, output_transform):
+                 merge_info, use_bernoulli, output_transform):
         # get indicator dimension and top-down batch size
         self.nyc = nyc
         self.nbatch = nbatch
@@ -885,6 +886,8 @@ class InfGenModelSS(object):
         self.params.append(self.dist_scale)
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
+        # track what sort of output distribution we're using
+        self.use_bernoulli = use_bernoulli
         # keep a transform that we'll apply to generator output
         if output_transform == 'ident':
             self.output_transform = lambda x: x
@@ -892,7 +895,7 @@ class InfGenModelSS(object):
             self.output_transform = output_transform
         # construct a vertically-repeated identity matrix for marginalizing
         # over possible values of the categorical latent variable.
-        Ic = np.vstack([np.eye(label_dim) for i in range(self.nbatch)])
+        Ic = np.vstack([np.eye(self.nyc) for i in range(self.nbatch)])
         self.Ic = theano.shared(value=floatX(Ic))
         print("Compiling sample generator...")
         # test inputs to sample generator
@@ -1043,7 +1046,7 @@ class InfGenModelSS(object):
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
-        batch_y_ent = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
+        batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # repeat the input for marginalizing remaining inference steps
         x_info_rpt = T.extra_ops.repeat(x_info, self.nyc, axis=0)
         # sample from q(z | y, x) for the repeated inputs
@@ -1166,10 +1169,10 @@ class InfGenModelSS(object):
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y_rpt = self.log_nyc - ent_y_rpt
         batch_y_prob = T.mean(y_probs, axis=0)
-        batch_y_ent = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
+        batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # sample from q(z | y, x) for the repeated inputs
         yx_info = T.concatenate([y_ind, x_info], axis=1)
-        z0_cond_mean, z0_cond_logvar = self.q_zIyx_model.apply(yx_info)
+        z0_cond_mean, z0_cond_logvar = self.q_z0Iyx_model.apply(yx_info)
         z0_cond_mean = self.dist_scale[0] * z0_cond_mean
         z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
         z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
