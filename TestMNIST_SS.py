@@ -41,7 +41,7 @@ EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_bn_type1".format(sup_count)
+desc = "test_ss_{}_labels_bn_type1_small_kld_a".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -430,8 +430,8 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.05])))     # weighting param for total labeled cost
+lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
+lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([2.0])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.1])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
@@ -507,14 +507,16 @@ print(un_out_str)
 
 su_vae_nll = T.mean(su_obs_vae_nlls)
 su_vae_kld = T.mean(su_obs_vae_klds)
-su_cls_nll = lam_su_cls[0] * T.mean(su_obs_cls_nlls)
-su_cost = su_vae_nll + su_vae_kld + su_cls_nll
+su_cls_nll = T.mean(su_obs_cls_nlls)
+su_cost = su_vae_nll + su_vae_kld + (lam_su_cls[0] * su_cls_nll)
 
 un_vae_nll = T.mean(un_obs_nlls)
 un_vae_kld = T.mean(un_obs_klds)
-un_oent_y = lam_obs_ent_y[0] * un_ent_y
-un_bent_y = lam_batch_ent_y[0] * un_batch_ent_y
-un_cost = un_vae_nll + un_vae_kld + un_oent_y + un_bent_y
+un_oent_y = un_ent_y
+un_bent_y = un_batch_ent_y
+un_cost = un_vae_nll + un_vae_kld + \
+          (lam_obs_ent_y[0] * un_oent_y) + \
+          (lam_batch_ent_y[0] * un_bent_y)
 
 # The full cost requires inputs Xg, Xc, and Yc. Respectively, these are the
 # unlabeled observations, the labeled observations, and the latter's labels.

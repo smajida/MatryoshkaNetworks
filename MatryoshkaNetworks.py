@@ -1129,7 +1129,7 @@ class InfGenModelSS(object):
 
         # compute overall per-observation costs
         obs_nlls = -1.0 * log_p_xIz
-        obs_klds = kld_a + kld_y + kld_z
+        obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
         im_res_dict = {}
@@ -1256,7 +1256,7 @@ class InfGenModelSS(object):
 
         # compute overall per-observation costs
         obs_nlls = -1.0 * log_p_xIz
-        obs_klds = kld_a + kld_y + kld_z
+        obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
         im_res_dict = {}
@@ -1374,7 +1374,7 @@ class InfGenModelSS(object):
         obs_vae_nlls = -1.0 * log_p_xIz
         obs_vae_klds = kld_z # + kld_a + kld_y # latter KLds not needed here...
 
-        # compute a classification-type loss for thes observations
+        # compute a classification-type loss for these observations
         obs_cls_nlls = T.nnet.categorical_crossentropy(y_probs, y_ind)
 
         # package results for convenient processing
