@@ -1274,13 +1274,15 @@ class InfGenModelSS(object):
         """
         This version samples for a single indicator, provided in y.
         """
+        a_rpt_count = 20
         y_ind = y
         y_ind_conv = y.dimshuffle(0,1,'x','x')
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(x)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        x_info_rpt = T.extra_ops.repeat(x_info, a_rpt_count, axis=0)
         # draw a sample from q(a | x) for each input
-        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info)
+        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info_rpt)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
@@ -1288,9 +1290,9 @@ class InfGenModelSS(object):
                                 T.flatten(a_cond_logvar, 2),
                                 0.0, 0.0), axis=1)
         # feed BU features and a samples into q(y | a, x)
-        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = T.mean(T.nnet.softmax(y_unnorm).reshape((x_info.shape[0],a_rpt_count)), axis=0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
