@@ -546,9 +546,9 @@ print("Compiling training functions...")
 # grab the model's sampling function
 sample_func = inf_gen_model.generate_samples # takes inputs (z0, yi)
 # compile functions for computing model costs and updates
-#func_train = theano.function([Xg, Xc, Yc], train_outputs, updates=param_updates)
+func_train = theano.function([Xg, Xc, Yc], train_outputs, updates=param_updates)
 func_train_costs = theano.function([Xg, Xc, Yc], train_outputs)
-func_train = func_train_costs
+#func_train = func_train_costs
 
 print("Testing training cost evaluation...")
 # quick test of training function (without
