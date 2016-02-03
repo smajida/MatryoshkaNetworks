@@ -81,7 +81,7 @@ niter = 200       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -250,7 +250,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
     use_fc=True,
-    unif_drop=0.0,
+    unif_drop=0.5,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_yIax_module_1'
@@ -295,7 +295,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=0.2,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='single',
@@ -311,7 +311,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=0.2,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -327,7 +327,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=0.2,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -342,7 +342,7 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     chan_drop=0.0,
-    unif_drop=0.0,
+    unif_drop=0.2,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -679,7 +679,7 @@ for epoch in range(1, niter+niter_decay+1):
     va_str1 = "    Valid:"
     va_str2 = "    -- {}".format(va_su_str)
     va_str3 = "    -- {}".format(va_un_str)
-    acc_str = "    ACC: tr={0:.2f}, va={1:.2f}".format(tr_acc, va_acc)
+    acc_str = "    ACC: tr={0:.4f}, va={1:.4f}".format(tr_acc, va_acc)
     joint_str = "\n".join([str1, tr_str1, tr_str2, tr_str3,
                            va_str1, va_str2, va_str3, acc_str])
     print(joint_str)
