@@ -41,7 +41,7 @@ EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels".format(sup_count)
+desc = "test_ss_{}_labels_bn_type2".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -81,7 +81,7 @@ niter = 200       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -250,7 +250,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
     use_fc=True,
-    unif_drop=0.5,
+    unif_drop=0.0,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_yIax_module_1'
@@ -295,7 +295,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.2,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='single',
@@ -311,7 +311,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.2,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -327,7 +327,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.2,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -342,7 +342,7 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     chan_drop=0.0,
-    unif_drop=0.2,
+    unif_drop=0.0,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -431,8 +431,8 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.00])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
-lam_su_cls = sharedX(floatX(np.asarray([5.0])))  # weighting param for classification part of labeled cost
+lam_su = sharedX(floatX(np.asarray([0.02])))     # weighting param for total labeled cost
+lam_su_cls = sharedX(floatX(np.asarray([2.0])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.1])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
 all_params = inf_gen_model.params

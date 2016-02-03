@@ -882,7 +882,7 @@ class InfGenModelSS(object):
         for module in self.im_modules:
             self.params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
-        self.dist_scale = sharedX( floatX([0.1]) )
+        self.dist_scale = sharedX( floatX([1.0]) )
         self.params.append(self.dist_scale)
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
