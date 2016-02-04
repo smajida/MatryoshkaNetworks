@@ -41,7 +41,7 @@ EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_bn_type1_small_kld_a".format(sup_count)
+desc = "test_ss_{}_labels_bn_type2_small_dist_scale".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -431,8 +431,8 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
-lam_su_cls = sharedX(floatX(np.asarray([2.0])))  # weighting param for classification part of labeled cost
+lam_su = sharedX(floatX(np.asarray([1.0])))     # weighting param for total labeled cost
+lam_su_cls = sharedX(floatX(np.asarray([1.0])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.1])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
 all_params = inf_gen_model.params
@@ -475,7 +475,7 @@ print(su_out_str)
 # Gather symbolic outputs from inference with unlabeled data
 print("Compiling and testing unlabeled inference...")
 # quick test of the marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_unlabeled_1(Xg)
+im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
 un_obs_nlls = im_res_dict['obs_nlls']
 un_obs_klds = im_res_dict['obs_klds']
 un_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
