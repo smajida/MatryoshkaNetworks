@@ -39,9 +39,12 @@ from MatryoshkaNetworks import InfGenModelSS, SimpleInfMLP
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
+# seed for shared rngs
+set_seed(1)
+
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_bn_type2_small_dist_scale".format(sup_count)
+desc = "test_ss_{}_labels_bn_type2_lamsu_05".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +70,6 @@ Yte = floatX( OneHot(Yte, n=nyc, negative_class=0.) )
 
 sup_count = Xtr_su.shape[0]   # number of labeled examples
 
-set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 50       # # of examples in batch
 npx = 28          # # of pixels width/height of images
@@ -82,7 +84,7 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-act_func = 'relu' # activation func to use where they can be selected
+act_func = 'lrelu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
     """
@@ -431,7 +433,7 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([1.0])))     # weighting param for total labeled cost
+lam_su = sharedX(floatX(np.asarray([0.5])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([1.0])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.1])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
