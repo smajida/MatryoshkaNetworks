@@ -1077,7 +1077,7 @@ class InfGenModelSS(object):
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 im_module = self.im_modules_dict[im_mod_name]
                 # get BU and TD info that we'll use to get conditional on zi
-                td_info = td_acts[-1]             
+                td_info = td_acts[-1]
                 bu_info = bu_res_dict[bu_mod_name]
                 # repeat and/or concatenate info as required
                 td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
@@ -1198,7 +1198,7 @@ class InfGenModelSS(object):
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 im_module = self.im_modules_dict[im_mod_name]
                 # get BU and TD info that we'll use to get conditional on zi
-                td_info = td_acts[-1]       
+                td_info = td_acts[-1]
                 bu_info = bu_res_dict[bu_mod_name]
                 # concatenate indicators onto top-down info
                 td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
@@ -1328,7 +1328,7 @@ class InfGenModelSS(object):
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 im_module = self.im_modules_dict[im_mod_name]
                 # get BU and TD info that we'll use to get conditional on zi
-                td_info = td_acts[-1]   
+                td_info = td_acts[-1]
                 bu_info = bu_res_dict[bu_mod_name]
                 # concatenate indicators onto top-down info
                 td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
