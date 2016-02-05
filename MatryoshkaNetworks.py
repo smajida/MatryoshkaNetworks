@@ -1407,7 +1407,7 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
-    def apply_predict_y(self, x, noise=noise):
+    def apply_predict_y(self, x, noise=None):
         """
         Do a one-sample prediction of y, conditioned on x.
           -- return both unnormalized and normalized predictions.

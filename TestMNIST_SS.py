@@ -44,7 +44,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_02".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_001".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -83,9 +83,9 @@ niter = 200       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 drop_rate = 0.0   # dropout rate in BU network
-noise_lvl = 0.2   # noise level in BU network
+noise_lvl = 0.01   # noise level in BU network
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -438,11 +438,11 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
+lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
-bu_noise = sharedX(floatX(np.asarray([0.0])))
+bu_noise = sharedX(floatX(np.asarray([noise_lvl])))
 all_params = inf_gen_model.params
 
 
@@ -458,7 +458,7 @@ Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
 # Gather symbolic outputs from inference with labeled data
 print("Compiling and testing labeled inference...")
-im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
+im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc, noise=bu_noise)
 su_obs_vae_nlls = im_res_dict['obs_vae_nlls']
 su_obs_vae_klds = im_res_dict['obs_vae_klds']
 su_obs_cls_nlls = im_res_dict['obs_cls_nlls']
@@ -483,7 +483,7 @@ print(su_out_str)
 # Gather symbolic outputs from inference with unlabeled data
 print("Compiling and testing unlabeled inference...")
 # quick test of the marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
+im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg, noise=bu_noise)
 un_obs_nlls = im_res_dict['obs_nlls']
 un_obs_klds = im_res_dict['obs_klds']
 un_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
@@ -576,7 +576,7 @@ print("-- {}".format(su_out_str))
 print("-- {}".format(un_out_str))
 
 # compile a function for predicting y, and wrap it for multi-sample evaluation
-y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg)
+y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg, noise=bu_noise)
 func_predict_y = theano.function([Xg], [y_softmax, y_unnorm])
 def predict_y(xg, sample_count=10):
     y_sm, y_un = func_predict_y(xg)
@@ -702,8 +702,13 @@ for epoch in range(1, niter+niter_decay+1):
     sample_yi = np.concatenate([np.eye(nyc) for i in range(nyc)], axis=0)
     sample_z0 = np.repeat(rand_gen(size=(nyc, nz0)), nyc, axis=0)
     samples = np.asarray(sample_func(floatX(sample_z0), floatX(sample_yi)))
-    grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen_{}.png".format(result_dir, epoch))
-
+    grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen1_{}.png".format(result_dir, epoch))
+    sample_yi = np.concatenate([np.eye(nyc), np.eye(nyc)], axis=0)
+    sample_z0 = rand_gen(size=(sample_yi.shape[0], nz0))
+    sample_yi = np.repeat(sample_yi, 20, axis=0)
+    sample_z0 = np.repeat(sample_z0, 20, axis=0)
+    samples = np.asarray(sample_func(floatX(sample_z0), floatX(sample_yi)))
+    grayscale_grid_vis(draw_transform(samples), (2*nyc, 20), "{}/gen2_{}.png".format(result_dir, epoch))
 
 
 
