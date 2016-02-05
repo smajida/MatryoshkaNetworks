@@ -755,14 +755,14 @@ class SimpleMLP(object):
                 mod.load_params(param_dict=param_dict)
         return
 
-    def apply(self, input):
+    def apply(self, input, noise=None):
         """
         Apply this SimpleMLP to some input and return the output of
         its final layer.
         """
         hs = [input]
         for i, module in enumerate(self.modules):
-            hi = module.apply(T.flatten(hs[-1], 2))
+            hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
             hs.append(hi)
         return hs[-1]
 
@@ -813,14 +813,14 @@ class SimpleInfMLP(object):
                 mod.load_params(param_dict=param_dict)
         return
 
-    def apply(self, input):
+    def apply(self, input, noise=None):
         """
         Apply this SimpleMLP to some input and return the output of
         its final layer.
         """
         hs = [input]
         for i, module in enumerate(self.modules):
-            hi = module.apply(T.flatten(hs[-1], 2))
+            hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
             hs.append(hi)
         return hs[-1]
 
@@ -995,8 +995,7 @@ class InfGenModelSS(object):
                 # concatenate top-down activations with indicators
                 td_info = conv_cond_concat(td_acts[-1], y_ind_conv)
                 # feedforward through td_module
-                td_act_i = td_module.apply(td_info,
-                                           rand_vals=rvs)
+                td_act_i = td_module.apply(td_info, rand_vals=rvs)
             else:
                 # handle computation for a TD module that only requires
                 # info from preceding TD modules (i.e. no rands or indicators)
@@ -1006,7 +1005,7 @@ class InfGenModelSS(object):
         result = self.output_transform(td_acts[-1])
         return result
 
-    def apply_bu(self, input):
+    def apply_bu(self, input, noise=None):
         """
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
@@ -1015,25 +1014,25 @@ class InfGenModelSS(object):
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input)
+                res = bu_mod.apply(input, noise=noise)
             else:
-                res = bu_mod.apply(bu_acts[i-1])
+                res = bu_mod.apply(bu_acts[i-1], noise=noise)
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im_unlabeled_1(self, x):
+    def apply_im_unlabeled_1(self, x, noise=None):
         """
         This version repeats the input after sampling q(a|x) and q(y|a,x).
         """
         y_ind = self.Ic # this has shape (self.nbatch*self.nyc, self.nyc)
         y_ind_conv = self.Ic.dimshuffle(0,1,'x','x')
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(x)
+        bu_res_dict = self.apply_bu(x, noise=noise)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
         # draw a sample from q(a | x) for each input
-        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info)
+        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info, noise=noise)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
@@ -1042,17 +1041,19 @@ class InfGenModelSS(object):
                                    0.0, 0.0), axis=1)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
-        y_unnorm, _ = self.q_yIax_model.apply(ax_info)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
         y_probs = T.nnet.softmax(y_unnorm)
+        y_energy = T.sum(y_unnorm**2.0, axis=1)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
-        kld_y = self.log_nyc - ent_y
+        kld_y = self.log_nyc - ent_y + (0.01 * y_energy)
         batch_y_prob = T.mean(y_probs, axis=0)
         batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # repeat the input for marginalizing remaining inference steps
         x_info_rpt = T.extra_ops.repeat(x_info, self.nyc, axis=0)
         # sample from q(z | y, x) for the repeated inputs
         yx_info = T.concatenate([y_ind, x_info_rpt], axis=1)
-        z0_cond_mean, z0_cond_logvar = self.q_z0Iyx_model.apply(yx_info)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
         z0_cond_mean = self.dist_scale[0] * z0_cond_mean
         z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
         z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
@@ -1086,7 +1087,8 @@ class InfGenModelSS(object):
                 # the BU info has to be repeated to allow marginalization.
                 zi_cond_mean, zi_cond_logvar = \
                         im_module.apply_im(td_input=td_info_and_inds,
-                                           bu_input=bu_info_rpt)
+                                           bu_input=bu_info_rpt,
+                                           noise=noise)
                 zi_cond_mean = self.dist_scale[0] * zi_cond_mean
                 zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
                 # reparametrize and sample from conditional over zi
@@ -1119,16 +1121,19 @@ class InfGenModelSS(object):
                                     T.flatten(x_recon_rpt,2),
                                     log_vars=0.0, use_huber=0.5,
                                     do_sum=False), axis=1) # gaussian(ish)
+        act_sq_rpt = T.sum(T.flatten(td_acts[-1],2)**2.0, axis=1)
         # compute total KLd for the merged TD/BU process
         kld_z_rpt = sum(td_klds)
         # reshape repeated costs, and marginalize w.r.t. y_probs
         log_p_xIz_mat = log_p_xIz_rpt.reshape((self.nbatch, self.nyc))
         kld_z_mat = kld_z_rpt.reshape((self.nbatch, self.nyc))
+        act_sq_mat = act_sq_rpt.reshape((self.nbatch, self.nyc))
         log_p_xIz = T.sum((y_probs * log_p_xIz_mat), axis=1)
         kld_z = T.sum((y_probs * kld_z_mat), axis=1)
+        act_sq = T.sum((y_probs * act_sq_mat), axis=1)
 
         # compute overall per-observation costs
-        obs_nlls = -1.0 * log_p_xIz
+        obs_nlls = -1.0 * log_p_xIz + (0.01 * act_sq)
         obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
@@ -1144,7 +1149,7 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
-    def apply_im_unlabeled_2(self, x):
+    def apply_im_unlabeled_2(self, x, noise=None):
         """
         This version repeats the input before sampling q(a|x) and q(y|a,x).
         """
@@ -1153,10 +1158,10 @@ class InfGenModelSS(object):
         # repeat input self.nyc times
         x_rpt = T.extra_ops.repeat(x, self.nyc, axis=0)
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(x_rpt)
+        bu_res_dict = self.apply_bu(x_rpt, noise=noise)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
         # draw a sample from q(a | x) for each input
-        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info)
+        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info, noise=noise)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
@@ -1165,15 +1170,17 @@ class InfGenModelSS(object):
                                    0.0, 0.0), axis=1)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
-        y_unnorm, _ = self.q_yIax_model.apply(ax_info)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
         y_probs = T.nnet.softmax(y_unnorm) # shape: (nbatch*nyc, nyc)
+        y_energy_rpt = T.sum(y_unnorm**2.0, axis=1)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
-        kld_y_rpt = self.log_nyc - ent_y_rpt
+        kld_y_rpt = self.log_nyc - ent_y_rpt + (0.01 * y_energy_rpt)
         batch_y_prob = T.mean(y_probs, axis=0)
         batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # sample from q(z | y, x) for the repeated inputs
         yx_info = T.concatenate([y_ind, x_info], axis=1)
-        z0_cond_mean, z0_cond_logvar = self.q_z0Iyx_model.apply(yx_info)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
         z0_cond_mean = self.dist_scale[0] * z0_cond_mean
         z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
         z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
@@ -1205,7 +1212,8 @@ class InfGenModelSS(object):
                 # get the inference distribution using TD/BU info and indicators.
                 zi_cond_mean, zi_cond_logvar = \
                         im_module.apply_im(td_input=td_info_and_inds,
-                                           bu_input=bu_info)
+                                           bu_input=bu_info,
+                                           noise=noise)
                 zi_cond_mean = self.dist_scale[0] * zi_cond_mean
                 zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
                 # reparametrize and sample from conditional over zi
@@ -1237,6 +1245,7 @@ class InfGenModelSS(object):
                                     T.flatten(recon_rpt,2),
                                     log_vars=0.0, use_huber=0.5,
                                     do_sum=False), axis=1) # gaussian(ish)
+        act_sq_rpt = T.sum(T.flatten(td_acts[-1],2)**2.0, axis=1)
         # compute total KLd for the merged TD/BU process
         kld_z_rpt = sum(td_klds)
         # reshape repeated costs
@@ -1245,6 +1254,7 @@ class InfGenModelSS(object):
         kld_y_mat = kld_y_rpt.reshape((self.nbatch, self.nyc))
         kld_z_mat = kld_z_rpt.reshape((self.nbatch, self.nyc))
         ent_y_mat = ent_y_rpt.reshape((self.nbatch, self.nyc))
+        act_sq_mat = act_sq_rpt.reshape((self.nbatch, self.nyc))
         # get "marginalization weights" to reweight sums over sample matrices
         marg_mat = T.sum((y_ind * y_probs), axis=1).reshape((self.nbatch, self.nyc))
         # reweight matrices for "monte-carlo marginalization"
@@ -1253,9 +1263,10 @@ class InfGenModelSS(object):
         kld_y = T.mean(kld_y_mat, axis=1)
         kld_z = T.sum((marg_mat * kld_z_mat), axis=1)
         ent_y = T.mean(ent_y_mat, axis=1)
+        act_sq = T.mean(act_sq_mat, axis=1)
 
         # compute overall per-observation costs
-        obs_nlls = -1.0 * log_p_xIz
+        obs_nlls = -1.0 * log_p_xIz + (0.01 * act_sq)
         obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
@@ -1271,19 +1282,20 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
-    def apply_im_labeled(self, x, y):
+    def apply_im_labeled(self, x, y, noise=None):
         """
         This version samples for a single indicator, provided in y.
         """
         y_ind = y
         y_ind_conv = y.dimshuffle(0,1,'x','x')
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(x)
+        bu_res_dict = self.apply_bu(x, noise=noise)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
         # draw multiple samples from q(a | x) for each input
         a_rpt_count = 20
         x_info_rpt = T.extra_ops.repeat(x_info, a_rpt_count, axis=0)
-        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info_rpt)
+        a_cond_mean, a_cond_logvar = \
+                self.q_aIx_model.apply(x_info_rpt, noise=noise)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
@@ -1293,17 +1305,19 @@ class InfGenModelSS(object):
         kld_a = T.mean(kld_a_rpt.reshape((self.nbatch,a_rpt_count)), axis=1)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
-        y_unnorm, _ = self.q_yIax_model.apply(ax_info)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
         y_probs = mean_pool_rows(T.nnet.softmax(y_unnorm),
                                  pool_count=self.nbatch,
                                  pool_size=a_rpt_count)
+        y_energy = T.mean(T.sum(y_unnorm**2.0, axis=1))
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
         batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # sample from q(z | y, x) for the repeated inputs
         yx_info = T.concatenate([y_ind, x_info], axis=1)
-        z0_cond_mean, z0_cond_logvar = self.q_z0Iyx_model.apply(yx_info)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
         z0_cond_mean = self.dist_scale[0] * z0_cond_mean
         z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
         z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
@@ -1335,7 +1349,8 @@ class InfGenModelSS(object):
                 # get the inference distribution using TD/BU info and indicators.
                 zi_cond_mean, zi_cond_logvar = \
                         im_module.apply_im(td_input=td_info_and_inds,
-                                           bu_input=bu_info)
+                                           bu_input=bu_info,
+                                           noise=noise)
                 zi_cond_mean = self.dist_scale[0] * zi_cond_mean
                 zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
                 # reparametrize and sample from conditional over zi
@@ -1367,11 +1382,12 @@ class InfGenModelSS(object):
                                     T.flatten(recon,2),
                                     log_vars=0.0, use_huber=0.5,
                                     do_sum=False), axis=1) # gaussian(ish)
+        act_sq = T.sum(T.flatten(td_acts[-1],2)**2.0, axis=1)
         # compute total KLd for the merged TD/BU process
         kld_z = sum(td_klds)
 
         # compute overall per-observation free-energy costs
-        obs_vae_nlls = -1.0 * log_p_xIz
+        obs_vae_nlls = -1.0 * log_p_xIz + (0.01 * act_sq) + (0.01 * y_energy)
         obs_vae_klds = kld_z # + kld_a + kld_y # latter KLds not needed here...
 
         # compute a classification-type loss for these observations
@@ -1391,22 +1407,23 @@ class InfGenModelSS(object):
         im_res_dict['batch_ent_y'] = batch_ent_y
         return im_res_dict
 
-    def apply_predict_y(self, x):
+    def apply_predict_y(self, x, noise=noise):
         """
         Do a one-sample prediction of y, conditioned on x.
           -- return both unnormalized and normalized predictions.
         """
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(x)
+        bu_res_dict = self.apply_bu(x, noise=noise)
         x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
         # draw a sample from q(a | x) for each input
-        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info)
+        a_cond_mean, a_cond_logvar = \
+                self.q_aIx_model.apply(x_info, noise=noise)
         a_cond_mean = self.dist_scale[0] * a_cond_mean
         a_cond_logvar = self.dist_scale[0] * a_cond_logvar
         a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
-        y_unnorm, _ = self.q_yIax_model.apply(ax_info)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
         y_probs = T.nnet.softmax(y_unnorm)
         return y_probs, y_unnorm
 

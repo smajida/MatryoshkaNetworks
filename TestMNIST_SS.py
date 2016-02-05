@@ -44,7 +44,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_no_bn_type2_lamsu_02".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_02".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -84,6 +84,8 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
+drop_rate = 0.0   # dropout rate in BU network
+noise_lvl = 0.2   # noise level in BU network
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -229,7 +231,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nza,       # output is mean and logvar for "a"
     use_fc=True,
-    unif_drop=0.0,
+    unif_drop=drop_rate,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_aIx_module_1'
@@ -252,7 +254,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
     use_fc=True,
-    unif_drop=0.0,
+    unif_drop=drop_rate,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_yIax_module_1'
@@ -276,7 +278,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,           # output is mean and logvar for "z0"
     use_fc=True,
-    unif_drop=0.0,
+    unif_drop=drop_rate,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_z0Iyx_module_1'
@@ -297,7 +299,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=drop_rate,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='single',
@@ -313,7 +315,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=drop_rate,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -329,7 +331,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=0.0,
+    chan_drop=drop_rate,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -344,7 +346,7 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     chan_drop=0.0,
-    unif_drop=0.0,
+    unif_drop=drop_rate,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -366,6 +368,7 @@ InfConvMergeModule(
     conv_chans=(ngf*4),
     use_conv=True,
     apply_bn=use_bn,
+    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_2'
@@ -379,6 +382,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_3'
@@ -392,6 +396,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
+    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_4'
@@ -433,10 +438,11 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labeled cost
+lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
+bu_noise = sharedX(floatX(np.asarray([0.0])))
 all_params = inf_gen_model.params
 
 

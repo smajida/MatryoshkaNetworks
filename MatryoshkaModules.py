@@ -198,7 +198,7 @@ class BasicConvResModule(object):
         param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, share_mask=False):
+    def apply(self, input, share_mask=False, noise=None):
         """
         Apply this convolutional module to some input.
         """
@@ -213,7 +213,7 @@ class BasicConvResModule(object):
                 # apply first internal conv layer (might downsample)
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
                 if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                    h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
                 elif USE_BIAS:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
@@ -229,7 +229,7 @@ class BasicConvResModule(object):
                 # apply first internal conv layer
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
                 if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                    h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
                 elif USE_BIAS:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
@@ -250,7 +250,7 @@ class BasicConvResModule(object):
             else:
                 h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
+            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
                             use_gb=self.use_bn_params)
         elif USE_BIAS:
             h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
@@ -333,7 +333,7 @@ class BasicConvModule(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, rand_vals=None, rand_shapes=False, noise_sigma=None,
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
               share_mask=False):
         """
         Apply this convolutional module to the given input.
@@ -353,7 +353,7 @@ class BasicConvModule(object):
             # upsampling, 0.5x0.5 stride
             h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
         if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
@@ -466,7 +466,7 @@ class DiscFCModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, noise_sigma=None, share_mask=False):
+    def apply(self, input, noise=None, share_mask=False):
         """
         Apply this discriminator module to the given input. This produces a
         scalar discriminator output for each input observation.
@@ -478,8 +478,8 @@ class DiscFCModule(object):
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
-                                use_gb=self.use_bn_params, n=noise_sigma)
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                                use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x', 0)
             h1 = self.act_func(h1)
@@ -618,7 +618,7 @@ class DiscConvResModule(object):
         param_dict['wd'] = self.wd.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, noise_sigma=None, share_mask=False):
+    def apply(self, input, noise=None, share_mask=False):
         """
         Apply this generator module to some input.
         """
@@ -632,8 +632,8 @@ class DiscConvResModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
-                                use_gb=self.use_bn_params, n=noise_sigma)
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                                use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
@@ -649,8 +649,8 @@ class DiscConvResModule(object):
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
             if self.apply_bn:
-                h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
-                                use_gb=self.use_bn_params, n=noise_sigma)
+                h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
+                                use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h4)
@@ -658,8 +658,8 @@ class DiscConvResModule(object):
             # apply direct input->output "projection" layer
             h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
             if self.apply_bn:
-                h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj,
-                                use_gb=self.use_bn_params, n=noise_sigma)
+                h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj, n=noise,
+                                use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h3)
@@ -774,7 +774,7 @@ class GenFCModule(object):
         return param_dict
 
     def apply(self, batch_size=None, rand_vals=None, rand_shapes=False,
-              share_mask=False):
+              share_mask=False, noise=None):
         """
         Apply this generator module. Pass _either_ batch_size or rand_vals.
         """
@@ -798,7 +798,7 @@ class GenFCModule(object):
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x',0)
@@ -808,7 +808,7 @@ class GenFCModule(object):
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g3, b=self.b3,
+            h2 = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         elif USE_BIAS:
             h2 = h2 + self.b3.dimshuffle('x',0)
@@ -951,7 +951,7 @@ class GenConvResModule(object):
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
-              share_mask=False):
+              share_mask=False, noise=None):
         """
         Apply this generator module to some input.
         """
@@ -989,7 +989,7 @@ class GenConvResModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
@@ -1006,7 +1006,7 @@ class GenConvResModule(object):
             # apply direct input->output "projection" layer
             h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj,
+            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
                             use_gb=self.use_bn_params)
         elif USE_BIAS:
             h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
@@ -1166,7 +1166,7 @@ class InfConvMergeModule(object):
             param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
         return param_dict
 
-    def apply_td(self, td_input):
+    def apply_td(self, td_input, noise=None):
         """
         Put distributions over stuff based on td_input.
         """
@@ -1175,7 +1175,7 @@ class InfConvMergeModule(object):
                 # apply first internal conv layer
                 h1 = dnn_conv(td_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
                 if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td,
+                    h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
                                     use_gb=self.use_bn_params)
                 elif USE_BIAS:
                     h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
@@ -1201,7 +1201,7 @@ class InfConvMergeModule(object):
             out_logvar = 0.0
         return out_mean, out_logvar
 
-    def apply_im(self, td_input, bu_input, share_mask=False):
+    def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
         """
         Combine td_input and bu_input, to put distributions over some stuff.
         """
@@ -1214,7 +1214,7 @@ class InfConvMergeModule(object):
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im,
+                h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
@@ -1335,7 +1335,7 @@ class InfFCModule(object):
         param_dict['b_out'] = self.b_out.get_value(borrow=False)
         return param_dict
 
-    def apply(self, bu_input, share_mask=False):
+    def apply(self, bu_input, share_mask=False, noise=None):
         """
         Apply this fully connected inference module to the given input. This
         produces a set of means and log variances for some Gaussian variables.
@@ -1349,7 +1349,7 @@ class InfFCModule(object):
             # feedforward to fc layer
             h1 = T.dot(bu_input, self.w1)
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1,
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             elif USE_BIAS:
                 h1 = h1 + self.b1.dimshuffle('x',0)
@@ -1441,7 +1441,7 @@ class MlpFCModule(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, share_mask=False):
+    def apply(self, input, share_mask=False, noise=None):
         """
         Apply this gfully connected module.
         """
@@ -1452,7 +1452,7 @@ class MlpFCModule(object):
         # feed-forward through layer
         h2 = T.dot(h1, self.w1)
         if self.apply_bn:
-            h3 = switchy_bn(h2, g=self.g1, b=self.b1,
+            h3 = switchy_bn(h2, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         elif USE_BIAS:
             h3 = h2 + self.b1.dimshuffle('x',0)
