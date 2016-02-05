@@ -85,7 +85,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 drop_rate = 0.0   # dropout rate in BU network
-noise_lvl = 0.10   # noise level in BU network
+noise_lvl = 0.1   # noise level in BU network
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -438,8 +438,8 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labeled cost
-lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
+lam_su = sharedX(floatX(np.asarray([0.5])))     # weighting param for total labeled cost
+lam_su_cls = sharedX(floatX(np.asarray([0.1])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
 bu_noise = sharedX(floatX(np.asarray([noise_lvl])))
