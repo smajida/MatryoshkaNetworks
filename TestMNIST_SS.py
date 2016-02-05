@@ -44,7 +44,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_001".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_010".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -85,7 +85,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 drop_rate = 0.0   # dropout rate in BU network
-noise_lvl = 0.01   # noise level in BU network
+noise_lvl = 0.10   # noise level in BU network
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
