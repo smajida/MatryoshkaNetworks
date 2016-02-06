@@ -44,7 +44,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_type2_lamsu_02".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_000".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -79,12 +79,13 @@ nza = 32          # dimension of "auxiliary" latent variables
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
+niter = 100       # # of iter at starting learning rate
 niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
+noise_lvl = 0.00  # amount of noise in the model
 
 def shared_shuffle(x1, x2):
     """
@@ -437,6 +438,7 @@ lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labe
 lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
+act_noise = sharedX(floatX(np.asarray([noise_lvl])))
 all_params = inf_gen_model.params
 
 
@@ -452,7 +454,7 @@ Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
 # Gather symbolic outputs from inference with labeled data
 print("Compiling and testing labeled inference...")
-im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
+im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc, noise=act_noise)
 su_obs_vae_nlls = im_res_dict['obs_vae_nlls']
 su_obs_vae_klds = im_res_dict['obs_vae_klds']
 su_obs_cls_nlls = im_res_dict['obs_cls_nlls']
@@ -477,7 +479,7 @@ print(su_out_str)
 # Gather symbolic outputs from inference with unlabeled data
 print("Compiling and testing unlabeled inference...")
 # quick test of the marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
+im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg, noise=act_noise)
 un_obs_nlls = im_res_dict['obs_nlls']
 un_obs_klds = im_res_dict['obs_klds']
 un_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
@@ -570,7 +572,7 @@ print("-- {}".format(su_out_str))
 print("-- {}".format(un_out_str))
 
 # compile a function for predicting y, and wrap it for multi-sample evaluation
-y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg)
+y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg, noise=act_noise)
 func_predict_y = theano.function([Xg], [y_softmax, y_unnorm])
 def predict_y(xg, sample_count=10):
     y_sm, y_un = func_predict_y(xg)
