@@ -1045,7 +1045,7 @@ class InfGenModelSS(object):
         y_probs = T.nnet.softmax(y_unnorm)
         y_energy = T.sum(y_unnorm**2.0, axis=1)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
-        kld_y = self.log_nyc - ent_y #+ (0.0001 * y_energy)
+        kld_y = self.log_nyc - ent_y + (0.0001 * y_energy)
         batch_y_prob = T.mean(y_probs, axis=0)
         batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # repeat the input for marginalizing remaining inference steps
@@ -1133,7 +1133,7 @@ class InfGenModelSS(object):
         act_sq = T.sum((y_probs * act_sq_mat), axis=1)
 
         # compute overall per-observation costs
-        obs_nlls = -1.0 * log_p_xIz #+ (0.0001 * act_sq)
+        obs_nlls = -1.0 * log_p_xIz + (0.0001 * act_sq)
         obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
@@ -1174,7 +1174,7 @@ class InfGenModelSS(object):
         y_probs = T.nnet.softmax(y_unnorm) # shape: (nbatch*nyc, nyc)
         y_energy_rpt = T.sum(y_unnorm**2.0, axis=1)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
-        kld_y_rpt = self.log_nyc - ent_y_rpt #+ (0.0001 * y_energy_rpt)
+        kld_y_rpt = self.log_nyc - ent_y_rpt + (0.0001 * y_energy_rpt)
         batch_y_prob = T.mean(y_probs, axis=0)
         batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
         # sample from q(z | y, x) for the repeated inputs
@@ -1264,10 +1264,10 @@ class InfGenModelSS(object):
         log_p_xIz = T.sum((marg_mat * log_p_xIz_mat), axis=1)
         kld_z = T.sum((marg_mat * kld_z_mat), axis=1)
         act_sq = T.mean((marg_mat * act_sq_mat), axis=1)
-        
+
 
         # compute overall per-observation costs
-        obs_nlls = -1.0 * log_p_xIz #+ (0.0001 * act_sq)
+        obs_nlls = -1.0 * log_p_xIz + (0.0001 * act_sq)
         obs_klds = (0.01 * kld_a) + kld_y + kld_z
 
         # package results for convenient processing
@@ -1388,7 +1388,7 @@ class InfGenModelSS(object):
         kld_z = sum(td_klds)
 
         # compute overall per-observation free-energy costs
-        obs_vae_nlls = -1.0 * log_p_xIz #+ (0.0001 * act_sq) + (0.0001 * y_energy)
+        obs_vae_nlls = -1.0 * log_p_xIz + (0.0001 * act_sq) + (0.0001 * y_energy)
         obs_vae_klds = kld_z # + kld_a + kld_y # latter KLds not needed here...
 
         # compute a classification-type loss for these observations
