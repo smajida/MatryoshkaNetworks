@@ -44,7 +44,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_000_lam_su_02".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_type2_lamsu_02".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -84,8 +84,6 @@ niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-drop_rate = 0.0   # dropout rate in BU network
-noise_lvl = 0.0   # noise level in BU network
 act_func = 'relu' # activation func to use where they can be selected
 
 def shared_shuffle(x1, x2):
@@ -231,7 +229,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nza,       # output is mean and logvar for "a"
     use_fc=True,
-    unif_drop=drop_rate,
+    unif_drop=0.0,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_aIx_module_1'
@@ -254,7 +252,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
     use_fc=True,
-    unif_drop=drop_rate,
+    unif_drop=0.0,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_yIax_module_1'
@@ -278,7 +276,7 @@ InfFCModule(
     fc_chans=ngfc,
     rand_chans=nz0,           # output is mean and logvar for "z0"
     use_fc=True,
-    unif_drop=drop_rate,
+    unif_drop=0.0,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='q_z0Iyx_module_1'
@@ -299,7 +297,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=drop_rate,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='single',
@@ -315,7 +313,7 @@ BasicConvResModule(
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=drop_rate,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -331,7 +329,7 @@ BasicConvResModule(
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
-    chan_drop=drop_rate,
+    chan_drop=0.0,
     unif_drop=0.0,
     apply_bn=use_bn,
     stride='double',
@@ -346,7 +344,7 @@ BasicConvModule(
     in_chans=nc,
     out_chans=(ngf*1),
     chan_drop=0.0,
-    unif_drop=drop_rate,
+    unif_drop=0.0,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -368,7 +366,6 @@ InfConvMergeModule(
     conv_chans=(ngf*4),
     use_conv=True,
     apply_bn=use_bn,
-    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_2'
@@ -382,7 +379,6 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_3'
@@ -396,7 +392,6 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    chan_drop=drop_rate,
     use_td_cond=False,
     act_func=act_func,
     mod_name='im_mod_4'
@@ -442,7 +437,6 @@ lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labe
 lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy
-bu_noise = sharedX(floatX(np.asarray([noise_lvl])))
 all_params = inf_gen_model.params
 
 
@@ -458,7 +452,7 @@ Z0 = T.matrix()   # symbolic var for top-most latent variables for generator
 
 # Gather symbolic outputs from inference with labeled data
 print("Compiling and testing labeled inference...")
-im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc, noise=bu_noise)
+im_res_dict = inf_gen_model.apply_im_labeled(Xc, Yc)
 su_obs_vae_nlls = im_res_dict['obs_vae_nlls']
 su_obs_vae_klds = im_res_dict['obs_vae_klds']
 su_obs_cls_nlls = im_res_dict['obs_cls_nlls']
@@ -483,7 +477,7 @@ print(su_out_str)
 # Gather symbolic outputs from inference with unlabeled data
 print("Compiling and testing unlabeled inference...")
 # quick test of the marginalized BU/TD inference process
-im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg, noise=bu_noise)
+im_res_dict = inf_gen_model.apply_im_unlabeled_2(Xg)
 un_obs_nlls = im_res_dict['obs_nlls']
 un_obs_klds = im_res_dict['obs_klds']
 un_log_p_xIz = T.mean(im_res_dict['log_p_xIz'])
@@ -576,7 +570,7 @@ print("-- {}".format(su_out_str))
 print("-- {}".format(un_out_str))
 
 # compile a function for predicting y, and wrap it for multi-sample evaluation
-y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg, noise=bu_noise)
+y_softmax, y_unnorm = inf_gen_model.apply_predict_y(Xg)
 func_predict_y = theano.function([Xg], [y_softmax, y_unnorm])
 def predict_y(xg, sample_count=10):
     y_sm, y_un = func_predict_y(xg)
@@ -702,13 +696,8 @@ for epoch in range(1, niter+niter_decay+1):
     sample_yi = np.concatenate([np.eye(nyc) for i in range(nyc)], axis=0)
     sample_z0 = np.repeat(rand_gen(size=(nyc, nz0)), nyc, axis=0)
     samples = np.asarray(sample_func(floatX(sample_z0), floatX(sample_yi)))
-    grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen1_{}.png".format(result_dir, epoch))
-    sample_yi = np.concatenate([np.eye(nyc), np.eye(nyc)], axis=0)
-    sample_z0 = rand_gen(size=(sample_yi.shape[0], nz0))
-    sample_yi = np.repeat(sample_yi, 20, axis=0)
-    sample_z0 = np.repeat(sample_z0, 20, axis=0)
-    samples = np.asarray(sample_func(floatX(sample_z0), floatX(sample_yi)))
-    grayscale_grid_vis(draw_transform(samples), (2*nyc, 20), "{}/gen2_{}.png".format(result_dir, epoch))
+    grayscale_grid_vis(draw_transform(samples), (nyc, nyc), "{}/gen_{}.png".format(result_dir, epoch))
+
 
 
 
