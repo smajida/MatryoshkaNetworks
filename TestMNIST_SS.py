@@ -34,7 +34,8 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenFCModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               MlpFCModule
-from MatryoshkaNetworks import InfGenModelSS, SimpleInfMLP
+from MatryoshkaNetworks import InfGenModelSS_no_a as InfGenModelSS
+from MatryoshkaNetworks import SimpleInfMLP
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
@@ -44,7 +45,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_000".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_000_no_a".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):

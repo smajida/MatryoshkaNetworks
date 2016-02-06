@@ -1433,7 +1433,606 @@ class InfGenModelSS(object):
 
 
 
+########################################################################
+# Collection of modules for variational inference and generating stuff #
+########################################################################
 
+class InfGenModelSS_no_a(object):
+    """
+    A deep convolutional generator network. This provides a wrapper around a
+    collection of bottom-up, top-down, and info merging Matryoshka modules.
+
+    Sampling in this model is conditioned on a "class indicator", throughout
+    the top-down generative process.
+
+    Params:
+        nyc: number of classes (i.e. indicator dim)
+        nbatch: force a fixed batch size for "marginalizing" top-down passes
+                --- this is lazy, but it'll do for now (allows code reuse)
+        q_aIx_model:   SimpleInfMLP for q(a | x)
+        q_yIax_model:  SimpleInfMLP for q(y | a, x)
+        q_z0Iyx_model: SimpleInfMLP for q(z0 | y, x)
+        bu_modules: modules for computing bottom-up (inference) information.
+        td_modules: modules for computing top-down (generative) information.
+        im_modules: modules for merging bottom-up and top-down information
+                    to put conditionals over Gaussian latent variables that
+                    participate in the top-down computation.
+        merge_info: dict of dicts describing how to compute the conditionals
+                    required by the feedforward pass through top-down modules.
+        use_bernoulli: boolean flag for using bernoulli or gaussian output
+        output_transform: transform to apply to outputs of the top-down model.
+    """
+    def __init__(self, nyc, nbatch,
+                 q_aIx_model, q_yIax_model, q_z0Iyx_model,
+                 bu_modules, td_modules, im_modules,
+                 merge_info, use_bernoulli, output_transform):
+        # get indicator dimension and top-down batch size
+        self.nyc = nyc
+        self.nbatch = nbatch
+        self.log_nyc = np.log(self.nyc).astype(theano.config.floatX)
+        # get models for top-most inference business
+        self.q_aIx_model = q_aIx_model
+        self.q_yIax_model = q_yIax_model
+        self.q_z0Iyx_model = q_z0Iyx_model
+        # grab the bottom-up, top-down, and info merging modules
+        self.bu_modules = [m for m in bu_modules]
+        self.td_modules = [m for m in td_modules]
+        self.im_modules = [m for m in im_modules]
+        self.im_modules_dict = {m.mod_name: m for m in im_modules}
+        # get parameters from top-most inference models
+        self.params = []
+        self.params.extend(self.q_aIx_model.params)
+        self.params.extend(self.q_yIax_model.params)
+        self.params.extend(self.q_z0Iyx_model.params)
+        # get parameters from module lists
+        for module in self.td_modules:
+            self.params.extend(module.params)
+        for module in self.bu_modules:
+            self.params.extend(module.params)
+        for module in self.im_modules:
+            self.params.extend(module.params)
+        # make dist_scale parameter (add it to the inf net parameters)
+        self.dist_scale = sharedX( floatX([0.1]) )
+        self.params.append(self.dist_scale)
+        # get instructions for how to merge bottom-up and top-down info
+        self.merge_info = merge_info
+        # track what sort of output distribution we're using
+        self.use_bernoulli = use_bernoulli
+        # keep a transform that we'll apply to generator output
+        if output_transform == 'ident':
+            self.output_transform = lambda x: x
+        else:
+            self.output_transform = output_transform
+        # construct a vertically-repeated identity matrix for marginalizing
+        # over possible values of the categorical latent variable.
+        Ic = np.vstack([np.eye(self.nyc) for i in range(self.nbatch)])
+        self.Ic = theano.shared(value=floatX(Ic))
+        print("Compiling sample generator...")
+        # test inputs to sample generator
+        y_ind = floatX( np.eye(self.nyc) )
+        z0_dim = self.q_z0Iyx_model.modules[-1].rand_chans
+        z0_samps = floatX( npr.normal(size=(y_ind.shape[0], z0_dim)) )
+        # compile and test sample generating function
+        self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(z0_samps, y_ind)
+        print("DONE.")
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for the top-most inference models
+        mod_param_dicts = self.q_aIx_model.dump_params()
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        mod_param_dicts = self.q_yIax_model.dump_params()
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        mod_param_dicts = self.q_z0Iyx_model.dump_params()
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.bu_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump BU modules
+        mod_param_dicts = [m.dump_params() for m in self.td_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump TD modules
+        mod_param_dicts = [m.dump_params() for m in self.im_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump IM modules
+        # dump dist_scale parameter
+        ds_ary = self.dist_scale.get_value(borrow=False)
+        cPickle.dump(ds_ary, f_handle, protocol=-1)
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload parameter dicts for the top-most inference models
+        mod_param_dicts = cPickle.load(pickle_file)
+        self.q_aIx_model.load_params(mod_param_dicts=mod_param_dicts)
+        mod_param_dicts = cPickle.load(pickle_file)
+        self.q_yIax_model.load_params(mod_param_dicts=mod_param_dicts)
+        mod_param_dicts = cPickle.load(pickle_file)
+        self.q_z0Iyx_model.load_params(mod_param_dicts=mod_param_dicts)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file) # load BU modules
+        for param_dict, mod in zip(mod_param_dicts, self.bu_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file) # load TD modules
+        for param_dict, mod in zip(mod_param_dicts, self.td_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file) # load IM modules
+        for param_dict, mod in zip(mod_param_dicts, self.im_modules):
+            mod.load_params(param_dict=param_dict)
+        # load dist_scale parameter
+        ds_ary = cPickle.load(pickle_file)
+        self.dist_scale.set_value(floatX(ds_ary))
+        pickle_file.close()
+        return
+
+    def apply_td(self, z0, y_ind):
+        """
+        Apply this generator network using the given random values.
+
+        Assume top-most indicators and rand
+        """
+        # convolution-appropriate version of indicators
+        y_ind_conv = y_ind.dimshuffle(0,1,'x','x')
+        td_acts = []
+        for td_mod_num, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            if (td_mod_num == 0):
+                # this is the top-most, fully-connected module. its inputs
+                # are just z0 and y_ind (concatenated horizontally)
+                rvs_and_inds = T.concatenate([z0, y_ind], axis=1)
+                td_act_i = td_module.apply(rand_vals=rvs_and_inds)
+            elif td_mod_name in self.merge_info:
+                # handle computation for an internal TD module that requires
+                # sampling some latent variables, and TD/BU info merging.
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                im_module = self.im_modules_dict[im_mod_name]
+                # sample values to reparametrize, if none given
+                batch_size = td_acts[-1].shape[0]
+                row_dim = td_acts[-1].shape[2]
+                col_dim = td_acts[-1].shape[3]
+                rand_chans = im_module.rand_chans
+                rvs_size = (batch_size, rand_chans, row_dim, col_dim)
+                rvs = cu_rng.normal(size=rvs_size, dtype=theano.config.floatX)
+                # concatenate top-down activations with indicators
+                td_info = conv_cond_concat(td_acts[-1], y_ind_conv)
+                # feedforward through td_module
+                td_act_i = td_module.apply(td_info,
+                                           rand_vals=rvs)
+            else:
+                # handle computation for a TD module that only requires
+                # info from preceding TD modules (i.e. no rands or indicators)
+                td_act_i = td_module.apply(input=td_acts[-1], rand_vals=None)
+            td_acts.append(td_act_i)
+        # apply some transform (e.g. tanh or sigmoid) to final activations
+        result = self.output_transform(td_acts[-1])
+        return result
+
+    def apply_bu(self, input, noise=None):
+        """
+        Apply this model's bottom-up inference modules to the given input,
+        and return a dict mapping BU module names to their outputs.
+        """
+        bu_acts = []
+        res_dict = {}
+        for i, bu_mod in enumerate(self.bu_modules):
+            if (i == 0):
+                res = bu_mod.apply(input, noise=noise)
+            else:
+                res = bu_mod.apply(bu_acts[i-1], noise=noise)
+            bu_acts.append(res)
+            res_dict[bu_mod.mod_name] = res
+        res_dict['bu_acts'] = bu_acts
+        return res_dict
+
+    def apply_im_unlabeled_1(self, x, noise=None):
+        """
+        This version repeats the input after sampling q(a|x) and q(y|a,x).
+        """
+        y_ind = self.Ic # this has shape (self.nbatch*self.nyc, self.nyc)
+        y_ind_conv = self.Ic.dimshuffle(0,1,'x','x')
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(x, noise=noise)
+        x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw a sample from q(a | x) for each input
+        a_cond_mean, a_cond_logvar = \
+                self.q_aIx_model.apply(x_info, noise=noise)
+        a_cond_mean = 0.0 * a_cond_mean
+        a_cond_logvar = 0.0 * a_cond_logvar
+        a_samps = a_cond_mean
+        kld_a = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
+                                   T.flatten(a_cond_logvar, 2),
+                                   0.0, 0.0), axis=1)
+        # feed BU features and a samples into q(y | a, x)
+        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
+        y_probs = T.nnet.softmax(y_unnorm)
+        ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
+        kld_y = self.log_nyc - ent_y
+        batch_y_prob = T.mean(y_probs, axis=0)
+        batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
+        # repeat the input for marginalizing remaining inference steps
+        x_info_rpt = T.extra_ops.repeat(x_info, self.nyc, axis=0)
+        # sample from q(z | y, x) for the repeated inputs
+        yx_info = T.concatenate([y_ind, x_info_rpt], axis=1)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
+        z0_cond_mean = self.dist_scale[0] * z0_cond_mean
+        z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
+        z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
+        kld_z0 = gaussian_kld(T.flatten(z0_cond_mean, 2),
+                              T.flatten(z0_cond_logvar, 2),
+                              0.0, 0.0)
+        # now, run the TD/BU info merging process through the convolutional
+        # modules in this network
+        td_acts = []
+        td_klds = [ T.sum(kld_z0, axis=1) ]
+        for i, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            if (i == 0):
+                # run through the top-most, fully-connected module
+                z0_and_inds = T.concatenate([z0_samps, y_ind], axis=1)
+                td_acts_i = td_module.apply(rand_vals=z0_and_inds)
+                td_acts.append(td_acts_i)
+            elif (td_mod_name in self.merge_info):
+                # handle computation for a TD module that requires samples from
+                # a conditional distribution formed by merging BU and TD info.
+                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                im_module = self.im_modules_dict[im_mod_name]
+                # get BU and TD info that we'll use to get conditional on zi
+                td_info = td_acts[-1]
+                bu_info = bu_res_dict[bu_mod_name]
+                # repeat and/or concatenate info as required
+                td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
+                bu_info_rpt = T.extra_ops.repeat(bu_info, self.nyc, axis=0)
+                # get the inference distribution using TD/BU info and indicators.
+                # the BU info has to be repeated to allow marginalization.
+                zi_cond_mean, zi_cond_logvar = \
+                        im_module.apply_im(td_input=td_info_and_inds,
+                                           bu_input=bu_info_rpt)
+                zi_cond_mean = self.dist_scale[0] * zi_cond_mean
+                zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
+                # reparametrize and sample from conditional over zi
+                zi_samps = reparametrize(zi_cond_mean, zi_cond_logvar,
+                                         rng=cu_rng)
+                # record KLd for current conditional distribution over zi
+                kld_zi = gaussian_kld(T.flatten(zi_cond_mean, 2),
+                                      T.flatten(zi_cond_logvar, 2),
+                                      0.0, 0.0)
+                td_klds.append(T.sum(kld_zi, axis=1))
+                # feedforward through the current TD module
+                td_acts_i = td_module.apply(input=td_info_and_inds,
+                                            rand_vals=zi_samps)
+                td_acts.append(td_acts_i)
+            else:
+                # handle computation for a TD module that only requires info
+                # from preceding TD modules (i.e. no rands or indicators)
+                td_info = td_acts[-1]
+                td_acts_i = td_module.apply(input=td_info, rand_vals=None)
+                td_acts.append(td_acts_i)
+        # compute nll costs for outputs of the merged BU/TD process
+        x_rpt = T.extra_ops.repeat(x, self.nyc, axis=0)
+        x_recon_rpt = self.output_transform(td_acts[-1])
+        if self.use_bernoulli:
+            log_p_xIz_rpt = T.sum(log_prob_bernoulli(T.flatten(x_rpt,2),
+                                    T.flatten(x_recon_rpt,2),
+                                    do_sum=False), axis=1)
+        else:
+            log_p_xIz_rpt = T.sum(log_prob_gaussian(T.flatten(x_rpt,2),
+                                    T.flatten(x_recon_rpt,2),
+                                    log_vars=0.0, use_huber=0.5,
+                                    do_sum=False), axis=1) # gaussian(ish)
+        # compute total KLd for the merged TD/BU process
+        kld_z_rpt = sum(td_klds)
+        # reshape repeated costs, and marginalize w.r.t. y_probs
+        log_p_xIz_mat = log_p_xIz_rpt.reshape((self.nbatch, self.nyc))
+        kld_z_mat = kld_z_rpt.reshape((self.nbatch, self.nyc))
+        log_p_xIz = T.sum((y_probs * log_p_xIz_mat), axis=1)
+        kld_z = T.sum((y_probs * kld_z_mat), axis=1)
+
+        # compute overall per-observation costs
+        obs_nlls = -1.0 * log_p_xIz
+        obs_klds = (0.01 * kld_a) + kld_y + kld_z
+
+        # package results for convenient processing
+        im_res_dict = {}
+        im_res_dict['obs_nlls'] = obs_nlls
+        im_res_dict['obs_klds'] = obs_klds
+        im_res_dict['log_p_xIz'] = log_p_xIz
+        im_res_dict['kld_a'] = kld_a
+        im_res_dict['kld_y'] = kld_y
+        im_res_dict['kld_z'] = kld_z
+        im_res_dict['ent_y'] = ent_y
+        im_res_dict['batch_y_prob'] = batch_y_prob
+        im_res_dict['batch_ent_y'] = batch_ent_y
+        return im_res_dict
+
+    def apply_im_unlabeled_2(self, x, noise=None):
+        """
+        This version repeats the input before sampling q(a|x) and q(y|a,x).
+        """
+        y_ind = self.Ic # this has shape (self.nbatch*self.nyc, self.nyc)
+        y_ind_conv = self.Ic.dimshuffle(0,1,'x','x')
+        # repeat input self.nyc times
+        x_rpt = T.extra_ops.repeat(x, self.nyc, axis=0)
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(x_rpt, noise=noise)
+        x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw a sample from q(a | x) for each input
+        a_cond_mean, a_cond_logvar = \
+                self.q_aIx_model.apply(x_info, noise=noise)
+        a_cond_mean = 0.0 * a_cond_mean
+        a_cond_logvar = 0.0 * a_cond_logvar
+        a_samps = a_cond_mean
+        kld_a_rpt = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
+                                   T.flatten(a_cond_logvar, 2),
+                                   0.0, 0.0), axis=1)
+        # feed BU features and a samples into q(y | a, x)
+        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
+        y_probs = T.nnet.softmax(y_unnorm) # shape: (nbatch*nyc, nyc)
+        ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
+        kld_y_rpt = self.log_nyc - ent_y_rpt
+        batch_y_prob = T.mean(y_probs, axis=0)
+        batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
+        # sample from q(z | y, x) for the repeated inputs
+        yx_info = T.concatenate([y_ind, x_info], axis=1)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
+        z0_cond_mean = self.dist_scale[0] * z0_cond_mean
+        z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
+        z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
+        kld_z0 = gaussian_kld(T.flatten(z0_cond_mean, 2),
+                              T.flatten(z0_cond_logvar, 2),
+                              0.0, 0.0)
+        # now, run the TD/BU info merging process through the convolutional
+        # modules in this network
+        td_acts = []
+        td_klds = [ T.sum(kld_z0, axis=1) ]
+        for i, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            if (i == 0):
+                # run through the top-most, fully-connected module
+                z0_and_inds = T.concatenate([z0_samps, y_ind], axis=1)
+                td_acts_i = td_module.apply(rand_vals=z0_and_inds)
+                td_acts.append(td_acts_i)
+            elif (td_mod_name in self.merge_info):
+                # handle computation for a TD module that requires samples from
+                # a conditional distribution formed by merging BU and TD info.
+                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                im_module = self.im_modules_dict[im_mod_name]
+                # get BU and TD info that we'll use to get conditional on zi
+                td_info = td_acts[-1]
+                bu_info = bu_res_dict[bu_mod_name]
+                # concatenate indicators onto top-down info
+                td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
+                # get the inference distribution using TD/BU info and indicators.
+                zi_cond_mean, zi_cond_logvar = \
+                        im_module.apply_im(td_input=td_info_and_inds,
+                                           bu_input=bu_info)
+                zi_cond_mean = self.dist_scale[0] * zi_cond_mean
+                zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
+                # reparametrize and sample from conditional over zi
+                zi_samps = reparametrize(zi_cond_mean, zi_cond_logvar,
+                                         rng=cu_rng)
+                # record KLd for current conditional distribution over zi
+                kld_zi = gaussian_kld(T.flatten(zi_cond_mean, 2),
+                                      T.flatten(zi_cond_logvar, 2),
+                                      0.0, 0.0)
+                td_klds.append(T.sum(kld_zi, axis=1))
+                # feedforward through the current TD module
+                td_acts_i = td_module.apply(input=td_info_and_inds,
+                                            rand_vals=zi_samps)
+                td_acts.append(td_acts_i)
+            else:
+                # handle computation for a TD module that only requires info
+                # from preceding TD modules (i.e. no rands or indicators)
+                td_info = td_acts[-1]
+                td_acts_i = td_module.apply(input=td_info, rand_vals=None)
+                td_acts.append(td_acts_i)
+        # compute nll costs for outputs of the merged BU/TD process
+        recon_rpt = self.output_transform(td_acts[-1])
+        if self.use_bernoulli:
+            log_p_xIz_rpt = T.sum(log_prob_bernoulli(T.flatten(x_rpt,2),
+                                    T.flatten(recon_rpt,2),
+                                    do_sum=False), axis=1)
+        else:
+            log_p_xIz_rpt = T.sum(log_prob_gaussian(T.flatten(x_rpt,2),
+                                    T.flatten(recon_rpt,2),
+                                    log_vars=0.0, use_huber=0.5,
+                                    do_sum=False), axis=1) # gaussian(ish)
+        # compute total KLd for the merged TD/BU process
+        kld_z_rpt = sum(td_klds)
+        # reshape repeated costs
+        log_p_xIz_mat = log_p_xIz_rpt.reshape((self.nbatch, self.nyc))
+        kld_a_mat = kld_a_rpt.reshape((self.nbatch, self.nyc))
+        kld_y_mat = kld_y_rpt.reshape((self.nbatch, self.nyc))
+        kld_z_mat = kld_z_rpt.reshape((self.nbatch, self.nyc))
+        ent_y_mat = ent_y_rpt.reshape((self.nbatch, self.nyc))
+        # get "marginalization weights" to reweight sums over sample matrices
+        marg_mat = T.sum((y_ind * y_probs), axis=1).reshape((self.nbatch, self.nyc))
+        # reweight matrices for "monte-carlo marginalization"
+        log_p_xIz = T.sum((marg_mat * log_p_xIz_mat), axis=1)
+        kld_a = T.mean(kld_a_mat, axis=1)
+        kld_y = T.mean(kld_y_mat, axis=1)
+        kld_z = T.sum((marg_mat * kld_z_mat), axis=1)
+        ent_y = T.mean(ent_y_mat, axis=1)
+
+        # compute overall per-observation costs
+        obs_nlls = -1.0 * log_p_xIz
+        obs_klds = (0.01 * kld_a) + kld_y + kld_z
+
+        # package results for convenient processing
+        im_res_dict = {}
+        im_res_dict['obs_nlls'] = obs_nlls
+        im_res_dict['obs_klds'] = obs_klds
+        im_res_dict['log_p_xIz'] = log_p_xIz
+        im_res_dict['kld_a'] = kld_a
+        im_res_dict['kld_y'] = kld_y
+        im_res_dict['kld_z'] = kld_z
+        im_res_dict['ent_y'] = ent_y
+        im_res_dict['batch_y_prob'] = batch_y_prob
+        im_res_dict['batch_ent_y'] = batch_ent_y
+        return im_res_dict
+
+    def apply_im_labeled(self, x, y, noise=None):
+        """
+        This version samples for a single indicator, provided in y.
+        """
+        y_ind = y
+        y_ind_conv = y.dimshuffle(0,1,'x','x')
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(x, noise=noise)
+        x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw a sample from q(a | x) for each input
+        a_cond_mean, a_cond_logvar = \
+                self.q_aIx_model.apply(x_info, noise=noise)
+        a_cond_mean = 0.0 * a_cond_mean
+        a_cond_logvar = 0.0 * a_cond_logvar
+        a_samps = a_cond_mean
+        kld_a = T.sum(gaussian_kld(T.flatten(a_cond_mean, 2),
+                                   T.flatten(a_cond_logvar, 2),
+                                   0.0, 0.0), axis=1)
+        # feed BU features and a samples into q(y | a, x)
+        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
+        y_probs = T.nnet.softmax(y_unnorm)
+        ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
+        kld_y = self.log_nyc - ent_y
+        batch_y_prob = T.mean(y_probs, axis=0)
+        batch_ent_y = -1.0 * T.sum((batch_y_prob * T.log(batch_y_prob)))
+        # sample from q(z | y, x) for the repeated inputs
+        yx_info = T.concatenate([y_ind, x_info], axis=1)
+        z0_cond_mean, z0_cond_logvar = \
+                self.q_z0Iyx_model.apply(yx_info, noise=noise)
+        z0_cond_mean = self.dist_scale[0] * z0_cond_mean
+        z0_cond_logvar = self.dist_scale[0] * z0_cond_logvar
+        z0_samps = reparametrize(z0_cond_mean, z0_cond_logvar, rng=cu_rng)
+        kld_z0 = gaussian_kld(T.flatten(z0_cond_mean, 2),
+                              T.flatten(z0_cond_logvar, 2),
+                              0.0, 0.0)
+        # now, run the TD/BU info merging process through the convolutional
+        # modules in this network
+        td_acts = []
+        td_klds = [ T.sum(kld_z0, axis=1) ]
+        for i, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            if (i == 0):
+                # run through the top-most, fully-connected module
+                z0_and_inds = T.concatenate([z0_samps, y_ind], axis=1)
+                td_acts_i = td_module.apply(rand_vals=z0_and_inds)
+                td_acts.append(td_acts_i)
+            elif (td_mod_name in self.merge_info):
+                # handle computation for a TD module that requires samples from
+                # a conditional distribution formed by merging BU and TD info.
+                bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+                im_mod_name = self.merge_info[td_mod_name]['im_module']
+                im_module = self.im_modules_dict[im_mod_name]
+                # get BU and TD info that we'll use to get conditional on zi
+                td_info = td_acts[-1]
+                bu_info = bu_res_dict[bu_mod_name]
+                # concatenate indicators onto top-down info
+                td_info_and_inds = conv_cond_concat(td_info, y_ind_conv)
+                # get the inference distribution using TD/BU info and indicators.
+                zi_cond_mean, zi_cond_logvar = \
+                        im_module.apply_im(td_input=td_info_and_inds,
+                                           bu_input=bu_info)
+                zi_cond_mean = self.dist_scale[0] * zi_cond_mean
+                zi_cond_logvar = self.dist_scale[0] * zi_cond_logvar
+                # reparametrize and sample from conditional over zi
+                zi_samps = reparametrize(zi_cond_mean, zi_cond_logvar,
+                                         rng=cu_rng)
+                # record KLd for current conditional distribution over zi
+                kld_zi = gaussian_kld(T.flatten(zi_cond_mean, 2),
+                                      T.flatten(zi_cond_logvar, 2),
+                                      0.0, 0.0)
+                td_klds.append(T.sum(kld_zi, axis=1))
+                # feedforward through the current TD module
+                td_acts_i = td_module.apply(input=td_info_and_inds,
+                                            rand_vals=zi_samps)
+                td_acts.append(td_acts_i)
+            else:
+                # handle computation for a TD module that only requires info
+                # from preceding TD modules (i.e. no rands or indicators)
+                td_info = td_acts[-1]
+                td_acts_i = td_module.apply(input=td_info, rand_vals=None)
+                td_acts.append(td_acts_i)
+        # compute nll costs for outputs of the merged BU/TD process
+        recon = self.output_transform(td_acts[-1])
+        if self.use_bernoulli:
+            log_p_xIz = T.sum(log_prob_bernoulli(T.flatten(x,2),
+                                    T.flatten(recon,2),
+                                    do_sum=False), axis=1)
+        else:
+            log_p_xIz = T.sum(log_prob_gaussian(T.flatten(x,2),
+                                    T.flatten(recon,2),
+                                    log_vars=0.0, use_huber=0.5,
+                                    do_sum=False), axis=1) # gaussian(ish)
+        # compute total KLd for the merged TD/BU process
+        kld_z = sum(td_klds)
+
+        # compute overall per-observation free-energy costs
+        obs_vae_nlls = -1.0 * log_p_xIz
+        obs_vae_klds = kld_z # + kld_a + kld_y # latter KLds not needed here...
+
+        # compute a classification-type loss for these observations
+        obs_cls_nlls = T.nnet.categorical_crossentropy(y_probs, y_ind)
+
+        # package results for convenient processing
+        im_res_dict = {}
+        im_res_dict['obs_vae_nlls'] = obs_vae_nlls
+        im_res_dict['obs_vae_klds'] = obs_vae_klds
+        im_res_dict['obs_cls_nlls'] = obs_cls_nlls
+        im_res_dict['log_p_xIz'] = log_p_xIz
+        im_res_dict['kld_a'] = kld_a
+        im_res_dict['kld_y'] = kld_y
+        im_res_dict['kld_z'] = kld_z
+        im_res_dict['ent_y'] = ent_y
+        im_res_dict['batch_y_prob'] = batch_y_prob
+        im_res_dict['batch_ent_y'] = batch_ent_y
+        return im_res_dict
+
+    def apply_predict_y(self, x, noise=None):
+        """
+        Do a one-sample prediction of y, conditioned on x.
+          -- return both unnormalized and normalized predictions.
+        """
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(x, noise=noise)
+        x_info = T.flatten(bu_res_dict['bu_acts'][-1], 2)
+        # draw a sample from q(a | x) for each input
+        a_cond_mean, a_cond_logvar = self.q_aIx_model.apply(x_info, noise=noise)
+        a_cond_mean = self.dist_scale[0] * a_cond_mean
+        a_cond_logvar = self.dist_scale[0] * a_cond_logvar
+        a_samps = reparametrize(a_cond_mean, a_cond_logvar, rng=cu_rng)
+        # feed BU features and a samples into q(y | a, x)
+        ax_info = T.concatenate([x_info, a_samps], axis=1)
+        y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
+        y_probs = T.nnet.softmax(y_unnorm)
+        return y_probs, y_unnorm
+
+    def _construct_generate_samples(self):
+        """
+        Generate some samples from this network.
+        """
+        z0 = T.matrix()
+        y_ind = T.matrix()
+        # feedforward through the model, generating conditioned on the given
+        # matrix of one-hot indicator vectors
+        sym_samples = self.apply_td(z0=z0, y_ind=y_ind)
+        # compile a theano function for sampling outputs from the top-down
+        # generative process.
+        sample_func = theano.function([z0, y_ind], sym_samples)
+        return sample_func
 
 
 
