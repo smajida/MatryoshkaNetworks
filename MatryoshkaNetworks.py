@@ -32,6 +32,13 @@ def tanh_clip(x, bound=10.0):
     x = bound * tanh((1.0 / bound) * x)
     return x
 
+def tanh_clip_softmax(x, bound=5.0):
+    """
+    Do soft "tanh" clipping to put data in range -scale....+scale.
+    """
+    x_clip = bound * tanh((1.0 / bound) * x)
+    x_clip_sm = T.nnet.softmax(x_clip)
+    return x_clip_sm
 
 ####################################
 # Generator network for use in GAN #
@@ -1044,7 +1051,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1169,7 +1176,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm) # shape: (nbatch*nyc, nyc)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0) # shape: (nbatch*nyc, nyc)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y_rpt = self.log_nyc - ent_y_rpt
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1299,7 +1306,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = mean_pool_rows(T.nnet.softmax(y_unnorm),
+        y_probs = mean_pool_rows(tanh_clip_softmax(y_unnorm, bound=3.0),
                                  pool_count=self.nbatch,
                                  pool_size=a_rpt_count)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
@@ -1413,7 +1420,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
         return y_probs, y_unnorm
 
     def _construct_generate_samples(self):
@@ -1653,7 +1660,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1778,7 +1785,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm) # shape: (nbatch*nyc, nyc)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0) # shape: (nbatch*nyc, nyc)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y_rpt = self.log_nyc - ent_y_rpt
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1905,7 +1912,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -2017,7 +2024,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = T.nnet.softmax(y_unnorm)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
         return y_probs, y_unnorm
 
     def _construct_generate_samples(self):
