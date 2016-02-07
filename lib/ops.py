@@ -89,7 +89,7 @@ def conv_cond_concat(x, y):
     """
     return T.concatenate([x, y*T.ones((x.shape[0], y.shape[1], x.shape[2], x.shape[3]))], axis=1)
 
-def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-8, n=None):
+def batchnorm(X, g=None, b=None, u=None, s=None, a=1., e=1e-5, n=None):
     """
     batchnorm with support for not using scale and shift parameters
     as well as inference values (u and s) and partial batchnorm (via a)

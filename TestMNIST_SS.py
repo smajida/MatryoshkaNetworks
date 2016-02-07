@@ -12,6 +12,7 @@ sys.setrecursionlimit(100000)
 
 import theano
 import theano.tensor as T
+from theano.compile.nanguardmode import NanGuardMode
 
 #
 # DCGAN paper repo stuff
@@ -45,7 +46,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_000_no_a".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_000_lam_su_02".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -554,7 +555,9 @@ print("Compiling training functions...")
 # grab the model's sampling function
 sample_func = inf_gen_model.generate_samples # takes inputs (z0, yi)
 # compile functions for computing model costs and updates
-func_train = theano.function([Xg, Xc, Yc], train_outputs, updates=param_updates)
+ngm = NanGuardMode(nan_is_error=True, inf_is_error=True, big_is_error=True)
+func_train = theano.function([Xg, Xc, Yc], train_outputs,
+                             updates=param_updates, mode=ngm)
 func_train_costs = theano.function([Xg, Xc, Yc], train_outputs)
 #func_train = func_train_costs
 
