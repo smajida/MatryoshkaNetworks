@@ -46,7 +46,7 @@ set_seed(1)
 
 # setup paths for dumping diagnostic info
 sup_count = 100
-desc = "test_ss_{}_labels_relu_bn_noise_020_lam_su_01".format(sup_count)
+desc = "test_ss_{}_labels_relu_bn_noise_000_lam_su_02".format(sup_count)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -87,7 +87,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
-noise_lvl = 0.20  # amount of noise in the model
+noise_lvl = 0.00  # amount of noise in the model
 
 def shared_shuffle(x1, x2):
     """
@@ -436,7 +436,7 @@ inf_gen_model.load_params(f_name=inf_gen_param_file)
 # Setup the optimization objective #
 ####################################
 lam_un = sharedX(floatX(np.asarray([1.0])))     # weighting param for unsupervised free-energy
-lam_su = sharedX(floatX(np.asarray([0.1])))     # weighting param for total labeled cost
+lam_su = sharedX(floatX(np.asarray([0.2])))     # weighting param for total labeled cost
 lam_su_cls = sharedX(floatX(np.asarray([0.5])))  # weighting param for classification part of labeled cost
 lam_obs_ent_y = sharedX(floatX(np.asarray([0.0])))     # weighting param for observation-wise entropy
 lam_batch_ent_y = sharedX(floatX(np.asarray([-5.0])))  # weighting param for batch-wise entropy

@@ -32,7 +32,7 @@ def tanh_clip(x, bound=10.0):
     x = bound * tanh((1.0 / bound) * x)
     return x
 
-def tanh_clip_softmax(x, bound=5.0):
+def tanh_clip_softmax(x, bound=10.0):
     """
     Do soft "tanh" clipping to put data in range -scale....+scale.
     """
@@ -616,8 +616,8 @@ class InfGenModel(object):
                     # handle conditionals based purely on BU info
                     cond_mean_im = bu_res_dict[bu_mod_name][0]
                     cond_logvar_im = bu_res_dict[bu_mod_name][1]
-                    cond_mean_im = self.dist_scale[0] * tanh_clip(cond_mean_im, bound=3.0)
-                    cond_logvar_im = self.dist_scale[0] * tanh_clip(cond_logvar_im, bound=3.0)
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get top-down mean and logvar (here, just ZMUV)
                     cond_mean_td = 0.0 * cond_mean_im
                     cond_logvar_td = 0.0 * cond_logvar_im
@@ -634,8 +634,8 @@ class InfGenModel(object):
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info, bu_input=bu_info)
-                    cond_mean_im = self.dist_scale[0] * tanh_clip(cond_mean_im, bound=3.0)
-                    cond_logvar_im = self.dist_scale[0] * tanh_clip(cond_logvar_im, bound=3.0)
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get the model distribution
                     if im_module.use_td_cond:
                         # get the top-down conditional distribution
@@ -1051,7 +1051,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1176,7 +1176,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0) # shape: (nbatch*nyc, nyc)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0) # shape: (nbatch*nyc, nyc)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y_rpt = self.log_nyc - ent_y_rpt
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1306,7 +1306,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info_rpt, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = mean_pool_rows(tanh_clip_softmax(y_unnorm, bound=3.0),
+        y_probs = mean_pool_rows(tanh_clip_softmax(y_unnorm, bound=10.0),
                                  pool_count=self.nbatch,
                                  pool_size=a_rpt_count)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
@@ -1420,7 +1420,7 @@ class InfGenModelSS(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0)
         return y_probs, y_unnorm
 
     def _construct_generate_samples(self):
@@ -1660,7 +1660,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1785,7 +1785,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0) # shape: (nbatch*nyc, nyc)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0) # shape: (nbatch*nyc, nyc)
         ent_y_rpt = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y_rpt = self.log_nyc - ent_y_rpt
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -1912,7 +1912,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0)
         ent_y = -1.0 * T.sum((y_probs * T.log(y_probs)), axis=1)
         kld_y = self.log_nyc - ent_y
         batch_y_prob = T.mean(y_probs, axis=0)
@@ -2024,7 +2024,7 @@ class InfGenModelSS_no_a(object):
         # feed BU features and a samples into q(y | a, x)
         ax_info = T.concatenate([x_info, a_samps], axis=1)
         y_unnorm, _ = self.q_yIax_model.apply(ax_info, noise=noise)
-        y_probs = tanh_clip_softmax(y_unnorm, bound=3.0)
+        y_probs = tanh_clip_softmax(y_unnorm, bound=10.0)
         return y_probs, y_unnorm
 
     def _construct_generate_samples(self):
