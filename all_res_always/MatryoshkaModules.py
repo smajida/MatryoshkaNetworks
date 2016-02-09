@@ -376,307 +376,11 @@ class BasicConvModule(object):
         return result
 
 
-########################################
-# DISCRIMINATOR FULLY CONNECTED MODULE #
-########################################
-
-class DiscFCModule(object):
-    """
-    Module that feeds forward through a single fully connected hidden layer
-    and then produces a single scalar "discriminator" output.
-
-    Params:
-        fc_dim: dimension of the fully connected layer
-        in_dim: dimension of the inputs to the module
-        use_fc: whether or not to use the hidden layer
-        apply_bn: whether to apply batch normalization at fc layer
-        unif_drop: drop rate for uniform dropout
-        act_func: --
-        use_bn_params: whether to use BN params
-        mod_name: text name for identifying module in theano graph
-    """
-    def __init__(self, fc_dim, in_dim, use_fc,
-                 apply_bn=True, init_func=None,
-                 unif_drop=0.0,
-                 act_func='lrelu',
-                 use_bn_params=True,
-                 mod_name='dm_fc'):
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.fc_dim = fc_dim
-        self.in_dim = in_dim
-        self.use_fc = use_fc
-        self.apply_bn = apply_bn
-        self.unif_drop = unif_drop
-        if act_func == 'ident':
-            self.act_func = lambda x: x
-        elif act_func == 'tanh':
-            self.act_func = lambda x: tanh(x)
-        elif act_func == 'elu':
-            self.act_func = lambda x: elu(x)
-        elif act_func == 'relu':
-            self.act_func = lambda x: relu(x)
-        else:
-            self.act_func = lambda x: lrelu(x)
-        self.use_bn_params = use_bn_params
-        self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this discriminator module.
-        """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        self.w1 = weight_ifn((self.in_dim, self.fc_dim),
-                             "{}_w1".format(self.mod_name))
-        self.w2 = weight_ifn((self.fc_dim, 1),
-                             "{}_w2".format(self.mod_name))
-        self.w3 = weight_ifn((self.in_dim, 1),
-                             "{}_w3".format(self.mod_name))
-        self.params = [self.w1, self.w2, self.w3]
-        # make gains and biases for transforms that will get batch normed
-        self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
-        self.params.extend([self.g1, self.b1])
-        return
-
-    def load_params(self, param_dict):
-        """
-        Load model params directly from a dict of numpy arrays.
-        """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        self.w2.set_value(floatX(param_dict['w2']))
-        self.w3.set_value(floatX(param_dict['w3']))
-        return
-
-    def dump_params(self):
-        """
-        Dump model params directly to a dict of numpy arrays.
-        """
-        param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        param_dict['w2'] = self.w2.get_value(borrow=False)
-        param_dict['w3'] = self.w3.get_value(borrow=False)
-        return param_dict
-
-    def apply(self, input, noise=None, share_mask=False):
-        """
-        Apply this discriminator module to the given input. This produces a
-        scalar discriminator output for each input observation.
-        """
-        # flatten input to 1d per example
-        input = T.flatten(input, 2)
-        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
-        if self.use_fc:
-            # feedforward to fully connected layer
-            h1 = T.dot(input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            elif USE_BIAS:
-                h1 = h1 + self.b1.dimshuffle('x', 0)
-            h1 = self.act_func(h1)
-            h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            # compute discriminator output from fc layer and input
-            h2 = T.dot(h1, self.w2) #+ T.dot(input, self.w3)
-            y = h2
-        else:
-            h2 = T.dot(input, self.w3)
-            y = h2
-        return [h2, y]
-
-
-#############################################
-# DISCRIMINATOR DOUBLE CONVOLUTIONAL MODULE #
-#############################################
-
-class DiscConvResModule(object):
-    """
-    Module of one regular convolution layer followed by one "fractionally
-    strided convolution layer. Has a direct pass-through connection.
-
-    Params:
-        in_chans: number of channels in the inputs to module
-        out_chans: number of channels in the outputs from module
-        conv_chans: number of channels in the "internal" convolution layer
-        filt_shape: size of filters (either (3, 3) or (5, 5))
-        use_conv: flag for whether to use "internal" convolution layer
-        ds_stride: downsampling ratio in the fractionally strided convolution
-        unif_drop: drop rate for uniform dropout
-        chan_drop: drop rate for channel-wise dropout
-        apply_bn: whether to apply batch normalization
-        act_func: ---
-        use_bn_params: whether to use BN params
-        mod_name: text name for identifying module in theano graph
-    """
-    def __init__(self,
-                 in_chans, out_chans, conv_chans, filt_shape,
-                 use_conv=True, ds_stride=2,
-                 unif_drop=0.0, chan_drop=0.0,
-                 act_func='lrelu', apply_bn=True,
-                 use_bn_params=True,
-                 mod_name='dm_conv'):
-        assert ((ds_stride == 1) or (ds_stride == 2)), \
-                "ds_stride must be 1 or 2."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.conv_chans = conv_chans
-        self.filt_dim = filt_shape[0]
-        self.use_conv = use_conv
-        self.ds_stride = ds_stride
-        self.unif_drop = unif_drop
-        self.chan_drop = chan_drop
-        if act_func == 'ident':
-            self.act_func = lambda x: x
-        elif act_func == 'tanh':
-            self.act_func = lambda x: tanh(x)
-        elif act_func == 'elu':
-            self.act_func = lambda x: elu(x)
-        elif act_func == 'relu':
-            self.act_func = lambda x: relu(x)
-        else:
-            self.act_func = lambda x: lrelu(x)
-        self.apply_bn = apply_bn
-        self.use_bn_params = use_bn_params
-        self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this generator module.
-        """
-        self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        fd = self.filt_dim
-        # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, self.in_chans, fd, fd),
-                             "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
-        # initialize second conv layer parameters
-        self.w2 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
-                             "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
-        # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
-        # initialize weights for the "discrimination" layer
-        self.wd = weight_ifn((1, self.out_chans, 3, 3),
-                             "{}_wd".format(self.mod_name))
-        return
-
-    def load_params(self, param_dict):
-        """
-        Load model params directly from a dict of numpy arrays.
-        """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
-        self.wd.set_value(floatX(param_dict['wd']))
-        return
-
-    def dump_params(self):
-        """
-        Dump model params directly to a dict of numpy arrays.
-        """
-        param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        param_dict['w2'] = self.w2.get_value(borrow=False)
-        param_dict['g2'] = self.g2.get_value(borrow=False)
-        param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
-        param_dict['wd'] = self.wd.get_value(borrow=False)
-        return param_dict
-
-    def apply(self, input, noise=None, share_mask=False):
-        """
-        Apply this generator module to some input.
-        """
-        batch_size = input.shape[0] # number of inputs in this batch
-        ss = self.ds_stride         # stride for "learned downsampling"
-        bm = (self.filt_dim - 1) // 2 # set border mode for the convolutions
-        # apply dropout to input
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
-                               share_mask=share_mask)
-        if self.use_conv:
-            # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            elif USE_BIAS:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-            h1 = self.act_func(h1)
-            # apply dropout at intermediate convolution layer
-            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
-                                share_mask=share_mask)
-
-            # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-            # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-
-            # combine non-linear and linear transforms of input...
-            h4 = h2 + h3
-            if self.apply_bn:
-                h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
-                                use_gb=self.use_bn_params)
-            elif USE_BIAS:
-                h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
-            output = self.act_func(h4)
-        else:
-            # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-            if self.apply_bn:
-                h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj, n=noise,
-                                use_gb=self.use_bn_params)
-            elif USE_BIAS:
-                h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
-            output = self.act_func(h3)
-
-        # apply discriminator layer
-        d_in = conv_drop_func(output, self.unif_drop, self.chan_drop,
-                              share_mask=share_mask)
-        y = dnn_conv(d_in, self.wd, subsample=(1, 1), border_mode=(1, 1))
-        y = T.flatten(y, 2)
-        return [output, y]
-
-
 ####################################
 # GENERATOR FULLY CONNECTED MODULE #
 ####################################
 
-class GenFCModule(object):
+class TDFCModule(object):
     """
     Module that transforms random values through a single fully connected
     layer, and then a linear transform (with another relu, optionally).
@@ -827,7 +531,7 @@ class GenFCModule(object):
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
 
-class GenConvResModule(object):
+class TDConvResModule(object):
     """
     Module of one "fractionally strided" convolution layer followed by one
     regular convolution layer. Inputs to the fractionally strided convolution
@@ -1023,7 +727,7 @@ class GenConvResModule(object):
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
 
-class InfConvMergeModule(object):
+class IMConvResModule(object):
     """
     Module for merging bottom-up and top-down information in a deep generative
     convolutional network with multiple layers of latent variables.
@@ -1242,7 +946,7 @@ class InfConvMergeModule(object):
 # INFERENCE FULLY CONNECTED MODULE #
 ####################################
 
-class InfFCModule(object):
+class IMFCModule(object):
     """
     Module that feeds forward through a single fully connected hidden layer
     and then produces a conditional over some Gaussian latent variables.

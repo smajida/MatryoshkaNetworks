@@ -31,11 +31,11 @@ from load import load_udm_ss
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenFCModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
+from MatryoshkaModules import BasicConvModule, BasicConvResModule, \
+                              TDFCModule, TDConvResModule, \
+                              IMFCModule, IMConvResModule, \
                               MlpFCModule
-from MatryoshkaNetworks import InfGenModelSS_no_a as InfGenModelSS
+from MatryoshkaNetworks import InfGenModelSS2 as InfGenModelSS
 from MatryoshkaNetworks import SimpleInfMLP
 
 # path for dumping experiment info and fetching dataset
@@ -142,7 +142,7 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (7, 7)
 td_module_1 = \
-GenFCModule(
+TDFCModule(
     rand_dim=nz0+nyc,
     out_shape=(ngf*4, 7, 7),
     fc_dim=ngfc,
@@ -153,7 +153,7 @@ GenFCModule(
 
 # (7, 7) -> (7, 7)
 td_module_2 = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4)+nyc,
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -168,7 +168,7 @@ GenConvResModule(
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4)+nyc,
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -183,7 +183,7 @@ GenConvResModule(
 
 # (14, 14) -> (28, 28)
 td_module_4 = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*2)+nyc,
     out_chans=(ngf*1),
     conv_chans=(ngf*1),
@@ -227,7 +227,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5]
 # this provides a distribution/sample for "auxiliary" latent variable "a".
 #
 q_aIx_module_1 = \
-InfFCModule(
+IMFCModule(
     bu_chans=(ngf*4*7*7), # input from BU net only
     fc_chans=ngfc,
     rand_chans=nza,       # output is mean and logvar for "a"
@@ -250,7 +250,7 @@ q_aIx_model = SimpleInfMLP(modules=q_aIx_modules)
 # will be softmaxed by the model which handles the overall generative system.
 #
 q_yIax_module_1 = \
-InfFCModule(
+IMFCModule(
     bu_chans=(ngf*4*7*7)+nza, # input from BU net and "a"
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
@@ -274,7 +274,7 @@ q_yIax_model = SimpleInfMLP(modules=q_yIax_modules)
 # goes into the top of the TD network (in addition to a class indicator).
 #
 q_z0Iyx_module_1 = \
-InfFCModule(
+IMFCModule(
     bu_chans=(ngf*4*7*7)+nyc, # input from BU net and class indicator
     fc_chans=ngfc,
     rand_chans=nz0,           # output is mean and logvar for "z0"
@@ -362,7 +362,7 @@ bu_modules = [bu_module_5, bu_module_4, bu_module_3, bu_module_2]
 #########################################
 
 im_module_2 = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4)+nyc, # this gets to see the indicators
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -375,7 +375,7 @@ InfConvMergeModule(
 )
 
 im_module_3 = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4)+nyc, # this gets to see the indicators
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -388,7 +388,7 @@ InfConvMergeModule(
 )
 
 im_module_4 = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*2)+nyc, # this gets to see the indicators
     bu_chans=(ngf*2),
     rand_chans=nz1,

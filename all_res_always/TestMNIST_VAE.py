@@ -30,11 +30,10 @@ from load import load_binarized_mnist
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenFCModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
-                              DiscConvResModule, DiscFCModule
-from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
+from MatryoshkaModules import BasicConvModule, TDConvResModule, \
+                              TDFCModule, IMConvResModule, \
+                              IMFCModule, BasicConvResModule
+from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
@@ -103,7 +102,7 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (7, 7)
 td_module_1 = \
-GenFCModule(
+TDFCModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 7, 7),
     fc_dim=ngfc,
@@ -115,7 +114,7 @@ GenFCModule(
 
 # (7, 7) -> (7, 7)
 td_module_2a = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -131,7 +130,7 @@ GenConvResModule(
 
 # (7, 7) -> (7, 7)
 td_module_2b = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -147,7 +146,7 @@ GenConvResModule(
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
     conv_chans=(ngf*2),
@@ -163,7 +162,7 @@ GenConvResModule(
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -179,7 +178,7 @@ GenConvResModule(
 
 # (14, 14) -> (14, 14)
 td_module_4a = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -195,7 +194,7 @@ GenConvResModule(
 
 # (14, 14) -> (14, 14)
 td_module_4b = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -211,7 +210,7 @@ GenConvResModule(
 
 # (14, 14) -> (28, 28)
 td_module_4c = \
-GenConvResModule(
+TDConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=(ngf*1),
@@ -248,7 +247,7 @@ td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
 
 # (7, 7) -> FC
 bu_module_1 = \
-InfFCModule(
+IMFCModule(
     bu_chans=(ngf*4*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
@@ -377,7 +376,7 @@ bu_modules = [bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
 #########################################
 
 im_module_2a = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4),
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -391,7 +390,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_2a.
 
 im_module_2b = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4),
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -405,7 +404,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_2b.
 
 im_module_2c = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4),
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -419,7 +418,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_2c.
 
 im_module_3 = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*4),
     bu_chans=(ngf*4),
     rand_chans=nz1,
@@ -433,7 +432,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_3.
 
 im_module_4a = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
@@ -447,7 +446,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_4.
 
 im_module_4b = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
@@ -461,7 +460,7 @@ InfConvMergeModule(
   # over the rand_vals used in td_mod_4.
 
 im_module_4c = \
-InfConvMergeModule(
+IMConvResModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
@@ -611,7 +610,7 @@ else:
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs)
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
