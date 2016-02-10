@@ -1681,7 +1681,7 @@ class InfTopModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)

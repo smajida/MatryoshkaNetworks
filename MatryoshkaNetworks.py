@@ -513,7 +513,7 @@ class InfGenModel(object):
                         # sample values to reparametrize, if none given
                         td_shape = td_acts[-1].shape
                         rand_chans = im_module.rand_chans
-                        if len(rvs_shape) == 2:
+                        if td_acts[-1].ndim == 2:
                             rvs_size = (td_shape[0], rand_chans)
                         else:
                             rvs_size = (td_shape[0], rand_chans, td_shape[2], td_shape[3])
@@ -550,9 +550,9 @@ class InfGenModel(object):
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input=input)
+                res = bu_mod.apply(input)
             else:
-                res = bu_mod.apply(input=bu_acts[i-1])
+                res = bu_mod.apply(bu_acts[i-1])
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
