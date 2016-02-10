@@ -676,7 +676,7 @@ class DiscConvResModule(object):
 # GENERATOR FULLY CONNECTED MODULE #
 ####################################
 
-class GenFCModule(object):
+class GenTopModule(object):
     """
     Module that transforms random values through a single fully connected
     layer, and then a linear transform (with another relu, optionally).

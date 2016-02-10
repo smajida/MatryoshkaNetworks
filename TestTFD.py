@@ -28,7 +28,7 @@ from load import mnist_with_valid_set
 # Phil's business
 #
 from MatryoshkaModules import DiscConvModule, DiscFCModule, GenConvModule, \
-                              GenFCModule, BasicConvModule
+                              GenTopModule, BasicConvModule
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./tfd"
@@ -89,7 +89,7 @@ difn = inits.Normal(scale=0.02)
 # Define some modules to use in the generator
 #
 gen_module_1 = \
-GenFCModule(
+GenTopModule(
     rand_dim=nz0,
     out_dim=(ngf*2*7*7),
     fc_dim=ngfc,
@@ -171,7 +171,7 @@ DiscFCModule(
     init_func=difn,
     mod_name='disc_mod_3'
 )
- 
+
 #
 # Grab parameters from generator and discriminator
 #
@@ -249,9 +249,9 @@ print '%.2f seconds to compile theano functions'%(time()-t)
 
 f_log = open("{}/{}.ndjson".format(log_dir, desc), 'wb')
 log_fields = [
-    'n_epochs', 
-    'n_updates', 
-    'n_examples', 
+    'n_epochs',
+    'n_updates',
+    'n_examples',
     'n_seconds',
     'g_cost',
     'd_cost',

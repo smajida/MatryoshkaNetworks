@@ -31,7 +31,7 @@ from load import load_udm_ss
 # Phil's business
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenFCModule, InfConvMergeModule, \
+                              GenTopModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule, MlpFCModule
 from MatryoshkaNetworks import InfGenModel, SimpleMLP
@@ -129,7 +129,7 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (2, 2)
 td_module_1 = \
-GenFCModule(
+GenTopModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,

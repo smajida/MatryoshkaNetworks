@@ -31,7 +31,7 @@ from load import load_binarized_mnist
 # Phil's business
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenFCModule, InfConvMergeModule, \
+                              GenTopModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
@@ -99,7 +99,7 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (7, 7)
 td_module_1 = \
-GenFCModule(
+GenTopModule(
     rand_dim=nz0,
     out_shape=(ngf*4, 7, 7),
     fc_dim=ngfc,

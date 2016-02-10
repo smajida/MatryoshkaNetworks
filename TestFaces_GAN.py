@@ -25,7 +25,7 @@ from load import load_svhn
 #
 # Phil's business
 #
-from MatryoshkaModules import DiscFCModule, GenFCModule, \
+from MatryoshkaModules import DiscFCModule, GenTopModule, \
                               BasicConvModule, GenConvResModule, \
                               DiscConvResModule
 from MatryoshkaNetworks import GenNetworkGAN, DiscNetworkGAN, VarInfModel
@@ -177,7 +177,7 @@ bce = T.nnet.binary_crossentropy
 ###############################
 
 gen_module_1 = \
-GenFCModule(
+GenTopModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 4, 4),
     fc_dim=ngfc,
@@ -392,7 +392,7 @@ d_cost_er = sum([w*c for w, c in zip(d_weights, d_cost_ers)])
 g_cost_d = sum([w*c for w, c in zip(g_weights, g_cost_ds)])
 
 # get symbolic gradient of generator's adversarial cost, w.r.t to images
-# sampled from the generator. 
+# sampled from the generator.
 dGAC_XIZ0 = theano.gradient.grad(g_cost_d, XIZ0)
 
 

@@ -27,7 +27,7 @@ from load import load_svhn
 # Phil's business
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenFCModule, InfConvMergeModule, \
+                              GenTopModule, InfConvMergeModule, \
                               InfFCModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
@@ -173,7 +173,7 @@ bce = T.nnet.binary_crossentropy
 #########################################
 
 td_module_1 = \
-GenFCModule(
+GenTopModule(
     rand_dim=nz0,
     out_shape=(ngf*8, 2, 2),
     fc_dim=ngfc,
