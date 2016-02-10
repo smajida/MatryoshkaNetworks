@@ -79,6 +79,249 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
         bn_acts = batchnorm(acts, n=n)
     return bn_acts
 
+#######################################
+# BASIC DOUBLE FULLY-CONNECTED MODULE #
+#######################################
+
+class BasicFCResModule(object):
+    """
+    Module with a direct pass-through connection that gets modulated by a pair
+    of hidden layers.
+
+    Params:
+        in_chans: number of channels in the inputs to module
+        out_chans: number of channels in the outputs from module
+        fc_chans: number of channels in the "internal" layer
+        use_fc: flag for whether to use "internal" layer
+        act_func: --
+        unif_drop: drop rate for uniform dropout
+        apply_bn: whether to apply batch normalization
+        use_bn_params: whether to use post-processing params for BN
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 in_chans, out_chans, fc_chans,
+                 use_fc=True, act_func='relu',
+                 unif_drop=0.0, apply_bn=True,
+                 use_bn_params=True,
+                 mod_name='basic_fc_res'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.fc_chans = fc_chans
+        self.use_fc = use_fc
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.apply_bn = apply_bn
+        self.mod_name = mod_name
+        self.use_bn_params = use_bn_params
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn((self.in_chans, self.fc_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.fc_chans, self.out_chans),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize convolutional projection layer parameters
+        self.w3 = weight_ifn((self.in_chans, self.out_chans, fd, fd),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['g2'] = self.g2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
+              share_mask=False):
+        """
+        Apply this fully-connected module to some input.
+        """
+        # apply uniform and/or channel-wise dropout if desired
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
+        if self.use_fc:
+            # apply first internal conv layer (might downsample)
+            h1 = T.dot(input, self.w1)
+            if self.apply_bn:
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = self.act_func(h1)
+            # apply dropout at intermediate convolution layer
+            h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+            # apply second internal conv layer
+            h2 = T.dot(h1, self.w2)
+            # apply pass-through conv layer (might downsample)
+            h3 = T.dot(input, self.w3)
+            # combine non-linear and linear transforms of input...
+            h4 = h2 + h3
+        else:
+            # apply direct pass-through connection
+            h4 = T.dot(input, self.w3)
+        if self.apply_bn:
+            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h4 = h4 + self.b3.dimshuffle('x',0)
+        output = self.act_func(h4)
+        if rand_shapes:
+            result = [output, input.shape]
+        else:
+            result = output
+        return result
+
+###############################
+# BASIC FULLY-CONNECTED LAYER #
+###############################
+
+class BasicFCModule(object):
+    """
+    Simple fully-connected layer for use anywhere?
+
+    Params:
+        in_chans: number of channels in input
+        out_chans: number of channels to produce as output
+        apply_bn: whether to apply batch normalization after conv
+        act_func: --
+        unif_drop: drop rate for uniform dropout
+        use_bn_params: whether to use params for BN
+        mod_name: text name to identify this module in theano graph
+    """
+    def __init__(self, in_chans, out_chans,
+                 apply_bn=True, act_func='ident',
+                 unif_drop=0.0,
+                 use_bn_params=True,
+                 mod_name='basic_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.apply_bn = apply_bn
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.use_bn_params = use_bn_params
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this discriminator module.
+        """
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        self.w1 = weight_ifn((self.in_chans, self.out_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.out_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.g1, self.b1]
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
+              share_mask=False):
+        """
+        Apply this convolutional module to the given input.
+        """
+        # apply uniform and/or channel-wise dropout if desired
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
+        h1 = T.dot(input, self.w1)
+        if self.apply_bn:
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h1 = h1 + self.b1.dimshuffle('x',0)
+        h1 = self.act_func(h1)
+        if rand_shapes:
+            result = [h1, input.shape]
+        else:
+            result = h1
+        return result
+
 #####################################
 # BASIC DOUBLE CONVOLUTIONAL MODULE #
 #####################################
@@ -197,7 +440,8 @@ class BasicConvResModule(object):
         param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
         return param_dict
 
-    def apply(self, input, share_mask=False, noise=None):
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
+              share_mask=False):
         """
         Apply this convolutional module to some input.
         """
@@ -254,7 +498,11 @@ class BasicConvResModule(object):
         else:
             h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
         output = self.act_func(h4)
-        return output
+        if rand_shapes:
+            result = [output, input.shape]
+        else:
+            result = output
+        return result
 
 #############################
 # BASIC CONVOLUTIONAL LAYER #
@@ -294,6 +542,16 @@ class BasicConvModule(object):
         self.act_func = act_func
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
         self.use_bn_params = use_bn_params
         self.mod_name = mod_name
         self._init_params() # initialize parameters
@@ -356,18 +614,7 @@ class BasicConvModule(object):
                             use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-        if self.act_func == 'ident':
-            pass # apply identity activation function...
-        elif self.act_func == 'tanh':
-            h1 = tanh(h1)
-        elif self.act_func == 'elu':
-            h1 = elu(h1)
-        elif self.act_func == 'lrelu':
-            h1 = lrelu(h1)
-        elif self.act_func == 'relu':
-            h1 = relu(h1)
-        else:
-            assert False, "unsupported activation function."
+        h1 = self.act_func(h1)
         if rand_shapes:
             result = [h1, input.shape]
         else:
@@ -1420,7 +1667,7 @@ class InfConvMergeModule(object):
 # INFERENCE FULLY CONNECTED MODULE #
 ####################################
 
-class InfFCModule(object):
+class InfFCMergeModule(object):
     """
     Module that feeds forward through a single fully connected hidden layer
     and then produces a conditional over some Gaussian latent variables.
