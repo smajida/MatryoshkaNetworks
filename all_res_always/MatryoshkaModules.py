@@ -13,11 +13,9 @@ from lib.theano_utils import floatX, sharedX
 relu = activations.Rectify()
 sigmoid = activations.Sigmoid()
 lrelu = activations.LeakyRectify()
-bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()
 
-USE_BIAS = True
 
 def tanh_clip(x, scale=10.0):
     """
@@ -80,11 +78,11 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
         bn_acts = batchnorm(acts, n=n)
     return bn_acts
 
-#####################################
-# BASIC DOUBLE CONVOLUTIONAL MODULE #
-#####################################
+######################################################################
+# DOUBLE CONVOLUTIONAL RESIDUAL MODULE -- USED FOR TD AND BU MODULES #
+######################################################################
 
-class BasicConvResModule(object):
+class TdBuConvResModule(object):
     """
     Module with a direct pass-through connection that gets modulated by a pair
     of hidden convolutional layers.
@@ -110,8 +108,6 @@ class BasicConvResModule(object):
                  use_bn_params=True, mod_name='basic_conv_res'):
         assert (stride in ['single', 'double', 'half']), \
                 "stride must be 'double', 'single', or 'half'."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
                 "filt_shape must be (3,3) or (5,5)."
         self.in_chans = in_chans
@@ -160,11 +156,11 @@ class BasicConvResModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        self.w3 = weight_ifn((self.out_chans, self.in_chans, fd, fd),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
         return
 
     def load_params(self, param_dict):
@@ -177,9 +173,9 @@ class BasicConvResModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.g2.set_value(floatX(param_dict['g2']))
         self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         return
 
     def dump_params(self):
@@ -193,9 +189,9 @@ class BasicConvResModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['g2'] = self.g2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, share_mask=False, noise=None):
@@ -209,13 +205,14 @@ class BasicConvResModule(object):
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
         if self.use_conv:
+            # use the internal convolution layer
             if self.stride in ['double', 'single']:
-                # apply first internal conv layer (might downsample)
+                # apply first internal conv layer (we might downsample)
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
-                elif USE_BIAS:
+                else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
@@ -224,14 +221,14 @@ class BasicConvResModule(object):
                 # apply second internal conv layer
                 h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
                 # apply pass-through conv layer (might downsample)
-                h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             else:
-                # apply first internal conv layer
+                # apply first internal conv layer (we're going to upsample)
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
-                elif USE_BIAS:
+                else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
@@ -240,166 +237,51 @@ class BasicConvResModule(object):
                 # apply second internal conv layer (might upsample)
                 h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
                 # apply pass-through conv layer (might upsample)
-                h3 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-            # combine non-linear and linear transforms of input...
+                h3 = deconv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
+            # combine non-linear and linear transforms of module input...
             h4 = h2 + h3
         else:
-            # apply direct pass-through conv layer
+            # don't use the internal convolution layer
             if self.stride in ['double', 'single']:
-                h4 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                h4 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             else:
-                h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                h4 = deconv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
-                            use_gb=self.use_bn_params)
-        elif USE_BIAS:
-            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
-        output = self.act_func(h4)
-        return output
-
-#############################
-# BASIC CONVOLUTIONAL LAYER #
-#############################
-
-class BasicConvModule(object):
-    """
-    Simple convolutional layer for use anywhere?
-
-    Params:
-        filt_shape: filter shape, should be square and odd dim
-        in_chans: number of channels in input
-        out_chans: number of channels to produce as output
-        stride: whether to use 'double', 'single', or 'half' stride.
-        apply_bn: whether to apply batch normalization after conv
-        act_func: --
-        unif_drop: drop rate for uniform dropout
-        chan_drop: drop rate for channel-wise dropout
-        use_bn_params: whether to use params for BN
-        mod_name: text name to identify this module in theano graph
-    """
-    def __init__(self, filt_shape, in_chans, out_chans,
-                 stride='single', apply_bn=True, act_func='ident',
-                 unif_drop=0.0, chan_drop=0.0,
-                 use_bn_params=True,
-                 mod_name='basic_conv'):
-        assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
-        assert (stride in ['single', 'double', 'half']), \
-                "stride should be 'single', 'double', or 'half'."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.filt_dim = filt_shape[0]
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.stride = stride
-        self.apply_bn = apply_bn
-        self.act_func = act_func
-        self.unif_drop = unif_drop
-        self.chan_drop = chan_drop
-        self.use_bn_params = use_bn_params
-        self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this discriminator module.
-        """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
-                             "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.out_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
-        self.params = [self.w1, self.g1, self.b1]
-        return
-
-    def load_params(self, param_dict):
-        """
-        Load model params directly from a dict of numpy arrays.
-        """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        return
-
-    def dump_params(self):
-        """
-        Dump model params directly to a dict of numpy arrays.
-        """
-        param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        return param_dict
-
-    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
-              share_mask=False):
-        """
-        Apply this convolutional module to the given input.
-        """
-        bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
-        # apply uniform and/or channel-wise dropout if desired
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
-                               share_mask=share_mask)
-        # apply first conv layer
-        if self.stride == 'single':
-            # normal, 1x1 stride
-            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        elif self.stride == 'double':
-            # downsampling, 2x2 stride
-            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+            pre_act = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
+                                 use_gb=self.use_bn_params)
         else:
-            # upsampling, 0.5x0.5 stride
-            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-        if self.act_func == 'ident':
-            pass # apply identity activation function...
-        elif self.act_func == 'tanh':
-            h1 = tanh(h1)
-        elif self.act_func == 'elu':
-            h1 = elu(h1)
-        elif self.act_func == 'lrelu':
-            h1 = lrelu(h1)
-        elif self.act_func == 'relu':
-            h1 = relu(h1)
-        else:
-            assert False, "unsupported activation function."
-        if rand_shapes:
-            result = [h1, input.shape]
-        else:
-            result = h1
-        return result
+            pre_act = h4 + self.b3.dimshuffle('x',0,'x','x')
+        act = self.act_func(h4)
+        return act, pre_act
 
 
 ####################################
 # GENERATOR FULLY CONNECTED MODULE #
 ####################################
 
-class TDFCModule(object):
+class TdBuFCResModule(object):
     """
-    Module that transforms random values through a single fully connected
-    layer, and then a linear transform (with another relu, optionally).
+    Module fully-connected residual-type transform.
     """
     def __init__(self,
-                 rand_dim, fc_dim, out_shape,
-                 use_fc, apply_bn=True,
+                 in_dim, fc_dim, out_shape,
+                 use_fc=True,
+                 apply_bn=True,
                  unif_drop=0.0,
                  act_func='relu',
                  use_bn_params=True,
                  mod_name='dm_fc'):
-        assert (len(out_shape) == 3), \
-                "out_shape should describe the input to a conv layer."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.rand_dim = rand_dim
-        self.out_shape = out_shape
-        self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
+        assert (len(out_shape) == 3) or (len(out_shape) == 1), \
+                "out_shape should describe the input to conv or fc layer."
+        self.in_dim = in_dim
         self.fc_dim = fc_dim
+        self.out_shape = out_shape
+        if len(out_shape) == 1:
+            # output is going to a fully-connected layer
+            self.out_dim = out_shape[0]
+        else:
+            # output is goind to a conv layer
+            self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
         self.use_fc = use_fc
         self.apply_bn = apply_bn
         self.unif_drop = unif_drop
@@ -427,7 +309,7 @@ class TDFCModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first layer parameters
-        self.w1 = weight_ifn((self.rand_dim, self.fc_dim),
+        self.w1 = weight_ifn((self.in_dim, self.fc_dim),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
@@ -439,7 +321,7 @@ class TDFCModule(object):
         self.b2 = bias_ifn((self.out_dim), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize single layer parameters
-        self.w3 = weight_ifn((self.rand_dim, self.out_dim),
+        self.w3 = weight_ifn((self.in_dim, self.out_dim),
                              "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_dim), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_dim), "{}_b3".format(self.mod_name))
@@ -477,250 +359,39 @@ class TDFCModule(object):
         param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
-    def apply(self, batch_size=None, rand_vals=None, rand_shapes=False,
-              share_mask=False, noise=None):
+    def apply(self, input, share_mask=False, noise=None):
         """
-        Apply this generator module. Pass _either_ batch_size or rand_vals.
+        Apply this module. Return activations and pre-activations.
         """
-        assert not ((batch_size is None) and (rand_vals is None)), \
-                "need either batch_size or rand_vals"
-        assert ((batch_size is None) or (rand_vals is None)), \
-                "need either batch_size or rand_vals"
-        if rand_vals is None:
-            rand_shape = (batch_size, self.rand_dim)
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
-                                      dtype=theano.config.floatX)
-        else:
-            rand_shape = (rand_vals.shape[0], self.rand_dim)
-        rand_vals = rand_vals.reshape(rand_shape)
-        rand_shape = rand_vals.shape
-
-        # drop from latent vars!
-        # rand_vals = fc_drop_func(rand_vals, self.unif_drop,
-        #                          share_mask=share_mask)
-
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
         if self.use_fc:
-            h1 = T.dot(rand_vals, self.w1)
+            # use internal fully-connected layer
+            h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
+            h2 = T.dot(h1, self.w2) + T.dot(input, self.w3)
         else:
-            h2 = T.dot(rand_vals, self.w3)
+            # don't use internal fully-connected layer
+            h2 = T.dot(input, self.w3)
         if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        elif USE_BIAS:
-            h2 = h2 + self.b3.dimshuffle('x',0)
-        h2 = self.act_func(h2)
-        # reshape vector outputs for use as conv layer inputs
-        h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
-                         self.out_shape[1], self.out_shape[2]))
-        if rand_shapes:
-            result = [h2, rand_shape]
+            pre_act = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
+                                 use_gb=self.use_bn_params)
         else:
-            result = h2
+            pre_act = h2 + self.b3.dimshuffle('x',0)
+        if len(self.out_shape) == 3:
+            # output is for a convolutional layer, so we need to reshape it
+            pre_act = h3.reshape((h3.shape[0], self.out_shape[0], \
+                                  self.out_shape[1], self.out_shape[2]))
+        act = self.act_func(pre_act)
         return result
 
 
-#########################################
-# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
-#########################################
 
-class TDConvResModule(object):
-    """
-    Module of one "fractionally strided" convolution layer followed by one
-    regular convolution layer. Inputs to the fractionally strided convolution
-    can optionally be augmented with some random values.
-
-    Params:
-        in_chans: number of channels in the inputs to module
-        out_chans: number of channels in the outputs from module
-        conv_chans: number of channels in the "internal" convolution layer
-        rand_chans: number of random channels to augment input
-        filt_shape: size of filters (either (3, 3) or (5, 5))
-        use_rand: flag for whether or not to augment inputs
-        use_conv: flag for whether to use "internal" convolution layer
-        us_stride: upsampling ratio in the fractionally strided convolution
-        unif_drop: drop rate for uniform dropout
-        chan_drop: drop rate for channel-wise dropout
-        apply_bn: whether to apply batch normalization
-        use_bn_params: whether to use BN params
-        act_func: ---
-        mod_name: text name for identifying module in theano graph
-    """
-    def __init__(self,
-                 in_chans, out_chans, conv_chans, rand_chans, filt_shape,
-                 use_rand=True, use_conv=True, us_stride=2,
-                 unif_drop=0.0, chan_drop=0.0, apply_bn=True,
-                 use_bn_params=True, act_func='relu',
-                 mod_name='gm_conv'):
-        assert ((us_stride == 1) or (us_stride == 2)), \
-                "us_stride must be 1 or 2."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.in_chans = in_chans
-        self.out_chans = out_chans
-        self.conv_chans = conv_chans
-        self.rand_chans = rand_chans
-        self.filt_dim = filt_shape[0]
-        self.use_rand = use_rand
-        self.use_conv = use_conv
-        self.us_stride = us_stride
-        self.unif_drop = unif_drop
-        self.chan_drop = chan_drop
-        self.apply_bn = apply_bn
-        self.use_bn_params = use_bn_params
-        if act_func == 'ident':
-            self.act_func = lambda x: x
-        elif act_func == 'tanh':
-            self.act_func = lambda x: tanh(x)
-        elif act_func == 'elu':
-            self.act_func = lambda x: elu(x)
-        elif act_func == 'relu':
-            self.act_func = lambda x: relu(x)
-        else:
-            self.act_func = lambda x: lrelu(x)
-        self.mod_name = mod_name
-        # use small dummy rand size if we won't use random vars
-        if not self.use_rand:
-            self.rand_chans = 4
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this generator module.
-        """
-        self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        fd = self.filt_dim
-        # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), fd, fd),
-                             "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
-        # initialize second conv layer parameters
-        self.w2 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
-                             "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
-        # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
-        return
-
-    def load_params(self, param_dict):
-        """
-        Load model params directly from a dict of numpy arrays.
-        """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        self.w2.set_value(floatX(param_dict['w2']))
-        self.g2.set_value(floatX(param_dict['g2']))
-        self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
-        return
-
-    def dump_params(self):
-        """
-        Dump model params directly to a dict of numpy arrays.
-        """
-        param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        param_dict['w2'] = self.w2.get_value(borrow=False)
-        param_dict['g2'] = self.g2.get_value(borrow=False)
-        param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
-        return param_dict
-
-    def apply(self, input, rand_vals=None, rand_shapes=False,
-              share_mask=False, noise=None):
-        """
-        Apply this generator module to some input.
-        """
-        batch_size = input.shape[0]    # number of inputs in this batch
-        ss = self.us_stride            # stride for "learned upsampling"
-        bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
-
-        # apply dropout to input
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
-                               share_mask=share_mask)
-
-        # get shape for random values that will augment input
-        rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
-        # augment input with random channels
-        if rand_vals is None:
-            if self.use_rand:
-                # generate random values to append to module input
-                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
-                                          dtype=theano.config.floatX)
-            else:
-                # FASTER THAN ALLOCATING 0s, WTF?
-                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=0.01,
-                                          dtype=theano.config.floatX)
-        else:
-            if not self.use_rand:
-                # mask out random values, so they won't get used
-                rand_vals = 0.0 * rand_vals
-        rand_vals = rand_vals.reshape(rand_shape)
-        rand_shape = rand_vals.shape # return vals must be theano vars
-
-        # stack random values on top of input
-        full_input = T.concatenate([rand_vals, input], axis=1)
-
-        if self.use_conv:
-            # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            elif USE_BIAS:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-            h1 = self.act_func(h1)
-            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
-                                share_mask=share_mask)
-            # apply second internal conv layer
-            h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
-            # apply direct input->output "projection" layer
-            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-            # combine non-linear and linear transforms of input...
-            h4 = h2 + h3
-        else:
-            # apply direct input->output "projection" layer
-            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-        if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
-                            use_gb=self.use_bn_params)
-        elif USE_BIAS:
-            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
-        output = self.act_func(h4)
-
-        if rand_shapes:
-            result = [output, rand_shape]
-        else:
-            result = output
-        return result
 
 
 #########################################
@@ -737,7 +408,8 @@ class IMConvResModule(object):
         bu_chans: number of channels in the "bottom-up" inputs to module
         rand_chans: number of latent channels that we want conditionals for
         conv_chans: number of channels in the "internal" convolution layer
-        use_conv: flag for whether to use "internal" convolution layer
+        cond_layers: hidden layers in conditioning transform (1 or 2)
+        pert_layers: hidden layers in the perturbation transform (1 or 2)
         act_func: ---
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
@@ -748,19 +420,25 @@ class IMConvResModule(object):
     """
     def __init__(self,
                  td_chans, bu_chans, rand_chans, conv_chans,
-                 use_conv=True, act_func='relu',
+                 cond_layers=1, pert_layers=1,
                  unif_drop=0.0, chan_drop=0.0,
+                 act_func='relu',
                  apply_bn=True,
                  use_td_cond=False,
                  use_bn_params=True,
                  mod_name='gm_conv'):
+        assert (cond_layers in [1, 2]), \
+                "cond_layers must be 1 or 2."
+        assert (pert_layers in [1, 2]), \
+                "pert_layers must be 1 or 2."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
-        self.use_conv = use_conv
+        self.cond_layers = cond_layers
+        self.pert_layers = pert_layers
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -788,40 +466,64 @@ class IMConvResModule(object):
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
-        ############################################
-        # Initialize "inference" model parameters. #
-        ############################################
-        # initialize first conv layer parameters
+        #######################################################
+        # Initialize parameters for the IM conditioning path. #
+        #######################################################
+        # initialize first hidden layer parameters
         self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
                                 "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
-        # initialize second conv layer parameters
-        self.w2_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
+        # initialize second hidden layer parameters
+        self.w2_im = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
-        self.params.extend([self.w2_im])
-        # initialize convolutional projection layer parameters
-        self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
+        self.g2_im = gain_ifn((self.conv_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((self.conv_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
+        self.w3_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                 "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
-        #############################################
-        # Initialize "generative" model parameters. #
-        #############################################
+        ####################################################
+        # Initialize parameters for the perturbation path. #
+        ####################################################
+        # initialize first hidden layer parameters
+        self.w1_pt = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
+                                "{}_w1_pt".format(self.mod_name))
+        self.g1_pt = gain_ifn((self.conv_chans), "{}_g1_pt".format(self.mod_name))
+        self.b1_pt = bias_ifn((self.conv_chans), "{}_b1_pt".format(self.mod_name))
+        self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
+        # initialize second hidden layer parameters
+        self.w2_pt = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+                                "{}_w2_pt".format(self.mod_name))
+        self.g2_pt = gain_ifn((self.conv_chans), "{}_g2_pt".format(self.mod_name))
+        self.b2_pt = bias_ifn((self.conv_chans), "{}_b2_pt".format(self.mod_name))
+        self.params.extend([self.w2_pt, self.g2_pt, self.b2_pt])
+        # initialize perturbation layer parameters
+        self.w3_pt = weight_ifn((self.td_chans, self.conv_chans, 3, 3),
+                                "{}_w3_pt".format(self.mod_name))
+        self.b3_pt = bias_ifn(self.td_chans, "{}_b3_pt".format(self.mod_name))
+        self.params.extend([self.w3_pt, self.b3_pt])
+        #######################################################
+        # Initialize parameters for the TD conditioning path. #
+        #######################################################
         if self.use_td_cond:
-            # initialize first conv layer parameters
+            # initialize first hidden layer parameters
             self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
                                      "{}_w1_td".format(self.mod_name))
             self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
             self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
-            # initialize second conv layer parameters
-            self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
-                                    "{}_w2_td".format(self.mod_name))
-            self.params.extend([self.w2_td])
-            # initialize convolutional projection layer parameters
-            self.w3_td = weight_ifn((2*self.rand_chans, self.td_chans, 3, 3),
+            # initialize second hidden layer parameters
+            self.w2_td = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+                                     "{}_w2_td".format(self.mod_name))
+            self.g2_td = gain_ifn((self.conv_chans), "{}_g2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((self.conv_chans), "{}_b2_td".format(self.mod_name))
+            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            # initialize conditioning layer parameters
+            self.w3_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
             self.params.extend([self.w3_td, self.b3_td])
@@ -831,19 +533,32 @@ class IMConvResModule(object):
         """
         Load model params directly from a dict of numpy arrays.
         """
-        # load info-merge parameters
+        # load IM conditioning path parameters
         self.w1_im.set_value(floatX(param_dict['w1_im']))
         self.g1_im.set_value(floatX(param_dict['g1_im']))
         self.b1_im.set_value(floatX(param_dict['b1_im']))
         self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
-        # load top-down conditioning parameters
+        # load perturbation path parameters
+        self.w1_pt.set_value(floatX(param_dict['w1_pt']))
+        self.g1_pt.set_value(floatX(param_dict['g1_pt']))
+        self.b1_pt.set_value(floatX(param_dict['b1_pt']))
+        self.w2_pt.set_value(floatX(param_dict['w2_pt']))
+        self.g2_pt.set_value(floatX(param_dict['g2_pt']))
+        self.b2_pt.set_value(floatX(param_dict['b2_pt']))
+        self.w3_pt.set_value(floatX(param_dict['w3_pt']))
+        self.b3_pt.set_value(floatX(param_dict['b3_pt']))
+        # load TD conditioning path parameters
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
             self.g1_td.set_value(floatX(param_dict['g1_td']))
             self.b1_td.set_value(floatX(param_dict['b1_td']))
             self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.g2_td.set_value(floatX(param_dict['g2_td']))
+            self.b2_td.set_value(floatX(param_dict['b2_td']))
             self.w3_td.set_value(floatX(param_dict['w3_td']))
             self.b3_td.set_value(floatX(param_dict['b3_td']))
         return
@@ -853,57 +568,80 @@ class IMConvResModule(object):
         Dump model params directly to a dict of numpy arrays.
         """
         param_dict = {}
-        # dump info-merge conditioning parameters
+        # dump IM conditioning path parameters
         param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
         param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
         param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
         param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
-        # dump top-down parameters
+        # dump perturbation path parameters
+        param_dict['w1_pt'] = self.w1_pt.get_value(borrow=False)
+        param_dict['g1_pt'] = self.g1_pt.get_value(borrow=False)
+        param_dict['b1_pt'] = self.b1_pt.get_value(borrow=False)
+        param_dict['w2_pt'] = self.w2_pt.get_value(borrow=False)
+        param_dict['g2_pt'] = self.g2_pt.get_value(borrow=False)
+        param_dict['b2_pt'] = self.b2_pt.get_value(borrow=False)
+        param_dict['w3_pt'] = self.w3_pt.get_value(borrow=False)
+        param_dict['b3_pt'] = self.b3_pt.get_value(borrow=False)
+        # dump TD conditioning path parameters
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
             param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
             param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['g2_td'] = self.g2_td.get_value(borrow=False)
+            param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
             param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
             param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
         return param_dict
 
-    def apply_td(self, td_input, noise=None):
-        """
-        Put distributions over stuff based on td_input.
-        """
-        if self.use_td_cond:
-            if self.use_conv:
-                # apply first internal conv layer
-                h1 = dnn_conv(td_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
-                if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
-                                    use_gb=self.use_bn_params)
-                elif USE_BIAS:
-                    h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
-                h1 = self.act_func(h1)
-                # apply second internal conv layer
-                h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
-                # apply direct input->output conv layer
-                h3 = dnn_conv(td_input, self.w3_td, subsample=(1, 1), border_mode=(1, 1))
-                # combine non-linear and linear transforms of input...
-                h4 = h2 + h3 + self.b3_td.dimshuffle('x',0,'x','x')
-            else:
-                # apply direct input->output conv layer
-                h3 = dnn_conv(td_input, self.w3_td, subsample=(1, 1), border_mode=(1, 1))
-                h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
-            # split output into "mean" and "log variance" components, for using in
-            # Gaussian reparametrization.
-            h4 = tanh_clip(h4, scale=4.0)
-            out_mean = h4[:,:self.rand_chans,:,:]
-            out_logvar = h4[:,self.rand_chans:,:,:]
+    def apply_conv_layer_1(self, h, w, g, b, noise=None, share_mask=False):
+        h = dnn_conv(h, w, subsample=(1, 1), border_mode=(1, 1))
+        if self.apply_bn:
+            h = switchy_bn(h, g=g, b=b, n=noise,
+                           use_gb=self.use_bn_params)
         else:
-            # if no top-down conditioning, return ZMUV Gaussian params
-            out_mean = 0.0
-            out_logvar = 0.0
-        return out_mean, out_logvar
+            h = h + b.dimshuffle('x',0,'x','x')
+        h = self.act_func(h)
+        h = conv_drop_func(h, self.unif_drop, self.chan_drop,
+                           share_mask=share_mask)
+
+    def apply_td(self, td_pre_act, rand_vals=None, noise=None, share_mask=False):
+        """
+        Apply a stochastic perturbation to td_pre_act. Values for the latent
+        variables controlling the perturbation can be given in rand_vals.
+        """
+        # NOTE: top-down conditioning isn't implemented yet...
+        if rand_vals is None:
+            # get a set of ZMUV Gauss samples if one wasn't given
+            tdpas = td_pre_act.shape
+            rand_shape = (tdpas[0], self.rand_chans, tdpas[2], tdpas[3])
+            rand_vals = cu_rng.normal(size=rand_shape)
+        # transform through first hidden layer
+        h1_pt = dnn_conv(rand_vals, self.w1_pt, subsample=(1, 1), border_mode=(1, 1))
+        if self.apply_bn:
+            h1_pt = switchy_bn(h1_pt, g=self.g1_pt, b=self.b1_pt, n=noise,
+                               use_gb=self.use_bn_params)
+        else:
+            h1_pt = h1_pt + self.b1_pt.dimshuffle('x',0,'x','x')
+        h1_pt = self.act_func(h1_pt)
+        h2_pt = conv_drop_func(h1_pt, self.unif_drop, self.chan_drop,
+                               share_mask=share_mask)
+        # transform through second hidden layer, if desired
+        if self.pert_layers == 2:
+            h2_pt = dnn_conv(h2_pt, self.w2_pt, subsample=(1, 1), border_mode=(1, 1))
+            if self.apply_bn:
+                h2_pt = switchy_bn(h2_pt, g=self.g2_pt, b=self.b2_pt, n=noise,
+                                   use_gb=self.use_bn_params)
+            else:
+                h2_pt = h2_pt + self.b2_pt.dimshuffle('x',0,'x','x')
+            h1_pt = self.act_func(h1_pt)
+            h2_pt = conv_drop_func(h1_pt, self.unif_drop, self.chan_drop,
+                                   share_mask=share_mask)
+        return td_act
 
     def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
         """
@@ -920,7 +658,7 @@ class IMConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -1055,7 +793,7 @@ class IMFCModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -1074,94 +812,6 @@ class IMFCModule(object):
         return out_mean, out_logvar
 
 
-#####################################
-# Simple MLP fully connected module #
-#####################################
-
-class MlpFCModule(object):
-    """
-    Module that transforms values through a single fully connected layer.
-    """
-    def __init__(self,
-                 in_dim, out_dim,
-                 apply_bn=True,
-                 unif_drop=0.0,
-                 act_func='relu',
-                 use_bn_params=True,
-                 mod_name='dm_fc'):
-        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        self.in_dim = in_dim
-        self.out_dim = out_dim
-        self.apply_bn = apply_bn
-        self.unif_drop = unif_drop
-        self.use_bn_params = use_bn_params
-        if act_func == 'ident':
-            self.act_func = lambda x: x
-        elif act_func == 'tanh':
-            self.act_func = lambda x: tanh(x)
-        elif act_func == 'elu':
-            self.act_func = lambda x: elu(x)
-        elif act_func == 'relu':
-            self.act_func = lambda x: relu(x)
-        else:
-            self.act_func = lambda x: lrelu(x)
-        self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
-
-    def _init_params(self):
-        """
-        Initialize parameters for the layers in this generator module.
-        """
-        self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
-        bias_ifn = inits.Constant(c=0.)
-        # initialize first layer parameters
-        self.w1 = weight_ifn((self.in_dim, self.out_dim),
-                             "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.out_dim), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.out_dim), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
-        return
-
-    def load_params(self, param_dict):
-        """
-        Load model params directly from a dict of numpy arrays.
-        """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        return
-
-    def dump_params(self):
-        """
-        Dump model params directly to a dict of numpy arrays.
-        """
-        param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        return param_dict
-
-    def apply(self, input, share_mask=False, noise=None):
-        """
-        Apply this gfully connected module.
-        """
-        # flatten input to 1d per example
-        h1 = T.flatten(hq, 2)
-        # apply dropout
-        h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-        # feed-forward through layer
-        h2 = T.dot(h1, self.w1)
-        if self.apply_bn:
-            h3 = switchy_bn(h2, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        elif USE_BIAS:
-            h3 = h2 + self.b1.dimshuffle('x',0)
-        h4 = self.act_func(h3)
-        return h4
 
 
 
