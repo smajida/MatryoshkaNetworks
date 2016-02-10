@@ -421,7 +421,7 @@ class InfGenModel(object):
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
-        self.dist_scale = sharedX( floatX([0.1,0.1]) )
+        self.dist_scale = sharedX( floatX([0.1]) )
         self.inf_params.append(self.dist_scale)
         # store a list of all parameters in this network
         self.params = self.inf_params + self.gen_params
@@ -479,7 +479,6 @@ class InfGenModel(object):
             mod.load_params(param_dict=param_dict)
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
-        ds_ary = np.zeros((2,)) + ds_ary[0]
         self.dist_scale.set_value(floatX(ds_ary))
         pickle_file.close()
         return
@@ -499,7 +498,7 @@ class InfGenModel(object):
                                       rand_shapes=True)
             else:
                 # feedforward through an internal module
-                res = td_module.apply(acts[-1],
+                res = td_module.apply(input=acts[-1],
                                       rand_vals=None,
                                       rand_shapes=True)
             acts.append(res[0])
@@ -547,7 +546,7 @@ class InfGenModel(object):
                     if im_module.use_td_cond:
                         # use top-down conditioning
                         cond_mean_td, cond_logvar_td = \
-                                im_module.apply_td(td_acts[-1])
+                                im_module.apply_td(td_input=td_acts[-1])
                         cond_rvs = reparametrize(cond_mean_td,
                                                  cond_logvar_td,
                                                  rvs=rvs)
@@ -556,7 +555,7 @@ class InfGenModel(object):
                         cond_rvs = rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
-                    td_act_i = td_module.apply(td_acts[-1],
+                    td_act_i = td_module.apply(input=td_acts[-1],
                                                rand_vals=cond_rvs)
             else:
                 # handle computation for a TD module that only requires
@@ -576,9 +575,9 @@ class InfGenModel(object):
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input)
+                res = bu_mod.apply(input=input)
             else:
-                res = bu_mod.apply(bu_acts[i-1])
+                res = bu_mod.apply(input=bu_acts[i-1])
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
@@ -604,7 +603,7 @@ class InfGenModel(object):
         z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input)
+        bu_res_dict = self.apply_bu(input=input)
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -637,14 +636,15 @@ class InfGenModel(object):
                     im_module = self.im_modules_dict[im_mod_name]
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
-                            im_module.apply_im(td_input=td_info, bu_input=bu_info)
+                            im_module.apply_im(td_input=td_info,
+                                               bu_input=bu_info)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get the model distribution
                     if im_module.use_td_cond:
                         # get the top-down conditional distribution
                         cond_mean_td, cond_logvar_td = \
-                                im_module.apply_td(td_info)
+                                im_module.apply_td(td_input=td_info)
                     else:
                         # use a fixed ZMUV Gaussian prior
                         cond_mean_td = 0.0 * cond_mean_im
