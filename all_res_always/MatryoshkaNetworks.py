@@ -302,7 +302,7 @@ class InfGenModel2(object):
             # collect results
             bu_acts.append(bu_act)
             bu_pre_acts.append(bu_pre_act)
-            bu_mod_res[bu_mod.mod_name] = {'bu_act': bu_act, 
+            bu_mod_res[bu_mod.mod_name] = {'bu_act': bu_act,
                                            'bu_pre_act': bu_pre_act}
         # package results into a handy dict
         bu_res_dict = {}
@@ -354,7 +354,7 @@ class InfGenModel2(object):
                     # straight to the IM module
                     im_res_dict = im_module.apply_im(td_pre_act=None,
                                                      bu_pre_act=bu_pre_act,
-                                                     rand_vals=None)
+                                                     dist_scale=self.dist_scale)
                     # make some dummy pre-activations, for symmetry
                     td_pre_act = 0.0 * im_res_dict['td_act']
                 else:
@@ -363,7 +363,7 @@ class InfGenModel2(object):
                     # go through the IM module, to get the final TD activations
                     im_res_dict = im_module.apply_im(td_pre_act=td_pre_act,
                                                      bu_pre_act=bu_pre_act,
-                                                     rand_vals=None)
+                                                     dist_scale=self.dist_scale)
                 # record TD activations produced by current TD/IM pair
                 td_acts.append(im_res_dict['td_act'])
                 td_pre_acts.append(td_pre_act)
