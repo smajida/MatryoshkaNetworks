@@ -32,7 +32,7 @@ from load import load_udm_ss
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
+                              InfTopModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule, MlpFCModule
 from MatryoshkaNetworks import InfGenModel, SimpleMLP
 
@@ -221,7 +221,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 # (2, 2) -> FC
 bu_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*8*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,

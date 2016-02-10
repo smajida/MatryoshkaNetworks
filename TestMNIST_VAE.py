@@ -32,7 +32,7 @@ from load import load_binarized_mnist
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
+                              InfTopModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
@@ -248,7 +248,7 @@ td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
 
 # (7, 7) -> FC
 bu_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*4*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,

@@ -432,10 +432,6 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
-        print("Compiling rand shape computer...")
-        self.compute_rand_shapes = self._construct_compute_rand_shapes()
-        self.rand_shapes = self.compute_rand_shapes(32)
-        print("DONE.")
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
         samps = self.generate_samples(32)
@@ -483,28 +479,6 @@ class InfGenModel(object):
         pickle_file.close()
         return
 
-    def infer_rand_shapes(self, batch_size):
-        """
-        Helper function for inferring rand val shapes for gen layers.
-        """
-        acts = []
-        r_shapes = []
-        for i, td_module in enumerate(self.td_modules):
-            if i == 0:
-                # feedforward through the top-most, fully-connected module
-                # this is a GenTopModule
-                res = td_module.apply(rand_vals=None,
-                                      batch_size=batch_size,
-                                      rand_shapes=True)
-            else:
-                # feedforward through an internal module
-                res = td_module.apply(input=acts[-1],
-                                      rand_vals=None,
-                                      rand_shapes=True)
-            acts.append(res[0])
-            r_shapes.append(res[1])
-        return r_shapes
-
     def apply_td(self, rand_vals=None, batch_size=None):
         """
         Apply this generator network using the given random values.
@@ -520,7 +494,7 @@ class InfGenModel(object):
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
         td_acts = []
-        for rvs, td_module, rvs_shape in zip(rand_vals, self.td_modules, self.rand_shapes):
+        for rvs, td_module in zip(rand_vals, self.td_modules):
             td_mod_name = td_module.mod_name
             td_act_i = None # this will be set to the output of td_module
             if td_mod_name in self.merge_info:
@@ -533,15 +507,16 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(rand_vals=rvs,
                                                batch_size=batch_size)
                 else:
-                    # feedforward through a convolutional module
+                    # feedforward through an internal TD module
                     im_module = self.im_modules_dict[im_mod_name]
                     if rvs is None:
                         # sample values to reparametrize, if none given
-                        b_size = td_acts[-1].shape[0]
+                        td_shape = td_acts[-1].shape
+                        rand_chans = im_module.rand_chans
                         if len(rvs_shape) == 2:
-                            rvs_size = (b_size, rvs_shape[1])
+                            rvs_size = (td_shape[0], rand_chans)
                         else:
-                            rvs_size = (b_size, rvs_shape[1], rvs_shape[2], rvs_shape[3])
+                            rvs_size = (td_shape[0], rand_chans, td_shape[2], td_shape[3])
                         rvs = cu_rng.normal(size=rvs_size, dtype=theano.config.floatX)
                     if im_module.use_td_cond:
                         # use top-down conditioning
@@ -704,18 +679,6 @@ class InfGenModel(object):
         sample_func = theano.function([batch_size], sym_samples)
         return sample_func
 
-    def _construct_compute_rand_shapes(self):
-        """
-        Compute the shape of stochastic input for all layers in this network.
-        """
-        batch_size = T.lscalar()
-        # feedforward through the model with batch size "batch_size"
-        sym_shapes = self.infer_rand_shapes(batch_size)
-        # compile a theano function for computing shapes of the Gaussian latent
-        # variables used in the top-down generative model.
-        shape_func = theano.function([batch_size], sym_shapes)
-        return shape_func
-
 ##########################################
 # SIMPLEST MLP EVER -- NO TIME TO WASTE! #
 ##########################################
@@ -781,7 +744,7 @@ class SimpleMLP(object):
 class SimpleInfMLP(object):
     """
     A simple feedforward network. This wraps a sequence of fully connected
-    modules from MatryoshkaModules.py. Assume the final module is InfFCModule.
+    modules from MatryoshkaModules.py. Assume the final module is InfTopModule.
 
     Params:
         modules: a list of the modules that make up this SimpleMLP.

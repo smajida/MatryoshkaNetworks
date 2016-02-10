@@ -28,7 +28,7 @@ from load import load_svhn
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
+                              InfTopModule, BasicConvResModule, \
                               DiscConvResModule, DiscFCModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
@@ -255,7 +255,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 ##########################################
 
 bu_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*8*2*2),
     fc_chans=ngfc,
     rand_chans=nz0,

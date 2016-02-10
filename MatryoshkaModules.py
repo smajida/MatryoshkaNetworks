@@ -17,7 +17,6 @@ bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()
 
-USE_BIAS = True
 
 def tanh_clip(x, scale=10.0):
     """
@@ -215,7 +214,7 @@ class BasicConvResModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
-                elif USE_BIAS:
+                else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
@@ -231,7 +230,7 @@ class BasicConvResModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                     use_gb=self.use_bn_params)
-                elif USE_BIAS:
+                else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
@@ -252,7 +251,7 @@ class BasicConvResModule(object):
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
                             use_gb=self.use_bn_params)
-        elif USE_BIAS:
+        else:
             h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
         output = self.act_func(h4)
         return output
@@ -480,7 +479,7 @@ class DiscFCModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x', 0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -634,7 +633,7 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
@@ -651,7 +650,7 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h4)
         else:
@@ -660,7 +659,7 @@ class DiscConvResModule(object):
             if self.apply_bn:
                 h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
             output = self.act_func(h3)
 
@@ -672,9 +671,9 @@ class DiscConvResModule(object):
         return [output, y]
 
 
-####################################
-# GENERATOR FULLY CONNECTED MODULE #
-####################################
+##################################################
+# FULLY CONNECTED MODULE -- FOR TOP OF GENERATOR #
+##################################################
 
 class GenTopModule(object):
     """
@@ -800,7 +799,7 @@ class GenTopModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -810,7 +809,7 @@ class GenTopModule(object):
         if self.apply_bn:
             h2 = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
-        elif USE_BIAS:
+        else:
             h2 = h2 + self.b3.dimshuffle('x',0)
         h2 = self.act_func(h2)
         # reshape vector outputs for use as conv layer inputs
@@ -912,11 +911,11 @@ class GenConvResModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        self.w3 = weight_ifn((self.out_chans, (self.in_chans+self.rand_chans), fd, fd),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
         return
 
     def load_params(self, param_dict):
@@ -929,9 +928,9 @@ class GenConvResModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.g2.set_value(floatX(param_dict['g2']))
         self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         return
 
     def dump_params(self):
@@ -945,9 +944,9 @@ class GenConvResModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['g2'] = self.g2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -991,7 +990,7 @@ class GenConvResModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -999,17 +998,17 @@ class GenConvResModule(object):
             # apply second internal conv layer
             h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
             # apply direct input->output "projection" layer
-            h3 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+            h3 = deconv(full_input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
             # apply direct input->output "projection" layer
-            h4 = deconv(full_input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+            h4 = deconv(full_input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
+            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
-        elif USE_BIAS:
-            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
+        else:
+            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
         output = self.act_func(h4)
 
         if rand_shapes:
@@ -1018,6 +1017,185 @@ class GenConvResModule(object):
             result = output
         return result
 
+###########################################
+# GENERATOR DOUBLE FULLY-CONNECTED MODULE #
+###########################################
+
+class GenFCResModule(object):
+    """
+    Residual-type module for fully-connected layers in the top-down
+    pass for a hierarchical generative model.
+
+    Params:
+        in_chans: number of channels in the inputs to module
+        out_chans: number of channels in the outputs from module
+        rand_chans: number of random channels to augment input
+        fc_chans: number of channels in the "internal" layer
+        use_rand: flag for whether or not to augment inputs
+        use_fc: flag for whether to use "internal" layer
+        unif_drop: drop rate for uniform dropout
+        apply_bn: whether to apply batch normalization
+        use_bn_params: whether to use BN params
+        act_func: ---
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 in_chans, out_chans, rand_chans, fc_chans,
+                 use_rand=True, use_fc=True,
+                 unif_drop=0.0, apply_bn=True,
+                 use_bn_params=True, act_func='relu',
+                 mod_name='gm_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.rand_chans = rand_chans
+        self.fc_chans = fc_chans
+        self.use_rand = use_rand
+        self.use_fc = use_fc
+        self.unif_drop = unif_drop
+        self.apply_bn = apply_bn
+        self.use_bn_params = use_bn_params
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        # use small dummy rand size if we won't use random vars
+        if not self.use_rand:
+            self.rand_chans = 4
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        fd = self.filt_dim
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn(((self.in_chans+self.rand_chans), self.fc_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.fc_chans, self.out_chans),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize convolutional projection layer parameters
+        self.w3 = weight_ifn(((self.in_chans+self.rand_chans), self.out_chans),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['g2'] = self.g2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals=None, rand_shapes=False,
+              share_mask=False, noise=None):
+        """
+        Apply this generator module to some input.
+        """
+        batch_size = input.shape[0]    # number of inputs in this batch
+
+        # apply dropout to input
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
+
+        # get shape for random values that will augment input
+        rand_shape = (batch_size, self.rand_chans)
+        # augment input with random channels
+        if rand_vals is None:
+            if self.use_rand:
+                # generate random values to append to module input
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
+                                          dtype=theano.config.floatX)
+            else:
+                # FASTER THAN ALLOCATING 0s, WTF?
+                rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=0.01,
+                                          dtype=theano.config.floatX)
+        else:
+            if not self.use_rand:
+                # mask out random values, so they won't get used
+                rand_vals = 0.0 * rand_vals
+        rand_vals = rand_vals.reshape(rand_shape)
+        rand_shape = rand_vals.shape # return vals must be theano vars
+
+        # stack random values on top of input
+        full_input = T.concatenate([rand_vals, input], axis=1)
+
+        if self.use_fc:
+            # apply first internal fc layer
+            h1 = T.dot(full_input, self.w1)
+            if self.apply_bn:
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = self.act_func(h1)
+            h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+            # apply second internal fc layer
+            h2 = T.dot(h1, self.w2)
+            # apply direct input->output layer
+            h3 = T.dot(full_input, self.w3)
+            # combine non-linear and linear transforms of input...
+            h4 = h2 + h3
+        else:
+            # only apply direct input->output layer
+            h4 = T.dot(full_input, self.w3)
+        if self.apply_bn:
+            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h4 = h4 + self.b3.dimshuffle('x',0)
+        output = self.act_func(h4)
+
+        if rand_shapes:
+            result = [output, rand_shape]
+        else:
+            result = output
+        return result
 
 #########################################
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
@@ -1177,7 +1355,7 @@ class InfConvMergeModule(object):
                 if self.apply_bn:
                     h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
                                     use_gb=self.use_bn_params)
-                elif USE_BIAS:
+                else:
                     h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
                 h1 = self.act_func(h1)
                 # apply second internal conv layer
@@ -1216,7 +1394,7 @@ class InfConvMergeModule(object):
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
-            elif USE_BIAS:
+            else:
                 h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -1247,6 +1425,158 @@ class InfFCModule(object):
     Module that feeds forward through a single fully connected hidden layer
     and then produces a conditional over some Gaussian latent variables.
 
+    Params:
+        td_chans: dimension of the "top-down" inputs
+        bu_chans: dimension of the "bottom-up" inputs to the module
+        fc_chans: dimension of the fully connected layer
+        rand_chans: dimension of the Gaussian latent vars of interest
+        use_fc: flag for whether to use the hidden fully connected layer
+        act_func: ---
+        unif_drop: drop rate for uniform dropout
+        apply_bn: whether to use batch normalization
+        use_td_cond: whether to use top-down conditioning
+        use_bn_params: whether to use BN params
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self, td_chans, bu_chans, fc_chans, rand_chans,
+                 use_fc=True, act_func='relu',
+                 unif_drop=0.0, apply_bn=True,
+                 use_td_cond=False,
+                 use_bn_params=True,
+                 mod_name='im_fc'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.td_chans = td_chans
+        self.bu_chans = bu_chans
+        self.fc_chans = fc_chans
+        self.rand_chans = rand_chans
+        self.use_fc = use_fc
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.apply_bn = apply_bn
+        self.use_td_cond = use_td_cond
+        self.use_bn_params = True
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this discriminator module.
+        """
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize weights for transform into fc layer
+        self.w1 = weight_ifn(((self.td_chans+self.bu_chans), self.fc_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.g1, self.b1]
+        # initialize weights for transform out of fc layer
+        self.w2 = weight_ifn((self.fc_chans, 2*self.rand_chans),
+                             "{}_w2".format(self.mod_name))
+        self.params.extend([self.w2])
+        # initialize weights for transform straight from input to output
+        self.w3 = weight_ifn(((self.td_chans+self.bu_chans), 2*self.rand_chans),
+                    "{}_w3".format(self.mod_name))
+        self.b3 = bias_ifn((2*self.rand_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.b3])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.b3.set_value(floatX(param_dict['b3']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
+        return param_dict
+
+    def apply_td(self, td_input, noise=None):
+        """
+        Apply this fully connected inference module to the given input. This
+        produces a set of means and log variances for some Gaussian variables.
+        """
+        batch_size = td_input.shape[0]
+        rand_shape = (batch_size, self.rand_chans)
+        # NOTE: top-down conditioning path is not implemented yet
+        out_mean = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.01,
+                                 dtype=theano.config.floatX)
+        out_logvar = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.01,
+                                   dtype=theano.config.floatX)
+        return out_mean, out_logvar
+
+    def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
+        """
+        Apply this fully connected inference module to the given input. This
+        produces a set of means and log variances for some Gaussian variables.
+        """
+        # flatten input to 1d per example
+        td_input = T.flatten(td_input, 2)
+        bu_input = T.flatten(bu_input, 2)
+        # concatenate TD and BU inputs
+        full_input = T.concatenate([td_input, bu_input], axis=1)
+        # apply dropout
+        full_input = fc_drop_func(full_input, self.unif_drop,
+                                  share_mask=share_mask)
+        if self.use_fc:
+            # feedforward to fc layer
+            h1 = T.dot(full_input, self.w1)
+            if self.apply_bn:
+                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = self.act_func(h1)
+            h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+            # feedforward to from fc layer to output
+            h2 = T.dot(h1, self.w2)
+            # feedforward directly from bu_input to output
+            h3 = T.dot(full_input, self.w3)
+            h4 = h2 + h3 + self.b3.dimshuffle('x',0)
+        else:
+            # feedforward directly from bu_input to output
+            h3 = T.dot(full_input, self.w3)
+            h4 = h3 + self.b3.dimshuffle('x',0)
+        # split output into mean and log variance parts
+        out_mean = h4[:,:self.rand_chans]
+        out_logvar = h4[:,self.rand_chans:]
+        return out_mean, out_logvar
+
+#######################################################
+# INFERENCE FULLY CONNECTED MODULE FOR TOP OF NETWORK #
+#######################################################
+
+class InfTopModule(object):
+    """
+    Module that feeds forward through a single fully connected hidden layer
+    and then produces a conditional over some Gaussian latent variables.
     Params:
         bu_chans: dimension of the "bottom-up" inputs to the module
         fc_chans: dimension of the fully connected layer
@@ -1304,10 +1634,10 @@ class InfFCModule(object):
                              "{}_w2".format(self.mod_name))
         self.params.extend([self.w2])
         # initialize weights for transform straight from input to output
-        self.w_out = weight_ifn((self.bu_chans, 2*self.rand_chans),
-                                "{}_w_out".format(self.mod_name))
-        self.b_out = bias_ifn((2*self.rand_chans), "{}_b_out".format(self.mod_name))
-        self.params.extend([self.w_out, self.b_out])
+        self.w3 = weight_ifn((self.bu_chans, 2*self.rand_chans),
+                                "{}_w3".format(self.mod_name))
+        self.b3 = bias_ifn((2*self.rand_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.b3])
         return
 
     def load_params(self, param_dict):
@@ -1318,8 +1648,8 @@ class InfFCModule(object):
         self.g1.set_value(floatX(param_dict['g1']))
         self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
-        self.w_out.set_value(floatX(param_dict['w_out']))
-        self.b_out.set_value(floatX(param_dict['b_out']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         return
 
     def dump_params(self):
@@ -1331,8 +1661,8 @@ class InfFCModule(object):
         param_dict['g1'] = self.g1.get_value(borrow=False)
         param_dict['b1'] = self.b1.get_value(borrow=False)
         param_dict['w2'] = self.w2.get_value(borrow=False)
-        param_dict['w_out'] = self.w_out.get_value(borrow=False)
-        param_dict['b_out'] = self.b_out.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
     def apply(self, bu_input, share_mask=False, noise=None):
@@ -1358,17 +1688,16 @@ class InfFCModule(object):
             # feedforward to from fc layer to output
             h2 = T.dot(h1, self.w2)
             # feedforward directly from bu_input to output
-            h3 = T.dot(bu_input, self.w_out)
-            h4 = h2 + self.b_out.dimshuffle('x',0) # + h3
+            h3 = T.dot(bu_input, self.w3)
+            h4 = h2 + self.b3.dimshuffle('x',0) # + h3
         else:
             # feedforward directly from bu_input to output
-            h3 = T.dot(bu_input, self.w_out)
-            h4 = h3 + self.b_out.dimshuffle('x',0)
+            h3 = T.dot(bu_input, self.w3)
+            h4 = h3 + self.b3.dimshuffle('x',0)
         # split output into mean and log variance parts
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
-
 
 #####################################
 # Simple MLP fully connected module #
@@ -1454,7 +1783,7 @@ class MlpFCModule(object):
         if self.apply_bn:
             h3 = switchy_bn(h2, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
-        elif USE_BIAS:
+        else:
             h3 = h2 + self.b1.dimshuffle('x',0)
         h4 = self.act_func(h3)
         return h4

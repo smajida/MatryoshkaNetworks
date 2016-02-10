@@ -33,7 +33,7 @@ from load import load_udm_ss
 #
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
-                              InfFCModule, BasicConvResModule, \
+                              InfTopModule, BasicConvResModule, \
                               MlpFCModule
 from MatryoshkaNetworks import InfGenModelSS_no_a as InfGenModelSS
 from MatryoshkaNetworks import SimpleInfMLP
@@ -227,7 +227,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5]
 # this provides a distribution/sample for "auxiliary" latent variable "a".
 #
 q_aIx_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*4*7*7), # input from BU net only
     fc_chans=ngfc,
     rand_chans=nza,       # output is mean and logvar for "a"
@@ -250,7 +250,7 @@ q_aIx_model = SimpleInfMLP(modules=q_aIx_modules)
 # will be softmaxed by the model which handles the overall generative system.
 #
 q_yIax_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*4*7*7)+nza, # input from BU net and "a"
     fc_chans=ngfc,
     rand_chans=nyc,           # output is (unnormalized) class distribution
@@ -274,7 +274,7 @@ q_yIax_model = SimpleInfMLP(modules=q_yIax_modules)
 # goes into the top of the TD network (in addition to a class indicator).
 #
 q_z0Iyx_module_1 = \
-InfFCModule(
+InfTopModule(
     bu_chans=(ngf*4*7*7)+nyc, # input from BU net and class indicator
     fc_chans=ngfc,
     rand_chans=nz0,           # output is mean and logvar for "z0"
