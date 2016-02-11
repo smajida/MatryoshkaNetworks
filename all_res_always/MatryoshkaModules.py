@@ -1325,8 +1325,8 @@ class IMTopModule(object):
             h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
                                     b=self.b2_pt, noise=noise)
         
-        # h_pt = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
-        # td_act = pop(h_pt)
+        # pop = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
+        # h_pt = pop(h_pt)
 
         # apply final fc layer to get perturbation for td_pre_act
         td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
