@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_50_td_cond'
+desc = 'test_vae_lrelu_mods_ngf_50_fat_bottom'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +67,7 @@ niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-use_td_cond = True # whether to use top-down conditioning in generator
+use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 
@@ -228,18 +228,30 @@ GenConvResModule(
 # (28, 28) -> (28, 28)
 td_module_5 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='td_mod_5'
+) # output is (batch, c, 28, 28)
+
+# (28, 28) -> (28, 28)
+td_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_5'
+    mod_name='td_mod_6'
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_5]
+              td_module_3, td_module_4b, td_module_4c, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -359,7 +371,19 @@ BasicConvResModule(
 # (28, 28) -> (28, 28)
 bu_module_5 = \
 BasicConvModule(
-    filt_shape=(5,5),
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_5'
+) # output is (batch, ngf*1, 28, 28)
+
+# (28, 28) -> (28, 28)
+bu_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
     apply_bn=False,
@@ -369,7 +393,7 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
+bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
               bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
@@ -699,7 +723,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 50) or (epoch == 150) or (epoch == 200):
+    if (epoch == 25) or (epoch == 50) or (epoch == 150) or (epoch == 200):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
