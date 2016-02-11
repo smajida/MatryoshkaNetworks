@@ -2,6 +2,7 @@ import numpy as np
 import theano
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool
+from theano import printing
 
 from lib import activations
 from lib import updates
@@ -1291,6 +1292,10 @@ class IMTopModule(object):
         """
         h_im = self._apply_fc_1(h=input, w=self.w1_im, g=self.g1_im,
                                 b=self.b1_im, noise=noise)
+
+        pop = printing.Print('_bu_cond_path -- val 1:', attrs = [ 'shape' ])
+        h_im = pop(h_im)
+
         if self.cond_layers == 2:
             h_im = self._apply_fc_1(h=h_im, w=self.w2_im, g=self.g2_im,
                                     b=self.b2_im, noise=noise)
@@ -1307,6 +1312,10 @@ class IMTopModule(object):
         # transform through first hidden layer
         h_pt = self._apply_fc_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
                                 b=self.b1_pt, noise=noise)
+
+        pop = printing.Print('_td_gen_path -- val 1:', attrs = [ 'shape' ])
+        h_pt = pop(h_pt)
+
         # transform through second hidden layer, if desired
         if self.pert_layers == 2:
             h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
@@ -1335,6 +1344,11 @@ class IMTopModule(object):
         """
         # flatten bottom-up input for use in fully-connected layers
         input = T.flatten(bu_act, 2)
+
+        pop = printing.Print('apply_bu -- val 1:', attrs = [ 'shape' ])
+
+        input = pop(input)
+
         # do dropout
         input = fc_drop_func(input, self.unif_drop)
         # process the "BU conditioning path".
