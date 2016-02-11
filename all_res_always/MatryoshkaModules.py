@@ -1293,8 +1293,8 @@ class IMTopModule(object):
         h_im = self._apply_fc_1(h=input, w=self.w1_im, g=self.g1_im,
                                 b=self.b1_im, noise=noise)
 
-        pop = printing.Print('_bu_cond_path -- val 1:', attrs = [ 'shape' ])
-        h_im = pop(h_im)
+        # pop = printing.Print('_bu_cond_path -- val 1:', attrs = [ 'shape' ])
+        # h_im = pop(h_im)
 
         if self.cond_layers == 2:
             h_im = self._apply_fc_1(h=h_im, w=self.w2_im, g=self.g2_im,
@@ -1302,8 +1302,8 @@ class IMTopModule(object):
         cond_vals = self._apply_fc_2(h=h_im, w=self.w3_im, g=self.g3_im,
                                      b=self.b3_im, noise=noise)
 
-        pop = printing.Print('_bu_cond_path -- val 2:', attrs = [ 'shape' ])
-        cond_vals = pop(cond_vals)
+        # pop = printing.Print('_bu_cond_path -- val 2:', attrs = [ 'shape' ])
+        # cond_vals = pop(cond_vals)
 
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:]
@@ -1317,23 +1317,23 @@ class IMTopModule(object):
         h_pt = self._apply_fc_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
                                 b=self.b1_pt, noise=noise)
 
-        pop = printing.Print('_td_gen_path -- val 1:', attrs = [ 'shape' ])
-        h_pt = pop(h_pt)
+        # pop = printing.Print('_td_gen_path -- val 1:', attrs = [ 'shape' ])
+        # h_pt = pop(h_pt)
 
         # transform through second hidden layer, if desired
         if self.pert_layers == 2:
             h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
                                     b=self.b2_pt, noise=noise)
         
-        h_pt = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
-        td_act = pop(h_pt)
+        # h_pt = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
+        # td_act = pop(h_pt)
 
         # apply final fc layer to get perturbation for td_pre_act
         td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                   b=self.b3_pt, noise=noise)
 
-        pop = printing.Print('_td_gen_path -- val 3:', attrs = [ 'shape' ])
-        td_act = pop(td_act)
+        # pop = printing.Print('_td_gen_path -- val 3:', attrs = [ 'shape' ])
+        # td_act = pop(td_act)
 
         td_act = self.act_func(td_act)
         return td_act
@@ -1345,8 +1345,8 @@ class IMTopModule(object):
         td_act = self._td_generation_path(rand_vals=rand_vals,
                                           noise=noise)
 
-        pop = printing.Print('apply_td -- val 1:', attrs = [ 'shape' ])
-        td_act = pop(td_act)
+        # pop = printing.Print('apply_td -- val 1:', attrs = [ 'shape' ])
+        # td_act = pop(td_act)
 
         if len(self.td_shape) == 3:
             # output is going to conv layer
@@ -1354,8 +1354,8 @@ class IMTopModule(object):
                                      self.td_shape[1], self.td_shape[2]))
 
 
-        pop = printing.Print('apply_td -- val 2:', attrs = [ 'shape' ])
-        td_act = pop(td_act)
+        # pop = printing.Print('apply_td -- val 2:', attrs = [ 'shape' ])
+        # td_act = pop(td_act)
         return td_act
 
     def apply_bu(self, bu_act, noise=None, dist_scale=[1.0]):
@@ -1365,8 +1365,8 @@ class IMTopModule(object):
         # flatten bottom-up input for use in fully-connected layers
         input = T.flatten(bu_act, 2)
 
-        pop = printing.Print('apply_bu -- val 1:', attrs = [ 'shape' ])
-        input = pop(input)
+        # pop = printing.Print('apply_bu -- val 1:', attrs = [ 'shape' ])
+        # input = pop(input)
 
         # do dropout
         input = fc_drop_func(input, self.unif_drop)
@@ -1394,8 +1394,8 @@ class IMTopModule(object):
         # compute output of perturbation path, given these z_samps
         td_act = self.apply_td(rand_vals=z_samps)
 
-        pop = printing.Print('apply_bu -- val 2:', attrs = [ 'shape' ])
-        td_act = pop(td_act)
+        # pop = printing.Print('apply_bu -- val 2:', attrs = [ 'shape' ])
+        # td_act = pop(td_act)
 
         # package results into a nice dict
         im_res_dict = {}
