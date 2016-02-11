@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel2
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_1_im_layers'
+desc = 'test_vae_lrelu_one_bottom'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -66,7 +66,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-im_layers = 1     # number of hidden layers in IM modules (1 or 2)
+im_layers = 2     # number of hidden layers in IM modules (1 or 2)
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 
