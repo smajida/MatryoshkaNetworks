@@ -847,7 +847,7 @@ class IMFCResModule(object):
         self.b1_pt = bias_ifn((self.fc_chans), "{}_b1_pt".format(self.mod_name))
         self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
         # initialize second hidden layer parameters
-        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans, 3, 3),
+        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans),
                                 "{}_w2_pt".format(self.mod_name))
         self.g2_pt = gain_ifn((self.fc_chans), "{}_g2_pt".format(self.mod_name))
         self.b2_pt = bias_ifn((self.fc_chans), "{}_b2_pt".format(self.mod_name))
@@ -872,7 +872,7 @@ class IMFCResModule(object):
             self.b1_td = bias_ifn((self.fc_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second hidden layer parameters
-            self.w2_td = weight_ifn((self.fc_chans, self.fc_chans, 3, 3),
+            self.w2_td = weight_ifn((self.fc_chans, self.fc_chans),
                                      "{}_w2_td".format(self.mod_name))
             self.g2_td = gain_ifn((self.fc_chans), "{}_g2_td".format(self.mod_name))
             self.b2_td = bias_ifn((self.fc_chans), "{}_b2_td".format(self.mod_name))
@@ -1200,7 +1200,7 @@ class IMTopModule(object):
         self.b1_pt = bias_ifn((self.fc_chans), "{}_b1_pt".format(self.mod_name))
         self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
         # initialize second hidden layer parameters
-        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans, 3, 3),
+        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans),
                                 "{}_w2_pt".format(self.mod_name))
         self.g2_pt = gain_ifn((self.fc_chans), "{}_g2_pt".format(self.mod_name))
         self.b2_pt = bias_ifn((self.fc_chans), "{}_b2_pt".format(self.mod_name))
@@ -1324,11 +1324,15 @@ class IMTopModule(object):
         if self.pert_layers == 2:
             h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
                                     b=self.b2_pt, noise=noise)
+        
+        h_pt = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
+        td_act = pop(h_pt)
+
         # apply final fc layer to get perturbation for td_pre_act
         td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                   b=self.b3_pt, noise=noise)
 
-        pop = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
+        pop = printing.Print('_td_gen_path -- val 3:', attrs = [ 'shape' ])
         td_act = pop(td_act)
 
         td_act = self.act_func(td_act)
