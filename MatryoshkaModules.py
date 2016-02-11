@@ -149,7 +149,7 @@ class BasicFCResModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w3 = weight_ifn((self.in_chans, self.out_chans, fd, fd),
+        self.w3 = weight_ifn((self.in_chans, self.out_chans),
                                 "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
@@ -934,13 +934,16 @@ class GenTopModule(object):
                  act_func='relu',
                  use_bn_params=True,
                  mod_name='dm_fc'):
-        assert (len(out_shape) == 3), \
-                "out_shape should describe the input to a conv layer."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
         self.rand_dim = rand_dim
         self.out_shape = out_shape
-        self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
+        if len(self.out_shape) == 1:
+            # output goes to FC layer
+            self.out_dim = out_shape[0]
+        else:
+            # output goes to conv layer
+            self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
         self.fc_dim = fc_dim
         self.use_fc = use_fc
         self.apply_bn = apply_bn
@@ -1050,7 +1053,7 @@ class GenTopModule(object):
                 h1 = h1 + self.b1.dimshuffle('x',0)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
+            h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
@@ -1059,9 +1062,10 @@ class GenTopModule(object):
         else:
             h2 = h2 + self.b3.dimshuffle('x',0)
         h2 = self.act_func(h2)
-        # reshape vector outputs for use as conv layer inputs
-        h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
-                         self.out_shape[1], self.out_shape[2]))
+        if len(self.out_shape) > 1:
+            # reshape vector outputs for use as conv layer inputs
+            h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
+                             self.out_shape[1], self.out_shape[2]))
         if rand_shapes:
             result = [h2, rand_shape]
         else:
@@ -1328,7 +1332,6 @@ class GenFCResModule(object):
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
-        fd = self.filt_dim
         # initialize first conv layer parameters
         self.w1 = weight_ifn(((self.in_chans+self.rand_chans), self.fc_chans),
                              "{}_w1".format(self.mod_name))

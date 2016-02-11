@@ -56,8 +56,8 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
-nz1 = 32          # # of dim for Z1
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
@@ -65,7 +65,7 @@ niter = 200       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
@@ -103,7 +103,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*2,),
+    out_shape=(ngf*8,),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -113,11 +113,11 @@ GenTopModule(
 
 td_module_2 = \
 GenFCResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    fc_chans=(ngf*2),
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    use_rand=multi_rand,
+    use_rand=False,
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -126,9 +126,9 @@ GenFCResModule(
 
 td_module_3 = \
 GenFCResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*8),
     out_chans=(ngf*8),
-    fc_chans=(ngf*4),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
     use_rand=multi_rand,
     use_fc=use_fc,
@@ -140,10 +140,10 @@ GenFCResModule(
 td_module_4 = \
 GenFCResModule(
     in_chans=(ngf*8),
-    out_chans=(ngf*16),
+    out_chans=(ngf*8),
     fc_chans=(ngf*8),
     rand_chans=nz1,
-    use_rand=multi_rand,
+    use_rand=False,
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -152,8 +152,8 @@ GenFCResModule(
 
 td_module_5 = \
 GenFCResModule(
-    in_chans=(ngf*16),
-    out_chans=(ngf*16),
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_rand=multi_rand,
@@ -165,7 +165,7 @@ GenFCResModule(
 
 td_module_6 = \
 BasicFCModule(
-    in_chans=(ngf*16),
+    in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     act_func='ident',
@@ -183,7 +183,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*2),
+    bu_chans=(ngf*8),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -194,9 +194,9 @@ InfTopModule(
 
 bu_module_2 = \
 BasicFCResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
-    fc_chans=(ngf*2),
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -206,8 +206,8 @@ BasicFCResModule(
 bu_module_3 = \
 BasicFCResModule(
     in_chans=(ngf*8),
-    out_chans=(ngf*4),
-    fc_chans=(ngf*4),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -216,7 +216,7 @@ BasicFCResModule(
 
 bu_module_4 = \
 BasicFCResModule(
-    in_chans=(ngf*16),
+    in_chans=(ngf*8),
     out_chans=(ngf*8),
     fc_chans=(ngf*8),
     use_fc=use_fc,
@@ -227,8 +227,8 @@ BasicFCResModule(
 
 bu_module_5 = \
 BasicFCResModule(
-    in_chans=(ngf*16),
-    out_chans=(ngf*16),
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
     fc_chans=(ngf*8),
     use_fc=use_fc,
     apply_bn=use_bn,
@@ -239,7 +239,7 @@ BasicFCResModule(
 bu_module_6 = \
 BasicFCModule(
     in_chans=nx,
-    out_chans=(ngf*16),
+    out_chans=(ngf*8),
     apply_bn=False,
     act_func=act_func,
     mod_name='bu_mod_6'
@@ -255,9 +255,9 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4,
 
 im_module_2 = \
 InfFCMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    fc_chans=(ngf*2),
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
@@ -268,9 +268,9 @@ InfFCMergeModule(
 
 im_module_3 = \
 InfFCMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
-    fc_chans=(ngf*4),
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
@@ -294,9 +294,9 @@ InfFCMergeModule(
 
 im_module_5 = \
 InfFCMergeModule(
-    td_chans=(ngf*16),
-    bu_chans=(ngf*16),
-    fc_chans=(ngf*16),
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
@@ -349,7 +349,7 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -381,11 +381,15 @@ if iwae_samples == 1:
     vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
     vae_kld_cost = T.mean(vae_obs_klds)
 
+    # compute per-layer KL-divergence part of cost
+    alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+    alt_kld_cost = T.mean(sum(alt_layer_klds))
+
     # combined cost for generator stuff
     vae_cost = vae_nll_cost + vae_kld_cost
     vae_obs_costs = vae_obs_nlls + vae_obs_klds
     # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
+    full_cost_gen = vae_nll_cost + (lam_kld[0] * alt_kld_cost) + vae_reg_cost
     full_cost_inf = full_cost_gen
 else:
     # run an inference and reconstruction pass through the generative stuff
@@ -445,7 +449,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.0002)
+lrt = sharedX(0.001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -486,10 +490,14 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
+kld_weights = np.linspace(2.0,2.0,50)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
+    # mess with the KLd cost
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
