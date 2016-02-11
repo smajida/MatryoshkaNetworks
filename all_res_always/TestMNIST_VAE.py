@@ -110,8 +110,22 @@ TdBuFCResModule(
     mod_name='td_mod_1'
 ) # output is (batch, ngf*8, 7, 7)
 
+# (7, 7) -> (7, 7)
+td_module_2a = \
+TdBuConvResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    conv_chans=(ngf*8),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='single',
+    act_func=act_func,
+    apply_bn=use_bn,
+    mod_name='td_mod_2a'
+) # output is (batch, ngf*8, 7, 7)
+
 # (7, 7) -> (14, 14)
-td_module_2 = \
+td_module_2b = \
 TdBuConvResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
@@ -121,7 +135,7 @@ TdBuConvResModule(
     stride='half',
     act_func=act_func,
     apply_bn=use_bn,
-    mod_name='td_mod_2'
+    mod_name='td_mod_2b'
 ) # output is (batch, ngf*4, 14, 14)
 
 # (14, 14) -> (28, 28)
@@ -153,15 +167,29 @@ TdBuConvResModule(
 ) # output is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3, td_module_4]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3, td_module_4]
 
 ##########################################
 # Setup the bottom-up processing modules #
 # -- these do inference                  #
 ##########################################
 
+# (7, 7) -> (7, 7)
+bu_module_2a = \
+TdBuConvResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    conv_chans=(ngf*8),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='single',
+    act_func=act_func,
+    apply_bn=use_bn,
+    mod_name='bu_mod_2a'
+) # input is (batch, ngf*8, 7, 7)
+
 # (14, 14) -> (7, 7)
-bu_module_2 = \
+bu_module_2b = \
 TdBuConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*8),
@@ -171,7 +199,7 @@ TdBuConvResModule(
     stride='double',
     act_func=act_func,
     apply_bn=use_bn,
-    mod_name='bu_mod_2'
+    mod_name='bu_mod_2b'
 ) # input is (batch, ngf*4, 14, 14)
 
 # (28, 28) -> (14, 14)
@@ -203,7 +231,7 @@ TdBuConvResModule(
 ) # input is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_4, bu_module_3, bu_module_2]
+bu_modules = [bu_module_4, bu_module_3, bu_module_2b, bu_module_2a]
 
 
 #########################################
@@ -223,7 +251,21 @@ IMTopModule(
     mod_name='im_mod_1'
 )
 
-im_module_2 = \
+im_module_2a = \
+IMConvResModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    rand_chans=nz1,
+    conv_chans=(ngf*8),
+    cond_layers=2,
+    pert_layers=2,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_2a'
+)
+
+im_module_2b = \
 IMConvResModule(
     td_chans=(ngf*4),
     bu_chans=(ngf*4),
@@ -234,7 +276,7 @@ IMConvResModule(
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
     act_func=act_func,
-    mod_name='im_mod_2'
+    mod_name='im_mod_2b'
 )
 
 im_module_3 = \
@@ -252,7 +294,7 @@ IMConvResModule(
 )
 
 
-im_modules = [im_module_1, im_module_2, im_module_3]
+im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -264,9 +306,10 @@ im_modules = [im_module_1, im_module_2, im_module_3]
 # required. This probably only happens at the "top" of the generator.
 #
 merge_info = {
-    'td_mod_1': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_1'},
-    'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'}
+    'td_mod_1':  {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_1'},
+    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+    'td_mod_2b': {'bu_module': 'bu_mod_3',  'im_module': 'im_mod_2b'},
+    'td_mod_3':  {'bu_module': 'bu_mod_4',  'im_module': 'im_mod_3'}
 }
 
 # construct the "wrapper" object for managing all our modules
@@ -381,7 +424,7 @@ else:
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 td_res_dict = inf_gen_model.apply_td(rand_vals=td_inputs)
-Xd_model = sigmoid(td_res_dict['td_acts'])
+Xd_model = sigmoid(td_res_dict['td_acts'][-1])
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
