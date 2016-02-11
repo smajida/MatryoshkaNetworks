@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel2
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_one_bottom'
+desc = 'test_vae_lrelu_two_bottom'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -109,7 +109,7 @@ TdBuFCResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_1'
-) # output is (batch, ngf*8, 7, 7)
+) # output is (batch, ngf*4, 7, 7)
 
 # (7, 7) -> (7, 7)
 td_module_2a = \
@@ -123,7 +123,7 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_2a'
-) # output is (batch, ngf*8, 7, 7)
+) # output is (batch, ngf*4, 7, 7)
 
 # (7, 7) -> (14, 14)
 td_module_2b = \
@@ -137,7 +137,7 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_2b'
-) # output is (batch, ngf*4, 14, 14)
+) # output is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (14, 14)
 td_module_3a = \
@@ -151,7 +151,7 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_3a'
-) # output is (batch, ngf*4, 14, 14)
+) # output is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (28, 28)
 td_module_3b = \
@@ -165,10 +165,24 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_3b'
-) # output is (batch, ngf*2, 28, 28)
+) # output is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
 td_module_4 = \
+TdBuConvResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
+    filt_shape=(3,3),
+    use_conv=False,
+    stride='single',
+    act_func=act_func,
+    apply_bn=False,
+    mod_name='td_mod_4'
+) # output is (batch, ngf*1, 28, 28)
+
+# (28, 28) -> (28, 28)
+td_module_5 = \
 TdBuConvResModule(
     in_chans=(ngf*1),
     out_chans=nc,
@@ -178,12 +192,12 @@ TdBuConvResModule(
     stride='single',
     act_func='ident',
     apply_bn=False,
-    mod_name='td_mod_4'
+    mod_name='td_mod_5'
 ) # output is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3a,
-              td_module_3b, td_module_4]
+              td_module_3b, td_module_4, td_module_5]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -202,7 +216,7 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='bu_mod_2a'
-) # input is (batch, ngf*8, 7, 7)
+) # input is (batch, ngf*4, 7, 7)
 
 # (14, 14) -> (7, 7)
 bu_module_2b = \
@@ -216,7 +230,7 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='bu_mod_2b'
-) # input is (batch, ngf*4, 14, 14)
+) # input is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (14, 14)
 bu_module_3a = \
@@ -244,10 +258,24 @@ TdBuConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='bu_mod_3b'
-) # input is (batch, ngf*2, 28, 28)
+) # input is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
 bu_module_4 = \
+TdBuConvResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
+    filt_shape=(3,3),
+    use_conv=False,
+    stride='single',
+    act_func=act_func,
+    apply_bn=False,
+    mod_name='bu_mod_4'
+) # input is (batch, ngf*1, 28, 28)
+
+# (28, 28) -> (28, 28)
+bu_module_5 = \
 TdBuConvResModule(
     in_chans=nc,
     out_chans=(ngf*1),
@@ -257,12 +285,12 @@ TdBuConvResModule(
     stride='single',
     act_func=act_func,
     apply_bn=False,
-    mod_name='bu_mod_4'
+    mod_name='bu_mod_5'
 ) # input is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_4, bu_module_3b, bu_module_3a, bu_module_2b,
-              bu_module_2a]
+bu_modules = [bu_module_5, bu_module_4, bu_module_3b, bu_module_3a,
+              bu_module_2b, bu_module_2a]
 
 
 #########################################
