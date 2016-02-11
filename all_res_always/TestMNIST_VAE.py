@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel2
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_1_im_layers_use_acts'
+desc = 'test_vae_lrelu_1_im_layers'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -57,7 +57,7 @@ nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 20          # base # of filters for conv layers in generative stuff
+ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
@@ -104,7 +104,7 @@ td_module_1 = \
 TdBuFCResModule(
     in_chans=nz0,
     fc_chans=ngfc,
-    out_shape=(ngf*8, 7, 7),
+    out_shape=(ngf*4, 7, 7),
     use_fc=True,
     act_func=act_func,
     apply_bn=use_bn,
@@ -114,9 +114,9 @@ TdBuFCResModule(
 # (7, 7) -> (7, 7)
 td_module_2a = \
 TdBuConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*8),
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -128,9 +128,9 @@ TdBuConvResModule(
 # (7, 7) -> (14, 14)
 td_module_2b = \
 TdBuConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*4),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='half',
@@ -142,9 +142,9 @@ TdBuConvResModule(
 # (14, 14) -> (14, 14)
 td_module_3a = \
 TdBuConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -156,9 +156,9 @@ TdBuConvResModule(
 # (14, 14) -> (28, 28)
 td_module_3b = \
 TdBuConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*2),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='half',
@@ -170,9 +170,9 @@ TdBuConvResModule(
 # (28, 28) -> (28, 28)
 td_module_4 = \
 TdBuConvResModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=nc,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=False,
     stride='single',
@@ -182,7 +182,8 @@ TdBuConvResModule(
 ) # output is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3a, td_module_3b, td_module_4]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3a,
+              td_module_3b, td_module_4]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -192,9 +193,9 @@ td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3a, td_module_3
 # (7, 7) -> (7, 7)
 bu_module_2a = \
 TdBuConvResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*8),
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -206,9 +207,9 @@ TdBuConvResModule(
 # (14, 14) -> (7, 7)
 bu_module_2b = \
 TdBuConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*8),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -220,9 +221,9 @@ TdBuConvResModule(
 # (14, 14) -> (14, 14)
 bu_module_3a = \
 TdBuConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -234,9 +235,9 @@ TdBuConvResModule(
 # (28, 28) -> (14, 14)
 bu_module_3b = \
 TdBuConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='double',
@@ -249,8 +250,8 @@ TdBuConvResModule(
 bu_module_4 = \
 TdBuConvResModule(
     in_chans=nc,
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=False,
     stride='single',
@@ -260,7 +261,8 @@ TdBuConvResModule(
 ) # input is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_4, bu_module_3b, bu_module_3a, bu_module_2b, bu_module_2a]
+bu_modules = [bu_module_4, bu_module_3b, bu_module_3a, bu_module_2b,
+              bu_module_2a]
 
 
 #########################################
@@ -269,8 +271,8 @@ bu_modules = [bu_module_4, bu_module_3b, bu_module_3a, bu_module_2b, bu_module_2
 
 im_module_1 = \
 IMTopModule(
-    td_shape=(ngf*8, 7, 7),
-    bu_shape=(ngf*8, 7, 7),
+    td_shape=(ngf*4, 7, 7),
+    bu_shape=(ngf*4, 7, 7),
     rand_chans=nz0,
     fc_chans=ngfc,
     cond_layers=im_layers,
@@ -282,10 +284,10 @@ IMTopModule(
 
 im_module_2a = \
 IMConvResModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    td_chans=(ngf*4),
+    bu_chans=(ngf*4),
     rand_chans=nz1,
-    conv_chans=(ngf*8),
+    conv_chans=(ngf*4),
     cond_layers=im_layers,
     pert_layers=im_layers,
     apply_bn=use_bn,
@@ -296,10 +298,10 @@ IMConvResModule(
 
 im_module_2b = \
 IMConvResModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     cond_layers=im_layers,
     pert_layers=im_layers,
     apply_bn=use_bn,
@@ -310,10 +312,10 @@ IMConvResModule(
 
 im_module_3a = \
 IMConvResModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     cond_layers=im_layers,
     pert_layers=im_layers,
     apply_bn=use_bn,
@@ -324,10 +326,10 @@ IMConvResModule(
 
 im_module_3b = \
 IMConvResModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     cond_layers=im_layers,
     pert_layers=im_layers,
     apply_bn=use_bn,
@@ -337,7 +339,8 @@ IMConvResModule(
 )
 
 
-im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3a, im_module_3b]
+im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3a,
+              im_module_3b]
 
 #
 # Setup a description for where to get conditional distributions from. When

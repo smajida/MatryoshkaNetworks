@@ -474,13 +474,13 @@ class IMConvResModule(object):
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second hidden layer parameters
-        self.w2_im = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+        self.w2_im = weight_ifn(((2*self.rand_chans), self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
-        self.g2_im = gain_ifn((self.conv_chans), "{}_g2_im".format(self.mod_name))
-        self.b2_im = bias_ifn((self.conv_chans), "{}_b2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize conditioning layer parameters
-        self.w3_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
+        self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
                                 "{}_w3_im".format(self.mod_name))
         self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
@@ -495,13 +495,13 @@ class IMConvResModule(object):
         self.b1_pt = bias_ifn((self.conv_chans), "{}_b1_pt".format(self.mod_name))
         self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
         # initialize second hidden layer parameters
-        self.w2_pt = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+        self.w2_pt = weight_ifn((self.td_chans, self.conv_chans, 3, 3),
                                 "{}_w2_pt".format(self.mod_name))
-        self.g2_pt = gain_ifn((self.conv_chans), "{}_g2_pt".format(self.mod_name))
-        self.b2_pt = bias_ifn((self.conv_chans), "{}_b2_pt".format(self.mod_name))
+        self.g2_pt = gain_ifn((self.td_chans), "{}_g2_pt".format(self.mod_name))
+        self.b2_pt = bias_ifn((self.td_chans), "{}_b2_pt".format(self.mod_name))
         self.params.extend([self.w2_pt, self.g2_pt, self.b2_pt])
         # initialize perturbation layer parameters
-        self.w3_pt = weight_ifn((self.td_chans, self.conv_chans, 3, 3),
+        self.w3_pt = weight_ifn((self.td_chans, self.rand_chans, 3, 3),
                                 "{}_w3_pt".format(self.mod_name))
         self.g3_pt = gain_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
         self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
@@ -520,13 +520,13 @@ class IMConvResModule(object):
             self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second hidden layer parameters
-            self.w2_td = weight_ifn((self.conv_chans, self.conv_chans, 3, 3),
+            self.w2_td = weight_ifn(((2*self.rand_chans), self.conv_chans, 3, 3),
                                      "{}_w2_td".format(self.mod_name))
-            self.g2_td = gain_ifn((self.conv_chans), "{}_g2_td".format(self.mod_name))
-            self.b2_td = bias_ifn((self.conv_chans), "{}_b2_td".format(self.mod_name))
+            self.g2_td = gain_ifn((2*self.rand_chans), "{}_g2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
             self.params.extend([self.w2_td, self.g2_td, self.b2_td])
             # initialize conditioning layer parameters
-            self.w3_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
+            self.w3_td = weight_ifn((2*self.rand_chans, self.td_chans, 3, 3),
                                     "{}_w3_td".format(self.mod_name))
             self.g3_td = gain_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
@@ -636,13 +636,17 @@ class IMConvResModule(object):
         """
         Process the TD conditioning path.
         """
-        h_td = self._apply_conv_1(h=input, w=self.w1_td, g=self.g1_td,
-                                  b=self.b1_td, noise=noise)
         if self.cond_layers == 2:
-            h_td = self._apply_conv_1(h=h_td, w=self.w2_td, g=self.g2_td,
+            h_td = self._apply_conv_1(h=input, w=self.w1_td, g=self.g1_td,
+                                      b=self.b1_td, noise=noise)
+            cv1 = self._apply_conv_2(h=h_td, w=self.w2_td, g=self.g2_td,
                                       b=self.b2_td, noise=noise)
-        cond_vals = self._apply_conv_2(h=h_td, w=self.w3_td, g=self.g3_td,
-                                       b=self.b3_td)
+            cv2 = self._apply_conv_2(h=input, w=self.w3_td, g=self.g3_td,
+                                      b=self.b3_td, noise=noise)
+            cond_vals = cv1 + cv2
+        else:
+            cond_vals = self._apply_conv_2(h=input, w=self.w3_td, g=self.g3_td,
+                                           b=self.b3_td, noise=noise)
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans,:,:]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:,:,:]
         return cond_mean, cond_logvar
@@ -651,13 +655,17 @@ class IMConvResModule(object):
         """
         Process the IM conditioning path.
         """
-        h_im = self._apply_conv_1(h=input, w=self.w1_im, g=self.g1_im,
-                                  b=self.b1_im, noise=noise)
         if self.cond_layers == 2:
-            h_im = self._apply_conv_1(h=h_im, w=self.w2_im, g=self.g2_im,
+            h_im = self._apply_conv_1(h=input, w=self.w1_im, g=self.g1_im,
+                                      b=self.b1_im, noise=noise)
+            cv1 = self._apply_conv_2(h=h_im, w=self.w2_im, g=self.g2_im,
                                       b=self.b2_im, noise=noise)
-        cond_vals = self._apply_conv_2(h=h_im, w=self.w3_im, g=self.g3_im,
-                                       b=self.b3_im)
+            cv2 = self._apply_conv_2(h=input, w=self.w3_im, g=self.g3_im,
+                                      b=self.b3_im, noise=noise)
+            cond_vals = cv1 + cv2
+        else:
+            cond_vals = self._apply_conv_2(h=input, w=self.w3_im, g=self.g3_im,
+                                           b=self.b3_im, noise=noise)
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans,:,:]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:,:,:]
         return cond_mean, cond_logvar
@@ -667,22 +675,19 @@ class IMConvResModule(object):
         Apply a stochastic perturbation to td_pre_act. Values for the latent
         variables controlling the perturbation are given in rand_vals.
         """
-        # transform through first hidden layer
-        h_pt = self._apply_conv_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
-                                  b=self.b1_pt, noise=noise)
-        # transform through second hidden layer, if desired
         if self.pert_layers == 2:
-            h_pt = self._apply_conv_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
-                                      b=self.b2_pt, noise=noise)
-        # apply final conv layer to get perturbation for td_pre_act
-        td_act_pert = self._apply_conv_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
-                                         b=self.b3_pt, noise=noise)
-        # apply perturbation to pre-activation
-        if td_pre_act is None:
-            td_pre_act = td_act_pert
+            h_pt = self._apply_conv_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
+                                      b=self.b1_pt, noise=noise)
+            pt1 = self._apply_conv_2(h=h_pt, w=self.w2_pt, g=self.g2_pt,
+                                     b=self.b2_pt, noise=noise)
+            pt2 = self._apply_conv_2(h=rand_vals, w=self.w3_pt, g=self.g3_pt,
+                                     b=self.b3_pt, noise=noise)
+            td_act_pert = pt1 + pt2
         else:
-            td_pre_act = td_pre_act + td_act_pert
-        # apply batch normalization
+            td_act_pert = self._apply_conv_2(h=rand_vals, w=self.w3_pt, g=self.g3_pt,
+                                             b=self.b3_pt, noise=noise)
+        # apply perturbation to pre-activation and renormalize
+        td_pre_act = td_pre_act + td_act_pert
         td_pre_act = switchy_bn(td_pre_act, g=self.g4_pt, b=self.b4_pt,
                                 n=noise, use_gb=self.use_bn_params)
         # apply activation function
