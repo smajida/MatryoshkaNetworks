@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel2
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu'
+desc = 'test_vae_lrelu_1_im_layers_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -57,15 +57,16 @@ nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
+ngf = 20          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
+im_layers = 1     # number of hidden layers in IM modules (1 or 2)
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 
@@ -138,8 +139,22 @@ TdBuConvResModule(
     mod_name='td_mod_2b'
 ) # output is (batch, ngf*4, 14, 14)
 
+# (14, 14) -> (14, 14)
+td_module_3a = \
+TdBuConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='single',
+    act_func=act_func,
+    apply_bn=use_bn,
+    mod_name='td_mod_3a'
+) # output is (batch, ngf*4, 14, 14)
+
 # (14, 14) -> (28, 28)
-td_module_3 = \
+td_module_3b = \
 TdBuConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*2),
@@ -149,7 +164,7 @@ TdBuConvResModule(
     stride='half',
     act_func=act_func,
     apply_bn=use_bn,
-    mod_name='td_mod_3'
+    mod_name='td_mod_3b'
 ) # output is (batch, ngf*2, 28, 28)
 
 # (28, 28) -> (28, 28)
@@ -167,7 +182,7 @@ TdBuConvResModule(
 ) # output is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3, td_module_4]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_3a, td_module_3b, td_module_4]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -202,8 +217,22 @@ TdBuConvResModule(
     mod_name='bu_mod_2b'
 ) # input is (batch, ngf*4, 14, 14)
 
+# (14, 14) -> (14, 14)
+bu_module_3a = \
+TdBuConvResModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*4),
+    conv_chans=(ngf*4),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    stride='single',
+    act_func=act_func,
+    apply_bn=use_bn,
+    mod_name='bu_mod_3a'
+) # input is (batch, ngf*2, 14, 14)
+
 # (28, 28) -> (14, 14)
-bu_module_3 = \
+bu_module_3b = \
 TdBuConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*4),
@@ -213,7 +242,7 @@ TdBuConvResModule(
     stride='double',
     act_func=act_func,
     apply_bn=use_bn,
-    mod_name='bu_mod_3'
+    mod_name='bu_mod_3b'
 ) # input is (batch, ngf*2, 28, 28)
 
 # (28, 28) -> (28, 28)
@@ -231,7 +260,7 @@ TdBuConvResModule(
 ) # input is (batch, nc, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_4, bu_module_3, bu_module_2b, bu_module_2a]
+bu_modules = [bu_module_4, bu_module_3b, bu_module_3a, bu_module_2b, bu_module_2a]
 
 
 #########################################
@@ -244,8 +273,8 @@ IMTopModule(
     bu_shape=(ngf*8, 7, 7),
     rand_chans=nz0,
     fc_chans=ngfc,
-    cond_layers=2,
-    pert_layers=2,
+    cond_layers=im_layers,
+    pert_layers=im_layers,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_1'
@@ -257,8 +286,8 @@ IMConvResModule(
     bu_chans=(ngf*8),
     rand_chans=nz1,
     conv_chans=(ngf*8),
-    cond_layers=2,
-    pert_layers=2,
+    cond_layers=im_layers,
+    pert_layers=im_layers,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
     act_func=act_func,
@@ -271,30 +300,45 @@ IMConvResModule(
     bu_chans=(ngf*4),
     rand_chans=nz1,
     conv_chans=(ngf*4),
-    cond_layers=2,
-    pert_layers=2,
+    cond_layers=im_layers,
+    pert_layers=im_layers,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_2b'
 )
 
-im_module_3 = \
+
+im_module_3a = \
+IMConvResModule(
+    td_chans=(ngf*4),
+    bu_chans=(ngf*4),
+    rand_chans=nz1,
+    conv_chans=(ngf*4),
+    cond_layers=im_layers,
+    pert_layers=im_layers,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_3a'
+)
+
+im_module_3b = \
 IMConvResModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
-    cond_layers=2,
-    pert_layers=2,
+    cond_layers=im_layers,
+    pert_layers=im_layers,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
     act_func=act_func,
-    mod_name='im_mod_3'
+    mod_name='im_mod_3b'
 )
 
 
-im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3]
+im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3a, im_module_3b]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -308,8 +352,9 @@ im_modules = [im_module_1, im_module_2a, im_module_2b, im_module_3]
 merge_info = {
     'td_mod_1':  {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_1'},
     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_3',  'im_module': 'im_mod_2b'},
-    'td_mod_3':  {'bu_module': 'bu_mod_4',  'im_module': 'im_mod_3'}
+    'td_mod_2b': {'bu_module': 'bu_mod_3a', 'im_module': 'im_mod_2b'},
+    'td_mod_3a': {'bu_module': 'bu_mod_3b', 'im_module': 'im_mod_3a'},
+    'td_mod_3b': {'bu_module': 'bu_mod_4',  'im_module': 'im_mod_3b'}
 }
 
 # construct the "wrapper" object for managing all our modules
