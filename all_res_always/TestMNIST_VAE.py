@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel2
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_1_im_layers_bn'
+desc = 'test_vae_lrelu_1_im_layers_use_acts'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -307,7 +307,6 @@ IMConvResModule(
     act_func=act_func,
     mod_name='im_mod_2b'
 )
-
 
 im_module_3a = \
 IMConvResModule(

@@ -271,8 +271,8 @@ class InfGenModel2(object):
                     # internal module in network, need to apply the TD module
                     # to get a TD pre-activation, then perturb it using the
                     # IM module (and apply, e.g. relu) to get a TD activation.
-                    _, td_pre_act = td_module.apply(input=td_acts[-1])
-                    td_act = im_module.apply_td(td_pre_act=td_pre_act,
+                    td_act, td_pre_act = td_module.apply(input=td_acts[-1])
+                    td_act = im_module.apply_td(td_pre_act=td_act,
                                                 rand_vals=rvs)
             else:
                 # handle computation for a TD module whose output isn't
@@ -359,10 +359,10 @@ class InfGenModel2(object):
                     td_pre_act = 0.0 * im_res_dict['td_act']
                 else:
                     # propagate through this TD module to get pre-activations
-                    _, td_pre_act = td_module.apply(input=td_acts[-1])
+                    td_act, td_pre_act = td_module.apply(input=td_acts[-1])
                     # go through the IM module, to get the final TD activations
-                    im_res_dict = im_module.apply_im(td_pre_act=td_pre_act,
-                                                     bu_pre_act=bu_pre_act,
+                    im_res_dict = im_module.apply_im(td_pre_act=td_act,
+                                                     bu_pre_act=bu_act,
                                                      noise=noise,
                                                      dist_scale=self.dist_scale)
                 # record TD activations produced by current TD/IM pair
