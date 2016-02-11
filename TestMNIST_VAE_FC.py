@@ -365,9 +365,11 @@ if iwae_samples == 1:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                    do_sum=False), axis=1)
+    log_p_x = bce(T.flatten(Xg, 2), T.flatten(Xg_recon, 2))
+
+    # log_p_x = T.sum(log_prob_bernoulli( \
+    #                 T.flatten(Xg,2), T.flatten(Xg_recon,2),
+    #                 do_sum=False), axis=1)
 
     # compute reconstruction error part of free-energy
     vae_obs_nlls = -1.0 * log_p_x
@@ -389,7 +391,7 @@ if iwae_samples == 1:
     vae_cost = vae_nll_cost + vae_kld_cost
     vae_obs_costs = vae_obs_nlls + vae_obs_klds
     # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + (lam_kld[0] * alt_kld_cost) + vae_reg_cost
+    full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
     full_cost_inf = full_cost_gen
 else:
     # run an inference and reconstruction pass through the generative stuff
@@ -401,9 +403,11 @@ else:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
-                    do_sum=False), axis=1)
+    log_p_x = bce(T.flatten(Xg, 2), T.flatten(Xg_recon, 2))
+
+    # log_p_x = T.sum(log_prob_bernoulli( \
+    #                 T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
+    #                 do_sum=False), axis=1)
 
     # compute quantities used in the IWAE bound
     log_ws_vec = log_p_x + log_p_z - log_q_z
@@ -490,7 +494,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(2.0,2.0,50)
+kld_weights = np.linspace(0.01,1.0,100)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
