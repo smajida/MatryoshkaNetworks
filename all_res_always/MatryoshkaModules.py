@@ -263,9 +263,9 @@ class TdBuFCResModule(object):
     def __init__(self,
                  in_chans, fc_chans, out_shape,
                  use_fc=True,
+                 act_func='relu',
                  apply_bn=True,
                  unif_drop=0.0,
-                 act_func='relu',
                  use_bn_params=True,
                  mod_name='dm_fc'):
         assert (len(out_shape) == 3) or (len(out_shape) == 1), \
@@ -729,13 +729,13 @@ class IMConvResModule(object):
                                     T.flatten(cond_mean_td, 2),
                                     log_vars=T.flatten(cond_logvar_td, 2),
                                     do_sum=True)
-        log_q_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+        log_q_z = log_prob_gaussian(T.flatten(z_samps, 2),
                                     T.flatten(cond_mean_im, 2),
                                     log_vars=T.flatten(cond_logvar_im, 2),
                                     do_sum=True)
         # compute output of perturbation path, given these z_samps
         td_act = self._perturbation_path(td_pre_act=td_pre_act,
-                                         rand_vals=z_samps, noise=noise)
+                                         rand_vals=z_samps)
         # package results into a nice dict
         im_res_dict = {}
         im_res_dict['td_act'] = td_act
@@ -1077,7 +1077,7 @@ class IMFCResModule(object):
                                     T.flatten(cond_mean_td, 2),
                                     log_vars=T.flatten(cond_logvar_td, 2),
                                     do_sum=True)
-        log_q_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+        log_q_z = log_prob_gaussian(T.flatten(z_samps, 2),
                                     T.flatten(cond_mean_im, 2),
                                     log_vars=T.flatten(cond_logvar_im, 2),
                                     do_sum=True)
@@ -1353,12 +1353,12 @@ class IMTopModule(object):
                                     T.flatten(cond_mean_td, 2),
                                     log_vars=T.flatten(cond_logvar_td, 2),
                                     do_sum=True)
-        log_q_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+        log_q_z = log_prob_gaussian(T.flatten(z_samps, 2),
                                     T.flatten(cond_mean_im, 2),
                                     log_vars=T.flatten(cond_logvar_im, 2),
                                     do_sum=True)
         # compute output of perturbation path, given these z_samps
-        td_act = self.apply_td(rand_vals=z_samps, noise=noise)
+        td_act = self.apply_td(rand_vals=z_samps)
         # package results into a nice dict
         im_res_dict = {}
         im_res_dict['td_act'] = td_act

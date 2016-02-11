@@ -101,7 +101,7 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (7, 7)
 td_module_1 = \
-TdBuConvResModule(
+TdBuFCResModule(
     in_chans=nz0,
     fc_chans=ngfc,
     out_shape=(ngf*8, 7, 7),
@@ -128,7 +128,7 @@ TdBuConvResModule(
 # (14, 14) -> (28, 28)
 td_module_3 = \
 TdBuConvResModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*4),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
@@ -160,18 +160,6 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4]
 # Setup the bottom-up processing modules #
 # -- these do inference                  #
 ##########################################
-
-# (7, 7) -> FC
-bu_module_1 = \
-TdBuConvResModule(
-    in_chans=(ngf*8*7*7),
-    fc_chans=ngfc,
-    out_shape=(nz0,),
-    use_fc=True,
-    act_func=act_func,
-    apply_bn=use_bn,
-    mod_name='bu_mod_1'
-) # output is (batch, ngf*8, 7, 7)
 
 # (14, 14) -> (7, 7)
 bu_module_2 = \

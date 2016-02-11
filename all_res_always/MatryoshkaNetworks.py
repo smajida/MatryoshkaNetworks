@@ -287,7 +287,7 @@ class InfGenModel2(object):
         td_res_dict['td_pre_acts'] = td_pre_acts
         return result
 
-    def apply_bu(self, input):
+    def apply_bu(self, input, noise=None):
         """
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
@@ -297,7 +297,7 @@ class InfGenModel2(object):
         bu_mod_res = {}
         for i, bu_mod in enumerate(self.bu_modules):
             # apply BU module
-            bu_act, bu_pre_act = bu_mod.apply(input=bu_acts[i])
+            bu_act, bu_pre_act = bu_mod.apply(input=bu_acts[i], noise=noise)
             # collect results
             bu_acts.append(bu_act)
             bu_pre_acts.append(bu_pre_act)
@@ -310,7 +310,7 @@ class InfGenModel2(object):
         bu_res_dict['bu_mod_res'] = bu_mod_res
         return bu_res_dict
 
-    def apply_im(self, input):
+    def apply_im(self, input, noise=None):
         """
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
@@ -327,7 +327,7 @@ class InfGenModel2(object):
         kld_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input)
+        bu_res_dict = self.apply_bu(input, noise=noise)
         bu_mod_res = bu_res_dict['bu_mod_res']
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
@@ -353,6 +353,7 @@ class InfGenModel2(object):
                     # no TD module to provide pre-activations, so we go
                     # straight to the IM module
                     im_res_dict = im_module.apply_bu(bu_act=bu_act,
+                                                     noise=noise,
                                                      dist_scale=self.dist_scale)
                     # make some dummy pre-activations, for symmetry
                     td_pre_act = 0.0 * im_res_dict['td_act']
@@ -362,6 +363,7 @@ class InfGenModel2(object):
                     # go through the IM module, to get the final TD activations
                     im_res_dict = im_module.apply_im(td_pre_act=td_pre_act,
                                                      bu_pre_act=bu_pre_act,
+                                                     noise=noise,
                                                      dist_scale=self.dist_scale)
                 # record TD activations produced by current TD/IM pair
                 td_acts.append(im_res_dict['td_act'])
