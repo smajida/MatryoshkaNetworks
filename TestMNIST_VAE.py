@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_32_5x5'
+desc = 'test_vae_lrelu_mods_ngf_50_td_cond'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -59,7 +59,7 @@ nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
+ngf = 50          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
@@ -67,7 +67,7 @@ niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-use_td_cond = False # whether to use top-down conditioning in generator
+use_td_cond = True # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 
@@ -216,7 +216,7 @@ GenConvResModule(
     out_chans=(ngf*1),
     conv_chans=(ngf*1),
     rand_chans=nz1,
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -348,7 +348,7 @@ BasicConvResModule(
     in_chans=(ngf*1),
     out_chans=(ngf*2),
     conv_chans=(ngf*1),
-    filt_shape=(5,5),
+    filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',

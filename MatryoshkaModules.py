@@ -1620,7 +1620,6 @@ class InfConvMergeModule(object):
                 h4 = h3 + self.b3_td.dimshuffle('x',0,'x','x')
             # split output into "mean" and "log variance" components, for using in
             # Gaussian reparametrization.
-            h4 = tanh_clip(h4, scale=4.0)
             out_mean = h4[:,:self.rand_chans,:,:]
             out_logvar = h4[:,self.rand_chans:,:,:]
         else:
