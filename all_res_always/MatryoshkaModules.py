@@ -482,7 +482,7 @@ class IMConvResModule(object):
         # initialize conditioning layer parameters
         self.w3_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                 "{}_w3_im".format(self.mod_name))
-        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         ####################################################
@@ -528,7 +528,7 @@ class IMConvResModule(object):
             # initialize conditioning layer parameters
             self.w3_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w3_td".format(self.mod_name))
-            self.g3_td = bias_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
+            self.g3_td = gain_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
             self.params.extend([self.w3_td, self.g3_td, self.b3_td])
         return
@@ -834,7 +834,7 @@ class IMFCResModule(object):
         # initialize conditioning layer parameters
         self.w3_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
-        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         ####################################################
@@ -855,9 +855,9 @@ class IMFCResModule(object):
         # initialize perturbation layer parameters
         self.w3_pt = weight_ifn((self.fc_chans, self.td_chans),
                                 "{}_w3_pt".format(self.mod_name))
-        self.g3_pt = bias_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
+        self.g3_pt = gain_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
         self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
-        self.g4_pt = bias_ifn((self.td_chans), "{}_g4_pt".format(self.mod_name))
+        self.g4_pt = gain_ifn((self.td_chans), "{}_g4_pt".format(self.mod_name))
         self.b4_pt = bias_ifn((self.td_chans), "{}_b4_pt".format(self.mod_name))
         self.params.extend([self.w3_pt, self.g3_pt, self.b3_pt,
                             self.g4_pt, self.b4_pt])
@@ -880,7 +880,7 @@ class IMFCResModule(object):
             # initialize conditioning layer parameters
             self.w3_td = weight_ifn((self.fc_chans, 2*self.rand_chans),
                                     "{}_w3_td".format(self.mod_name))
-            self.g3_td = bias_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
+            self.g3_td = gain_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
             self.params.extend([self.w3_td, self.g3_td, self.b3_td])
         return
@@ -1179,15 +1179,15 @@ class IMTopModule(object):
         self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second hidden layer parameters
-        self.w2_im = weight_ifn((self.fc_chans, self.fc_chans),
+        self.w2_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
                                 "{}_w2_im".format(self.mod_name))
-        self.g2_im = gain_ifn((self.fc_chans), "{}_g2_im".format(self.mod_name))
-        self.b2_im = bias_ifn((self.fc_chans), "{}_b2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize conditioning layer parameters
-        self.w3_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
+        self.w3_im = weight_ifn((self.bu_chans, 2*self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
-        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         ####################################################
@@ -1200,15 +1200,15 @@ class IMTopModule(object):
         self.b1_pt = bias_ifn((self.fc_chans), "{}_b1_pt".format(self.mod_name))
         self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
         # initialize second hidden layer parameters
-        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans),
+        self.w2_pt = weight_ifn((self.fc_chans, self.td_chans),
                                 "{}_w2_pt".format(self.mod_name))
-        self.g2_pt = gain_ifn((self.fc_chans), "{}_g2_pt".format(self.mod_name))
-        self.b2_pt = bias_ifn((self.fc_chans), "{}_b2_pt".format(self.mod_name))
+        self.g2_pt = gain_ifn((self.td_chans), "{}_g2_pt".format(self.mod_name))
+        self.b2_pt = bias_ifn((self.td_chans), "{}_b2_pt".format(self.mod_name))
         self.params.extend([self.w2_pt, self.g2_pt, self.b2_pt])
         # initialize perturbation layer parameters
-        self.w3_pt = weight_ifn((self.fc_chans, self.td_chans),
+        self.w3_pt = weight_ifn((self.rand_chans, self.td_chans),
                                 "{}_w3_pt".format(self.mod_name))
-        self.g3_pt = bias_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
+        self.g3_pt = gain_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
         self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
         self.params.extend([self.w3_pt, self.g3_pt, self.b3_pt])
         return
@@ -1290,21 +1290,22 @@ class IMTopModule(object):
         """
         .
         """
-        h_im = self._apply_fc_1(h=input, w=self.w1_im, g=self.g1_im,
-                                b=self.b1_im, noise=noise)
-
-        # pop = printing.Print('_bu_cond_path -- val 1:', attrs = [ 'shape' ])
-        # h_im = pop(h_im)
-
         if self.cond_layers == 2:
-            h_im = self._apply_fc_1(h=h_im, w=self.w2_im, g=self.g2_im,
-                                    b=self.b2_im, noise=noise)
-        cond_vals = self._apply_fc_2(h=h_im, w=self.w3_im, g=self.g3_im,
-                                     b=self.b3_im, noise=noise)
-
-        # pop = printing.Print('_bu_cond_path -- val 2:', attrs = [ 'shape' ])
-        # cond_vals = pop(cond_vals)
-
+            # fprop through hidden layer
+            h_im = self._apply_fc_1(h=input, w=self.w1_im, g=self.g1_im,
+                                    b=self.b1_im, noise=noise)
+            cv1 = self._apply_fc_2(h=h_im, w=self.w2_im, g=self.g2_im,
+                                   b=self.b2_im, noise=noise)
+            # fprop through direct connection
+            cv2 = self._apply_fc_2(h=input, w=self.w3_im, g=self.g3_im,
+                                   b=self.b3_im, noise=noise)
+            # combine results
+            cond_vals = cv1 + cv2
+        else:
+            #fprop through direct connection only
+            cond_vals = self._apply_fc_2(h=input, w=self.w3_im, g=self.g3_im,
+                                         b=self.b3_im, noise=noise)
+        # split vals into means and logvars
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:]
         return cond_mean, cond_logvar
@@ -1313,28 +1314,22 @@ class IMTopModule(object):
         """
         .
         """
-        # transform through first hidden layer
-        h_pt = self._apply_fc_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
-                                b=self.b1_pt, noise=noise)
-
-        # pop = printing.Print('_td_gen_path -- val 1:', attrs = [ 'shape' ])
-        # h_pt = pop(h_pt)
-
-        # transform through second hidden layer, if desired
         if self.pert_layers == 2:
-            h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
+            # fprop through first hidden layer
+            h_pt = self._apply_fc_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
+                                    b=self.b1_pt, noise=noise)
+            # fprop to get the fancy activations
+            act1 = self._apply_fc_2(h=h_pt, w=self.w2_pt, g=self.g2_pt,
                                     b=self.b2_pt, noise=noise)
-        
-        # pop = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
-        # h_pt = pop(h_pt)
-
-        # apply final fc layer to get perturbation for td_pre_act
-        td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
-                                  b=self.b3_pt, noise=noise)
-
-        # pop = printing.Print('_td_gen_path -- val 3:', attrs = [ 'shape' ])
-        # td_act = pop(td_act)
-
+            # fprop to get the simple activations
+            act2 = self._apply_fc_2(h=rand_vals, w=self.w3_pt, g=self.g3_pt,
+                                    b=self.b3_pt, noise=noise)
+            td_act = act1 + act2
+        else:
+            # fprop only for the simple activations
+            td_act = self._apply_fc_2(h=rand_vals, w=self.w3_pt, g=self.g3_pt,
+                                      b=self.b3_pt, noise=noise)
+        # apply non-linearity
         td_act = self.act_func(td_act)
         return td_act
 
