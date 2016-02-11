@@ -117,7 +117,7 @@ GenFCResModule(
     out_chans=(ngf*8),
     fc_chans=(ngf*8),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -143,7 +143,7 @@ GenFCResModule(
     out_chans=(ngf*8),
     fc_chans=(ngf*8),
     rand_chans=nz1,
-    use_rand=False,
+    use_rand=multi_rand,
     use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
@@ -365,11 +365,11 @@ if iwae_samples == 1:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = bce(T.flatten(Xg, 2), T.flatten(Xg_recon, 2))
+    #log_p_x = T.sum(bce(T.flatten(Xg_recon, 2), T.flatten(Xg, 2)), axis=1)
 
-    # log_p_x = T.sum(log_prob_bernoulli( \
-    #                 T.flatten(Xg,2), T.flatten(Xg_recon,2),
-    #                 do_sum=False), axis=1)
+    log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                    do_sum=False), axis=1)
 
     # compute reconstruction error part of free-energy
     vae_obs_nlls = -1.0 * log_p_x
@@ -403,11 +403,11 @@ else:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = bce(T.flatten(Xg, 2), T.flatten(Xg_recon, 2))
+    # log_p_x = T.sum(bce(T.flatten(Xg_recon, 2), T.flatten(Xg, 2)), axis=1)
 
-    # log_p_x = T.sum(log_prob_bernoulli( \
-    #                 T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
-    #                 do_sum=False), axis=1)
+    log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
+                    do_sum=False), axis=1)
 
     # compute quantities used in the IWAE bound
     log_ws_vec = log_p_x + log_p_z - log_q_z

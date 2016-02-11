@@ -7,7 +7,8 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, reparametrize
+from lib.costs import gaussian_kld, log_prob_gaussian
 from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
@@ -719,7 +720,7 @@ class IMConvResModule(object):
         cond_mean_td = 0.0 * cond_mean_im
         cond_logvar_td = 0.0 * cond_logvar_im
         # sample latent variables conditioned on the result
-        z_samps = repararametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
+        z_samps = reparametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
         # get KLd, log_p_z, and log_q_z info.
         kld = gaussian_kld(T.flatten(cond_mean_im, 2),
                            T.flatten(cond_logvar_im, 2),
@@ -1067,7 +1068,7 @@ class IMFCResModule(object):
         cond_mean_td = 0.0 * cond_mean_im
         cond_logvar_td = 0.0 * cond_logvar_im
         # sample latent variables conditioned on the result
-        z_samps = repararametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
+        z_samps = reparametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
         # get KLd, log_p_z, and log_q_z info.
         kld = gaussian_kld(T.flatten(cond_mean_im, 2),
                            T.flatten(cond_logvar_im, 2),
@@ -1313,7 +1314,7 @@ class IMTopModule(object):
         # apply final fc layer to get perturbation for td_pre_act
         td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                   b=self.b3_pt, noise=noise)
-        td_act = self.act_func(td_pre_act)
+        td_act = self.act_func(td_act)
         return td_act
 
     def apply_td(self, rand_vals, noise=None):
@@ -1343,7 +1344,7 @@ class IMTopModule(object):
         cond_mean_td = 0.0 * cond_mean_im
         cond_logvar_td = 0.0 * cond_logvar_im
         # sample latent variables conditioned on the result
-        z_samps = repararametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
+        z_samps = reparametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
         # get KLd, log_p_z, and log_q_z info.
         kld = gaussian_kld(T.flatten(cond_mean_im, 2),
                            T.flatten(cond_logvar_im, 2),

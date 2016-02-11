@@ -30,10 +30,9 @@ from load import load_binarized_mnist
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, TDConvResModule, \
-                              TDFCModule, IMConvResModule, \
-                              IMFCModule, BasicConvResModule
-from MatryoshkaNetworks import InfGenModel
+from MatryoshkaModules import IMTopModule, IMConvResModule, \
+                              TdBuConvResModule, TdBuFCResModule
+from MatryoshkaNetworks import InfGenModel2
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
@@ -271,7 +270,7 @@ merge_info = {
 }
 
 # construct the "wrapper" object for managing all our modules
-inf_gen_model = InfGenModel(
+inf_gen_model = InfGenModel2(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,

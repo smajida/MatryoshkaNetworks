@@ -285,7 +285,7 @@ class InfGenModel2(object):
         td_res_dict = {}
         td_res_dict['td_acts'] = td_acts
         td_res_dict['td_pre_acts'] = td_pre_acts
-        return result
+        return td_res_dict
 
     def apply_bu(self, input, noise=None):
         """
@@ -347,8 +347,8 @@ class InfGenModel2(object):
                 bu_module = self.bu_module_dict[bu_mod_name]
                 # get the BU pre-activations that we'll merge with this TD
                 # module's pre-activations.
-                bu_act = bu_mod_res[bu_mod_name]['act']
-                bu_pre_act = bu_mod_res[bu_mod_name]['pre_act']
+                bu_act = bu_mod_res[bu_mod_name]['bu_act']
+                bu_pre_act = bu_mod_res[bu_mod_name]['bu_pre_act']
                 if i == 0:
                     # no TD module to provide pre-activations, so we go
                     # straight to the IM module
@@ -378,7 +378,7 @@ class InfGenModel2(object):
                 # perturbed stochastically. These TD modules receive an
                 # activation as input, and produce an activation as output.
                 td_act, td_pre_act = td_module.apply(input=td_acts[-1])
-                td_acts.append(td_act_i)
+                td_acts.append(td_act)
                 td_pre_acts.append(td_pre_act)
         # package results into a nice dict
         im_res_dict = {}
