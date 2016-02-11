@@ -265,8 +265,7 @@ class InfGenModel2(object):
                     # module here... no need to apply it. Conceptually, we can
                     # think of this as a TD module whose output is 0 everywhere
                     # and the IM module transforms it as described below.
-                    td_act = im_module.apply_td(td_pre_act=None,
-                                                rand_vals=rvs)
+                    td_act = im_module.apply_td(rand_vals=rvs)
                     td_pre_act = 0.0 * td_act
                 else:
                     # internal module in network, need to apply the TD module
@@ -348,12 +347,12 @@ class InfGenModel2(object):
                 bu_module = self.bu_module_dict[bu_mod_name]
                 # get the BU pre-activations that we'll merge with this TD
                 # module's pre-activations.
+                bu_act = bu_mod_res[bu_mod_name]['act']
                 bu_pre_act = bu_mod_res[bu_mod_name]['pre_act']
                 if i == 0:
                     # no TD module to provide pre-activations, so we go
                     # straight to the IM module
-                    im_res_dict = im_module.apply_im(td_pre_act=None,
-                                                     bu_pre_act=bu_pre_act,
+                    im_res_dict = im_module.apply_bu(bu_act=bu_act,
                                                      dist_scale=self.dist_scale)
                     # make some dummy pre-activations, for symmetry
                     td_pre_act = 0.0 * im_res_dict['td_act']

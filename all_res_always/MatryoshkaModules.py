@@ -261,7 +261,7 @@ class TdBuFCResModule(object):
     Module fully-connected residual-type transform.
     """
     def __init__(self,
-                 in_dim, fc_dim, out_shape,
+                 in_chans, fc_chans, out_shape,
                  use_fc=True,
                  apply_bn=True,
                  unif_drop=0.0,
@@ -270,15 +270,15 @@ class TdBuFCResModule(object):
                  mod_name='dm_fc'):
         assert (len(out_shape) == 3) or (len(out_shape) == 1), \
                 "out_shape should describe the input to conv or fc layer."
-        self.in_dim = in_dim
-        self.fc_dim = fc_dim
+        self.in_chans = in_chans
+        self.fc_chans = fc_chans
         self.out_shape = out_shape
         if len(out_shape) == 1:
             # output is going to a fully-connected layer
-            self.out_dim = out_shape[0]
+            self.out_chans = out_shape[0]
         else:
             # output is goind to a conv layer
-            self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
+            self.out_chans = out_shape[0] * out_shape[1] * out_shape[2]
         self.use_fc = use_fc
         self.apply_bn = apply_bn
         self.unif_drop = unif_drop
@@ -306,22 +306,22 @@ class TdBuFCResModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first layer parameters
-        self.w1 = weight_ifn((self.in_dim, self.fc_dim),
+        self.w1 = weight_ifn((self.in_chans, self.fc_chans),
                              "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
+        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize second layer parameters
-        self.w2 = weight_ifn((self.fc_dim, self.out_dim),
+        self.w2 = weight_ifn((self.fc_chans, self.out_chans),
                              "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((self.out_dim), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((self.out_dim), "{}_b2".format(self.mod_name))
+        self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize single layer parameters
-        self.w3 = weight_ifn((self.in_dim, self.out_dim),
+        self.w3 = weight_ifn((self.in_chans, self.out_chans),
                              "{}_w3".format(self.mod_name))
-        self.g3 = gain_ifn((self.out_dim), "{}_g3".format(self.mod_name))
-        self.b3 = bias_ifn((self.out_dim), "{}_b3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         return
 
@@ -382,11 +382,10 @@ class TdBuFCResModule(object):
             pre_act = h2 + self.b3.dimshuffle('x',0)
         if len(self.out_shape) == 3:
             # output is for a convolutional layer, so we need to reshape it
-            pre_act = h3.reshape((h3.shape[0], self.out_shape[0], \
-                                  self.out_shape[1], self.out_shape[2]))
+            pre_act = pre_act.reshape((pre_act.shape[0], self.out_shape[0], \
+                                       self.out_shape[1], self.out_shape[2]))
         act = self.act_func(pre_act)
         return result
-
 
 
 
@@ -481,8 +480,9 @@ class IMConvResModule(object):
         # initialize conditioning layer parameters
         self.w3_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                 "{}_w3_im".format(self.mod_name))
+        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         ####################################################
         # Initialize parameters for the perturbation path. #
         ####################################################
@@ -501,8 +501,12 @@ class IMConvResModule(object):
         # initialize perturbation layer parameters
         self.w3_pt = weight_ifn((self.td_chans, self.conv_chans, 3, 3),
                                 "{}_w3_pt".format(self.mod_name))
-        self.b3_pt = bias_ifn(self.td_chans, "{}_b3_pt".format(self.mod_name))
-        self.params.extend([self.w3_pt, self.b3_pt])
+        self.g3_pt = gain_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
+        self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
+        self.g4_pt = gain_ifn((self.td_chans), "{}_g4_pt".format(self.mod_name))
+        self.b4_pt = bias_ifn((self.td_chans), "{}_b4_pt".format(self.mod_name))
+        self.params.extend([self.w3_pt, self.g3_pt, self.b3_pt,
+                            self.g4_pt, self.b4_pt])
         #######################################################
         # Initialize parameters for the TD conditioning path. #
         #######################################################
@@ -522,8 +526,9 @@ class IMConvResModule(object):
             # initialize conditioning layer parameters
             self.w3_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w3_td".format(self.mod_name))
+            self.g3_td = bias_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
-            self.params.extend([self.w3_td, self.b3_td])
+            self.params.extend([self.w3_td, self.g3_td, self.b3_td])
         return
 
     def load_params(self, param_dict):
@@ -538,6 +543,7 @@ class IMConvResModule(object):
         self.g2_im.set_value(floatX(param_dict['g2_im']))
         self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         # load perturbation path parameters
         self.w1_pt.set_value(floatX(param_dict['w1_pt']))
@@ -547,7 +553,10 @@ class IMConvResModule(object):
         self.g2_pt.set_value(floatX(param_dict['g2_pt']))
         self.b2_pt.set_value(floatX(param_dict['b2_pt']))
         self.w3_pt.set_value(floatX(param_dict['w3_pt']))
+        self.g3_pt.set_value(floatX(param_dict['g3_pt']))
         self.b3_pt.set_value(floatX(param_dict['b3_pt']))
+        self.g4_pt.set_value(floatX(param_dict['g4_pt']))
+        self.b4_pt.set_value(floatX(param_dict['b4_pt']))
         # load TD conditioning path parameters
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
@@ -557,6 +566,7 @@ class IMConvResModule(object):
             self.g2_td.set_value(floatX(param_dict['g2_td']))
             self.b2_td.set_value(floatX(param_dict['b2_td']))
             self.w3_td.set_value(floatX(param_dict['w3_td']))
+            self.g3_td.set_value(floatX(param_dict['g3_td']))
             self.b3_td.set_value(floatX(param_dict['b3_td']))
         return
 
@@ -573,6 +583,7 @@ class IMConvResModule(object):
         param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
         param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
         # dump perturbation path parameters
         param_dict['w1_pt'] = self.w1_pt.get_value(borrow=False)
@@ -582,7 +593,10 @@ class IMConvResModule(object):
         param_dict['g2_pt'] = self.g2_pt.get_value(borrow=False)
         param_dict['b2_pt'] = self.b2_pt.get_value(borrow=False)
         param_dict['w3_pt'] = self.w3_pt.get_value(borrow=False)
+        param_dict['g3_pt'] = self.g3_pt.get_value(borrow=False)
         param_dict['b3_pt'] = self.b3_pt.get_value(borrow=False)
+        param_dict['g4_pt'] = self.g4_pt.get_value(borrow=False)
+        param_dict['b4_pt'] = self.b4_pt.get_value(borrow=False)
         # dump TD conditioning path parameters
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
@@ -592,6 +606,7 @@ class IMConvResModule(object):
             param_dict['g2_td'] = self.g2_td.get_value(borrow=False)
             param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
             param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
+            param_dict['g3_td'] = self.g3_td.get_value(borrow=False)
             param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
         return param_dict
 
@@ -625,7 +640,7 @@ class IMConvResModule(object):
             h_td = self._apply_conv_1(h=h_td, w=self.w2_td, g=self.g2_td,
                                       b=self.b2_td, noise=noise)
         cond_vals = self._apply_conv_2(h=h_td, w=self.w3_td, g=self.g3_td,
-                                       b=self.b3_td, noise=noise)
+                                       b=self.b3_td)
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans,:,:]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:,:,:]
         return cond_mean, cond_logvar
@@ -640,7 +655,7 @@ class IMConvResModule(object):
             h_im = self._apply_conv_1(h=h_im, w=self.w2_im, g=self.g2_im,
                                       b=self.b2_im, noise=noise)
         cond_vals = self._apply_conv_2(h=h_im, w=self.w3_im, g=self.g3_im,
-                                       b=self.b3_im, noise=noise)
+                                       b=self.b3_im)
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans,:,:]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:,:,:]
         return cond_mean, cond_logvar
@@ -660,7 +675,15 @@ class IMConvResModule(object):
         # apply final conv layer to get perturbation for td_pre_act
         td_act_pert = self._apply_conv_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                          b=self.b3_pt, noise=noise)
-        td_pre_act = td_pre_act + td_act_pert
+        # apply perturbation to pre-activation
+        if td_pre_act is None:
+            td_pre_act = td_act_pert
+        else:
+            td_pre_act = td_pre_act + td_act_pert
+        # apply batch normalization
+        td_pre_act = switchy_bn(td_pre_act, g=self.g4_pt, b=self.b4_pt,
+                                n=noise, use_gb=self.use_bn_params)
+        # apply activation function
         td_act = self.act_func(td_pre_act)
         return td_act
 
@@ -725,7 +748,7 @@ class IMConvResModule(object):
 # TD/BU INFO-MERGING FULLY-CONNECTED MODULE #
 #############################################
 
-class IMFCModule(object):
+class IMFCResModule(object):
     """
     Module for merging bottom-up and top-down information in a deep generative
     network with multiple layers of latent variables. This is fully-connected.
@@ -809,8 +832,9 @@ class IMFCModule(object):
         # initialize conditioning layer parameters
         self.w3_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
+        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         ####################################################
         # Initialize parameters for the perturbation path. #
         ####################################################
@@ -829,8 +853,12 @@ class IMFCModule(object):
         # initialize perturbation layer parameters
         self.w3_pt = weight_ifn((self.fc_chans, self.td_chans),
                                 "{}_w3_pt".format(self.mod_name))
-        self.b3_pt = bias_ifn(self.td_chans, "{}_b3_pt".format(self.mod_name))
-        self.params.extend([self.w3_pt, self.b3_pt])
+        self.g3_pt = bias_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
+        self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
+        self.g4_pt = bias_ifn((self.td_chans), "{}_g4_pt".format(self.mod_name))
+        self.b4_pt = bias_ifn((self.td_chans), "{}_b4_pt".format(self.mod_name))
+        self.params.extend([self.w3_pt, self.g3_pt, self.b3_pt,
+                            self.g4_pt, self.b4_pt])
         #######################################################
         # Initialize parameters for the TD conditioning path. #
         #######################################################
@@ -850,8 +878,9 @@ class IMFCModule(object):
             # initialize conditioning layer parameters
             self.w3_td = weight_ifn((self.fc_chans, 2*self.rand_chans),
                                     "{}_w3_td".format(self.mod_name))
+            self.g3_td = bias_ifn((2*self.rand_chans), "{}_g3_td".format(self.mod_name))
             self.b3_td = bias_ifn((2*self.rand_chans), "{}_b3_td".format(self.mod_name))
-            self.params.extend([self.w3_td, self.b3_td])
+            self.params.extend([self.w3_td, self.g3_td, self.b3_td])
         return
 
     def load_params(self, param_dict):
@@ -866,6 +895,7 @@ class IMFCModule(object):
         self.g2_im.set_value(floatX(param_dict['g2_im']))
         self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         # load perturbation path parameters
         self.w1_pt.set_value(floatX(param_dict['w1_pt']))
@@ -875,7 +905,10 @@ class IMFCModule(object):
         self.g2_pt.set_value(floatX(param_dict['g2_pt']))
         self.b2_pt.set_value(floatX(param_dict['b2_pt']))
         self.w3_pt.set_value(floatX(param_dict['w3_pt']))
+        self.g3_pt.set_value(floatX(param_dict['g3_pt']))
         self.b3_pt.set_value(floatX(param_dict['b3_pt']))
+        self.g4_pt.set_value(floatX(param_dict['g4_pt']))
+        self.b4_pt.set_value(floatX(param_dict['b4_pt']))
         # load TD conditioning path parameters
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
@@ -885,6 +918,7 @@ class IMFCModule(object):
             self.g2_td.set_value(floatX(param_dict['g2_td']))
             self.b2_td.set_value(floatX(param_dict['b2_td']))
             self.w3_td.set_value(floatX(param_dict['w3_td']))
+            self.g3_td.set_value(floatX(param_dict['g3_td']))
             self.b3_td.set_value(floatX(param_dict['b3_td']))
         return
 
@@ -901,6 +935,7 @@ class IMFCModule(object):
         param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
         param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
         # dump perturbation path parameters
         param_dict['w1_pt'] = self.w1_pt.get_value(borrow=False)
@@ -910,7 +945,10 @@ class IMFCModule(object):
         param_dict['g2_pt'] = self.g2_pt.get_value(borrow=False)
         param_dict['b2_pt'] = self.b2_pt.get_value(borrow=False)
         param_dict['w3_pt'] = self.w3_pt.get_value(borrow=False)
+        param_dict['g3_pt'] = self.g3_pt.get_value(borrow=False)
         param_dict['b3_pt'] = self.b3_pt.get_value(borrow=False)
+        param_dict['g4_pt'] = self.g4_pt.get_value(borrow=False)
+        param_dict['b4_pt'] = self.b4_pt.get_value(borrow=False)
         # dump TD conditioning path parameters
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
@@ -920,6 +958,7 @@ class IMFCModule(object):
             param_dict['g2_td'] = self.g2_td.get_value(borrow=False)
             param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
             param_dict['w3_td'] = self.w3_td.get_value(borrow=False)
+            param_dict['g3_td'] = self.g3_td.get_value(borrow=False)
             param_dict['b3_td'] = self.b3_td.get_value(borrow=False)
         return param_dict
 
@@ -988,7 +1027,11 @@ class IMFCModule(object):
         # apply final fc layer to get perturbation for td_pre_act
         td_act_pert = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                        b=self.b3_pt, noise=noise)
+        # apply the perturbation
         td_pre_act = td_pre_act + td_act_pert
+        # renormalize the perturbed pre-activation, and apply act_func
+        td_pre_act = switchy_bn(td_pre_act, g=self.g4_pt, b=self.b4_pt,
+                                n=noise, use_gb=self.use_bn_params)
         td_act = self.act_func(td_pre_act)
         return td_act
 
@@ -1049,6 +1092,280 @@ class IMFCModule(object):
         im_res_dict['log_q_z'] = log_q_z
         return im_res_dict
 
+################################################################
+# TD/BU INFO-MERGING FULLY-CONNECTED MODULE -- FOR NETWORK TOP #
+################################################################
+
+class IMTopModule(object):
+    """
+    Module for merging bottom-up and top-down information in a deep generative
+    network with multiple layers of latent variables. This is fully-connected.
+
+    Params:
+        td_shape: shape of the "top-down" outputs from module
+        bu_shape: shape of the "bottom-up" inputs to module
+        rand_chans: number of latent channels that we want conditionals for
+        fc_chans: number of channels in the "internal" fully-connected layers
+        cond_layers: hidden layers in conditioning transform (1 or 2)
+        pert_layers: hidden layers in the perturbation transform (1 or 2)
+        act_func: ---
+        unif_drop: drop rate for uniform dropout
+        apply_bn: whether to apply batch normalization
+        use_bn_params: whether to use BN params
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 td_shape, bu_shape, rand_chans, fc_chans,
+                 cond_layers=1, pert_layers=1,
+                 unif_drop=0.0,
+                 act_func='relu',
+                 apply_bn=True,
+                 use_bn_params=True,
+                 mod_name='im_fc_mod'):
+        assert (cond_layers in [1, 2]), \
+                "cond_layers must be 1 or 2."
+        assert (pert_layers in [1, 2]), \
+                "pert_layers must be 1 or 2."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.td_shape = td_shape
+        self.bu_shape = bu_shape
+        if len(td_shape) == 3:
+            self.td_chans = td_shape[0] * td_shape[1] * td_shape[2]
+        else:
+            self.td_chans = td_shape[0]
+        if len(bu_shape) == 3:
+            self.bu_chans = bu_shape[0] * bu_shape[1] * bu_shape[2]
+        else:
+            self.bu_chans = bu_shape[0]
+        self.rand_chans = rand_chans
+        self.fc_chans = fc_chans
+        self.cond_layers = cond_layers
+        self.pert_layers = pert_layers
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.apply_bn = apply_bn
+        self.use_bn_params = use_bn_params
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this generator module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        #######################################################
+        # Initialize parameters for the IM conditioning path. #
+        #######################################################
+        # initialize first hidden layer parameters
+        self.w1_im = weight_ifn((self.bu_chans, self.fc_chans),
+                                "{}_w1_im".format(self.mod_name))
+        self.g1_im = gain_ifn((self.fc_chans), "{}_g1_im".format(self.mod_name))
+        self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize second hidden layer parameters
+        self.w2_im = weight_ifn((self.fc_chans, self.fc_chans),
+                                "{}_w2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((self.fc_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((self.fc_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
+        self.w3_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
+                                "{}_w3_im".format(self.mod_name))
+        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        ####################################################
+        # Initialize parameters for the perturbation path. #
+        ####################################################
+        # initialize first hidden layer parameters
+        self.w1_pt = weight_ifn((self.rand_chans, self.fc_chans),
+                                "{}_w1_pt".format(self.mod_name))
+        self.g1_pt = gain_ifn((self.fc_chans), "{}_g1_pt".format(self.mod_name))
+        self.b1_pt = bias_ifn((self.fc_chans), "{}_b1_pt".format(self.mod_name))
+        self.params.extend([self.w1_pt, self.g1_pt, self.b1_pt])
+        # initialize second hidden layer parameters
+        self.w2_pt = weight_ifn((self.fc_chans, self.fc_chans, 3, 3),
+                                "{}_w2_pt".format(self.mod_name))
+        self.g2_pt = gain_ifn((self.fc_chans), "{}_g2_pt".format(self.mod_name))
+        self.b2_pt = bias_ifn((self.fc_chans), "{}_b2_pt".format(self.mod_name))
+        self.params.extend([self.w2_pt, self.g2_pt, self.b2_pt])
+        # initialize perturbation layer parameters
+        self.w3_pt = weight_ifn((self.fc_chans, self.td_chans),
+                                "{}_w3_pt".format(self.mod_name))
+        self.g3_pt = bias_ifn((self.td_chans), "{}_g3_pt".format(self.mod_name))
+        self.b3_pt = bias_ifn((self.td_chans), "{}_b3_pt".format(self.mod_name))
+        self.params.extend([self.w3_pt, self.g3_pt, self.b3_pt])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load model params directly from a dict of numpy arrays.
+        """
+        # load IM conditioning path parameters
+        self.w1_im.set_value(floatX(param_dict['w1_im']))
+        self.g1_im.set_value(floatX(param_dict['g1_im']))
+        self.b1_im.set_value(floatX(param_dict['b1_im']))
+        self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
+        self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
+        self.b3_im.set_value(floatX(param_dict['b3_im']))
+        # load perturbation path parameters
+        self.w1_pt.set_value(floatX(param_dict['w1_pt']))
+        self.g1_pt.set_value(floatX(param_dict['g1_pt']))
+        self.b1_pt.set_value(floatX(param_dict['b1_pt']))
+        self.w2_pt.set_value(floatX(param_dict['w2_pt']))
+        self.g2_pt.set_value(floatX(param_dict['g2_pt']))
+        self.b2_pt.set_value(floatX(param_dict['b2_pt']))
+        self.w3_pt.set_value(floatX(param_dict['w3_pt']))
+        self.g3_pt.set_value(floatX(param_dict['g3_pt']))
+        self.b3_pt.set_value(floatX(param_dict['b3_pt']))
+        return
+
+    def dump_params(self):
+        """
+        Dump model params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        # dump IM conditioning path parameters
+        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
+        param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
+        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
+        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
+        param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
+        param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        # dump perturbation path parameters
+        param_dict['w1_pt'] = self.w1_pt.get_value(borrow=False)
+        param_dict['g1_pt'] = self.g1_pt.get_value(borrow=False)
+        param_dict['b1_pt'] = self.b1_pt.get_value(borrow=False)
+        param_dict['w2_pt'] = self.w2_pt.get_value(borrow=False)
+        param_dict['g2_pt'] = self.g2_pt.get_value(borrow=False)
+        param_dict['b2_pt'] = self.b2_pt.get_value(borrow=False)
+        param_dict['w3_pt'] = self.w3_pt.get_value(borrow=False)
+        param_dict['g3_pt'] = self.g3_pt.get_value(borrow=False)
+        param_dict['b3_pt'] = self.b3_pt.get_value(borrow=False)
+        return param_dict
+
+    def _apply_fc_1(self, h, w, g, b, noise=None):
+        h = T.dot(h, w)
+        if self.apply_bn:
+            h = switchy_bn(h, g=g, b=b, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            h = h + b.dimshuffle('x',0)
+        h = self.act_func(h)
+        h = fc_drop_func(h, self.unif_drop)
+        return h
+
+    def _apply_fc_2(self, h, w, g, b, noise=None):
+        h = T.dot(h, w)
+        if self.apply_bn:
+            h = switchy_bn(h, g=g, b=b, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            h = h + b.dimshuffle('x',0)
+        return h
+
+    def _bu_conditioning_path(self, input, noise=None, dist_scale=[1.0]):
+        """
+        .
+        """
+        h_im = self._apply_fc_1(h=input, w=self.w1_im, g=self.g1_im,
+                                b=self.b1_im, noise=noise)
+        if self.cond_layers == 2:
+            h_im = self._apply_fc_1(h=h_im, w=self.w2_im, g=self.g2_im,
+                                    b=self.b2_im, noise=noise)
+        cond_vals = self._apply_fc_2(h=h_im, w=self.w3_im, g=self.g3_im,
+                                     b=self.b3_im, noise=noise)
+        cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans]
+        cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:]
+        return cond_mean, cond_logvar
+
+    def _td_generation_path(self, rand_vals, noise=None):
+        """
+        .
+        """
+        # transform through first hidden layer
+        h_pt = self._apply_fc_1(h=rand_vals, w=self.w1_pt, g=self.g1_pt,
+                                b=self.b1_pt, noise=noise)
+        # transform through second hidden layer, if desired
+        if self.pert_layers == 2:
+            h_pt = self._apply_fc_1(h=h_pt, w=self.w2_pt, g=self.g2_pt,
+                                    b=self.b2_pt, noise=noise)
+        # apply final fc layer to get perturbation for td_pre_act
+        td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
+                                  b=self.b3_pt, noise=noise)
+        td_act = self.act_func(td_pre_act)
+        return td_act
+
+    def apply_td(self, rand_vals, noise=None):
+        """
+        .
+        """
+        td_act = self._td_generation_path(rand_vals=rand_vals,
+                                          noise=noise)
+        if len(self.td_shape) == 3:
+            # output is going to conv layer
+            td_act = td_act.reshape((td_act.shape[0], self.td_shape[0],
+                                     self.td_shape[1], self.td_shape[2]))
+        return td_act
+
+    def apply_bu(self, bu_act, noise=None, dist_scale=[1.0]):
+        """
+        .
+        """
+        # flatten bottom-up input for use in fully-connected layers
+        input = T.flatten(bu_act, 2)
+        # do dropout
+        input = fc_drop_func(input, self.unif_drop)
+        # process the "BU conditioning path".
+        cond_mean_im, cond_logvar_im = \
+            self._bu_conditioning_path(input, noise=noise,
+                                       dist_scale=dist_scale)
+        cond_mean_td = 0.0 * cond_mean_im
+        cond_logvar_td = 0.0 * cond_logvar_im
+        # sample latent variables conditioned on the result
+        z_samps = repararametrize(cond_mean_im, cond_logvar_im, rng=cu_rng)
+        # get KLd, log_p_z, and log_q_z info.
+        kld = gaussian_kld(T.flatten(cond_mean_im, 2),
+                           T.flatten(cond_logvar_im, 2),
+                           T.flatten(cond_mean_td, 2),
+                           T.flatten(cond_logvar_td, 2))
+        log_p_z = log_prob_gaussian(T.flatten(z_samps, 2),
+                                    T.flatten(cond_mean_td, 2),
+                                    log_vars=T.flatten(cond_logvar_td, 2),
+                                    do_sum=True)
+        log_q_z = log_prob_gaussian(T.flatten(rand_vals, 2),
+                                    T.flatten(cond_mean_im, 2),
+                                    log_vars=T.flatten(cond_logvar_im, 2),
+                                    do_sum=True)
+        # compute output of perturbation path, given these z_samps
+        td_act = self.apply_td(rand_vals=z_samps, noise=noise)
+        # package results into a nice dict
+        im_res_dict = {}
+        im_res_dict['td_act'] = td_act
+        im_res_dict['kld'] = kld
+        im_res_dict['log_p_z'] = log_p_z
+        im_res_dict['log_q_z'] = log_q_z
+        return im_res_dict
 
 
 
