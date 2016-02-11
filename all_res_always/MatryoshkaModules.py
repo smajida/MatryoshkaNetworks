@@ -1301,6 +1301,10 @@ class IMTopModule(object):
                                     b=self.b2_im, noise=noise)
         cond_vals = self._apply_fc_2(h=h_im, w=self.w3_im, g=self.g3_im,
                                      b=self.b3_im, noise=noise)
+
+        pop = printing.Print('_bu_cond_path -- val 2:', attrs = [ 'shape' ])
+        cond_vals = pop(cond_vals)
+
         cond_mean = dist_scale[0] * cond_vals[:,:self.rand_chans]
         cond_logvar = dist_scale[0] * cond_vals[:,self.rand_chans:]
         return cond_mean, cond_logvar
@@ -1323,6 +1327,10 @@ class IMTopModule(object):
         # apply final fc layer to get perturbation for td_pre_act
         td_act = self._apply_fc_2(h=h_pt, w=self.w3_pt, g=self.g3_pt,
                                   b=self.b3_pt, noise=noise)
+
+        pop = printing.Print('_td_gen_path -- val 2:', attrs = [ 'shape' ])
+        td_act = pop(td_act)
+
         td_act = self.act_func(td_act)
         return td_act
 
@@ -1332,10 +1340,18 @@ class IMTopModule(object):
         """
         td_act = self._td_generation_path(rand_vals=rand_vals,
                                           noise=noise)
+
+        pop = printing.Print('apply_td -- val 1:', attrs = [ 'shape' ])
+        td_act = pop(td_act)
+
         if len(self.td_shape) == 3:
             # output is going to conv layer
             td_act = td_act.reshape((td_act.shape[0], self.td_shape[0],
                                      self.td_shape[1], self.td_shape[2]))
+
+
+        pop = printing.Print('apply_td -- val 2:', attrs = [ 'shape' ])
+        td_act = pop(td_act)
         return td_act
 
     def apply_bu(self, bu_act, noise=None, dist_scale=[1.0]):
@@ -1346,7 +1362,6 @@ class IMTopModule(object):
         input = T.flatten(bu_act, 2)
 
         pop = printing.Print('apply_bu -- val 1:', attrs = [ 'shape' ])
-
         input = pop(input)
 
         # do dropout
@@ -1374,6 +1389,10 @@ class IMTopModule(object):
                                     do_sum=True)
         # compute output of perturbation path, given these z_samps
         td_act = self.apply_td(rand_vals=z_samps)
+
+        pop = printing.Print('apply_bu -- val 2:', attrs = [ 'shape' ])
+        td_act = pop(td_act)
+
         # package results into a nice dict
         im_res_dict = {}
         im_res_dict['td_act'] = td_act
