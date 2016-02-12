@@ -528,6 +528,7 @@ class InfGenModel(object):
                     else:
                         # use samples without reparametrizing
                         cond_rvs = rvs
+                    cond_rvs = 0.1 * cond_rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
