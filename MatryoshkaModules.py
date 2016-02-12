@@ -1350,6 +1350,9 @@ class GenFCResModule(object):
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
+        # derp a derp parameter
+        self.wx = weight_ifn((self.rand_chans, self.in_chans),
+                                "{}_wx".format(self.mod_name))
         return
 
     def load_params(self, param_dict):
@@ -1365,6 +1368,7 @@ class GenFCResModule(object):
         self.w3.set_value(floatX(param_dict['w3']))
         self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
+        self.wx.set_value(floatX(param_dict['wx']))
         return
 
     def dump_params(self):
@@ -1381,6 +1385,7 @@ class GenFCResModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
+        param_dict['wx'] = self.wx.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -1389,9 +1394,6 @@ class GenFCResModule(object):
         Apply this generator module to some input.
         """
         batch_size = input.shape[0]    # number of inputs in this batch
-
-        # apply dropout to input
-        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # get shape for random values that will augment input
         rand_shape = (batch_size, self.rand_chans)
@@ -1412,8 +1414,14 @@ class GenFCResModule(object):
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 
+        # apply dropout to input
+        input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
+
+        # TEMP TEMP TEMP
+        input = self.act_func( input + T.dot(rand_vals, self.wx) )
+
         # stack random values on top of input
-        full_input = T.concatenate([rand_vals, input], axis=1)
+        full_input = T.concatenate([0.0*rand_vals, input], axis=1)
 
         if self.use_fc:
             # apply first internal fc layer
