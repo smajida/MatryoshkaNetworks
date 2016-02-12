@@ -7,7 +7,8 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout,
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, \
+                    add_noise
                     
 from lib.theano_utils import floatX, sharedX
 
