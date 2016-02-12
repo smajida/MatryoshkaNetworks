@@ -402,10 +402,12 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
+        latent_rescale: whether to do weird latent rescaling.
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
-                 merge_info, output_transform):
+                 merge_info, output_transform,
+                 latent_rescale=False):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -432,6 +434,8 @@ class InfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
+        # derp derp
+        self.latent_rescale = latent_rescale
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
         samps = self.generate_samples(32)
@@ -528,7 +532,8 @@ class InfGenModel(object):
                     else:
                         # use samples without reparametrizing
                         cond_rvs = rvs
-                    cond_rvs = (1.0 / float(i+1)) * cond_rvs
+                    if self.latent_rescale:
+                        cond_rvs = (1.0 / float(i+1)) * cond_rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -630,7 +635,8 @@ class InfGenModel(object):
                     # reparametrize
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
-                    rand_vals = (1.0 / float(i)) * rand_vals
+                    if self.latent_rescale:
+                        rand_vals = (1.0 / float(i)) * rand_vals
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)

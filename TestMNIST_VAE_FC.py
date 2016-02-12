@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_noise_02'
+desc = 'test_fc_vae_relu_bn_noise_01_no_latent_rescale'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -69,7 +69,8 @@ use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.2  # amount of noise to inject in BU and IM modules
+noise_std = 0.1  # amount of noise to inject in BU and IM modules
+latent_rescale = False # whether to use alternative rescaling of latents
 
 ntrain = Xtr.shape[0]
 
@@ -350,7 +351,8 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform
+    output_transform=output_transform,
+    latent_rescale=latent_rescale
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -358,8 +360,8 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(floatX([1.0]))
+lam_kld = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params

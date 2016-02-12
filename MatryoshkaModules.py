@@ -204,9 +204,7 @@ class BasicFCResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
-                # add noise if desired
                 h1 = add_noise(h1, noise=noise)
-
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -224,7 +222,6 @@ class BasicFCResModule(object):
                             use_gb=self.use_bn_params)
         else:
             h4 = h4 + self.b3.dimshuffle('x',0)
-            # add noise if desired
             h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
@@ -322,7 +319,6 @@ class BasicFCModule(object):
                             use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0)
-            # add noise if desired
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
@@ -469,6 +465,7 @@ class BasicConvResModule(object):
                                     use_gb=self.use_bn_params)
                 else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                    h1 = add_noise(h1, noise=noise)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -485,6 +482,7 @@ class BasicConvResModule(object):
                                     use_gb=self.use_bn_params)
                 else:
                     h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                    h1 = add_noise(h1, noise=noise)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -506,6 +504,7 @@ class BasicConvResModule(object):
                             use_gb=self.use_bn_params)
         else:
             h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
+            h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, input.shape]
@@ -623,6 +622,7 @@ class BasicConvModule(object):
                             use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
             result = [h1, input.shape]
@@ -737,10 +737,11 @@ class DiscFCModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x', 0)
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
-            h2 = T.dot(h1, self.w2) #+ T.dot(input, self.w3)
+            h2 = T.dot(h1, self.w2) + T.dot(input, self.w3)
             y = h2
         else:
             h2 = T.dot(input, self.w3)
@@ -891,6 +892,7 @@ class DiscConvResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -908,6 +910,7 @@ class DiscConvResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
+                h4 = add_noise(h4, noise=noise)
             output = self.act_func(h4)
         else:
             # apply direct input->output "projection" layer
@@ -917,6 +920,7 @@ class DiscConvResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
+                h3 = add_noise(h3, noise=noise)
             output = self.act_func(h3)
 
         # apply discriminator layer
@@ -1060,6 +1064,7 @@ class GenTopModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
@@ -1070,6 +1075,7 @@ class GenTopModule(object):
                             use_gb=self.use_bn_params)
         else:
             h2 = h2 + self.b3.dimshuffle('x',0)
+            h2 = add_noise(h2, noise=noise)
         h2 = self.act_func(h2)
         if len(self.out_shape) > 1:
             # reshape vector outputs for use as conv layer inputs
@@ -1252,6 +1258,7 @@ class GenConvResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1269,6 +1276,7 @@ class GenConvResModule(object):
                             use_gb=self.use_bn_params)
         else:
             h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+            h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
 
         if rand_shapes:
@@ -1440,6 +1448,7 @@ class GenFCResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal fc layer
@@ -1456,6 +1465,7 @@ class GenFCResModule(object):
                             use_gb=self.use_bn_params)
         else:
             h4 = h4 + self.b3.dimshuffle('x',0)
+            h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
 
         if rand_shapes:
@@ -1624,6 +1634,7 @@ class InfConvMergeModule(object):
                                     use_gb=self.use_bn_params)
                 else:
                     h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
+                    h1 = add_noise(h1, noise=noise)
                 h1 = self.act_func(h1)
                 # apply second internal conv layer
                 h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
@@ -1662,6 +1673,7 @@ class InfConvMergeModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1819,7 +1831,6 @@ class InfFCMergeModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
-                # add noise if desired
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -1951,7 +1962,6 @@ class InfTopModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
-                # add noise if desired
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -1959,7 +1969,7 @@ class InfTopModule(object):
             h2 = T.dot(h1, self.w2)
             # feedforward directly from bu_input to output
             h3 = T.dot(bu_input, self.w3)
-            h4 = h2 + self.b3.dimshuffle('x',0) # + h3
+            h4 = h2 + self.b3.dimshuffle('x',0) + h3
         else:
             # feedforward directly from bu_input to output
             h3 = T.dot(bu_input, self.w3)
@@ -2055,6 +2065,7 @@ class MlpFCModule(object):
                             use_gb=self.use_bn_params)
         else:
             h3 = h2 + self.b1.dimshuffle('x',0)
+            h3 = add_noise(h3, noise=noise)
         h4 = self.act_func(h3)
         return h4
 

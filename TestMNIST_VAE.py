@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_64'
+desc = 'test_vae_lrelu_mods_ngf_64_noise_01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -70,6 +70,7 @@ use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
+noise_std = 0.1  # amount of noise to inject in BU and IM modules
 
 ntrain = Xtr.shape[0]
 
@@ -522,12 +523,14 @@ merge_info = {
 }
 
 # construct the "wrapper" object for managing all our modules
+output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=sigmoid
+    output_transform=output_transform,
+    latent_rescale=False
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -535,8 +538,9 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(np.zeros((1,)).astype(theano.config.floatX))
-lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
+lam_vae = sharedX(floatX([1.0]))
+lam_kld = sharedX(floatX([1.0]))
+noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -556,7 +560,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
 if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
-    im_res_dict = inf_gen_model.apply_im(Xg)
+    im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
     Xg_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
@@ -578,17 +582,24 @@ if iwae_samples == 1:
     vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
     vae_kld_cost = T.mean(vae_obs_klds)
 
+    # compute per-layer KL-divergence part of cost
+    alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+    alt_kld_cost = T.mean(sum(alt_layer_klds))
+
+    # compute the KLd cost to use for optimization
+    opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+
     # combined cost for generator stuff
     vae_cost = vae_nll_cost + vae_kld_cost
     vae_obs_costs = vae_obs_nlls + vae_obs_klds
     # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
+    full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
     full_cost_inf = full_cost_gen
 else:
     # run an inference and reconstruction pass through the generative stuff
     batch_size = Xg.shape[0]
     Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
-    im_res_dict = inf_gen_model.apply_im(Xg_rep)
+    im_res_dict = inf_gen_model.apply_im(Xg_rep, noise=noise)
     Xg_rep_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
@@ -630,7 +641,7 @@ else:
     full_cost_inf = full_cost_gen
 
     # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg)
+    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
     Xg_recon = im_rd['td_output']
 
 # run an un-grounded pass through generative stuff for sampling from model
@@ -642,7 +653,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.0002)
+lrt = sharedX(0.0004)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -687,6 +698,10 @@ sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
+    # mess with the KLd cost
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -708,6 +723,7 @@ for epoch in range(1, niter+niter_decay+1):
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
         # train vae on training batch
+        noise.set_value(floatX([noise_std]))
         g_result = g_train_func(imb_img.astype(theano.config.floatX))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
@@ -720,6 +736,7 @@ for epoch in range(1, niter+niter_decay+1):
         g_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
+            noise.set_value(floatX([0.0]))
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
