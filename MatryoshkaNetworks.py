@@ -479,7 +479,7 @@ class InfGenModel(object):
         pickle_file.close()
         return
 
-    def apply_td(self, rand_vals=None, batch_size=None):
+    def apply_td(self, rand_vals=None, batch_size=None, noise=None):
         """
         Apply this generator network using the given random values.
         """
@@ -528,7 +528,7 @@ class InfGenModel(object):
                     else:
                         # use samples without reparametrizing
                         cond_rvs = rvs
-                    cond_rvs = (1.0 / float(i)) * cond_rvs
+                    cond_rvs = (1.0 / float(i+1)) * cond_rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -542,7 +542,7 @@ class InfGenModel(object):
         result = self.output_transform(td_acts[-1])
         return result
 
-    def apply_bu(self, input):
+    def apply_bu(self, input, noise=None):
         """
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
@@ -551,15 +551,15 @@ class InfGenModel(object):
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input)
+                res = bu_mod.apply(input, noise=noise)
             else:
-                res = bu_mod.apply(bu_acts[i-1])
+                res = bu_mod.apply(bu_acts[i-1], noise=noise)
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im(self, input):
+    def apply_im(self, input, noise=None):
         """
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
@@ -579,7 +579,7 @@ class InfGenModel(object):
         z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input)
+        bu_res_dict = self.apply_bu(input=input, noise=noise)
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -604,7 +604,8 @@ class InfGenModel(object):
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
-                    td_act_i = td_module.apply(rand_vals=rand_vals)
+                    td_act_i = td_module.apply(rand_vals=rand_vals,
+                                               noise=noise)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]              # info from TD pass
@@ -613,7 +614,8 @@ class InfGenModel(object):
                     # get the inference distribution
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info,
-                                               bu_input=bu_info)
+                                               bu_input=bu_info,
+                                               noise=noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get the model distribution

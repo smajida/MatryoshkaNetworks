@@ -7,7 +7,8 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
-from lib.ops import batchnorm, conv_cond_concat, deconv, dropout
+from lib.ops import batchnorm, conv_cond_concat, deconv, dropout,
+                    
 from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
@@ -202,6 +203,9 @@ class BasicFCResModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
+                # add noise if desired
+                h1 = add_noise(h1, noise=noise)
+
             h1 = self.act_func(h1)
             # apply dropout at intermediate convolution layer
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -219,6 +223,8 @@ class BasicFCResModule(object):
                             use_gb=self.use_bn_params)
         else:
             h4 = h4 + self.b3.dimshuffle('x',0)
+            # add noise if desired
+            h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, input.shape]
@@ -315,6 +321,8 @@ class BasicFCModule(object):
                             use_gb=self.use_bn_params)
         else:
             h1 = h1 + self.b1.dimshuffle('x',0)
+            # add noise if desired
+            h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
             result = [h1, input.shape]
@@ -1810,6 +1818,8 @@ class InfFCMergeModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
+                # add noise if desired
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward to from fc layer to output
@@ -1940,6 +1950,8 @@ class InfTopModule(object):
                                 use_gb=self.use_bn_params)
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0)
+                # add noise if desired
+                h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward to from fc layer to output

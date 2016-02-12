@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_basic_kld'
+desc = 'test_fc_vae_relu_bn_noise_01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,14 +61,15 @@ nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 1000       # # of iter at starting learning rate
-niter_decay = 1000 # # of iter to linearly decay learning rate to zero
+niter = 500       # # of iter at starting learning rate
+niter_decay = 500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
-use_fc = True   # whether to use "internal" conv layers in gen/disc networks
+use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
+noise_std = 0.1  # amount of noise to inject in BU and IM modules
 
 ntrain = Xtr.shape[0]
 
@@ -343,12 +344,13 @@ merge_info = {
 }
 
 # construct the "wrapper" object for managing all our modules
+output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=sigmoid
+    output_transform=output_transform
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -358,6 +360,7 @@ inf_gen_model = InfGenModel(
 ####################################
 lam_vae = sharedX(np.zeros((1,)).astype(theano.config.floatX))
 lam_kld = sharedX(np.ones((1,)).astype(theano.config.floatX))
+noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -377,7 +380,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
-    im_res_dict = inf_gen_model.apply_im(Xg)
+    im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
     Xg_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
@@ -418,7 +421,7 @@ else:
     # run an inference and reconstruction pass through the generative stuff
     batch_size = Xg.shape[0]
     Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
-    im_res_dict = inf_gen_model.apply_im(Xg_rep)
+    im_res_dict = inf_gen_model.apply_im(Xg_rep, noise=noise)
     Xg_rep_recon = im_res_dict['td_output']
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
@@ -462,7 +465,7 @@ else:
     full_cost_inf = full_cost_gen
 
     # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg)
+    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
     Xg_recon = im_rd['td_output']
 
 # run an un-grounded pass through generative stuff for sampling from model
@@ -521,9 +524,9 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    #if ((epoch-1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -545,6 +548,7 @@ for epoch in range(1, niter+niter_decay+1):
         imb_img = train_transform( np.repeat(imb, 10, axis=0) )
         vmb_img = train_transform(vmb)
         # train vae on training batch
+        noise.set_value(floatX([noise_std]))
         g_result = g_train_func(imb_img)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
@@ -557,6 +561,7 @@ for epoch in range(1, niter+niter_decay+1):
         g_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
+            noise.set_value(floatX([0.0]))
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1

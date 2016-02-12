@@ -56,6 +56,18 @@ def euclidean(x, y, e=1e-8):
     dist = T.sqrt(dist)
     return dist
 
+def add_noise(x, noise=None):
+    """
+    Add Gauss noise to x.
+    """
+    if not (noise is None):
+        # generate zmuv samples from the provided rng
+        zmuv_gauss = cu_rng.normal(size=x.shape)
+        x_noise = x + (noise[0] * zmuv_gauss)
+    else:
+        x_noise = x
+    return x_noise
+
 def reparametrize(z_mean, z_logvar, rng=None, rvs=None):
     """
     Gaussian reparametrization helper function.
