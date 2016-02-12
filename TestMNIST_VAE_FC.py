@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn'
+desc = 'test_fc_vae_relu_bn_basic_kld'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -521,8 +521,9 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #if ((epoch-1) < len(kld_weights)):
+    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
