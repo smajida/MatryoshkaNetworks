@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_50_fat_bottom'
+desc = 'test_vae_lrelu_mods_ngf_64'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -59,10 +59,10 @@ nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 50          # base # of filters for conv layers in generative stuff
+ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 400       # # of iter at starting learning rate
+niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
@@ -251,7 +251,7 @@ BasicConvModule(
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_5, td_module_6]
+              td_module_3, td_module_4b, td_module_4c, td_module_6] #, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -393,7 +393,7 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
+bu_modules = [bu_module_6, bu_module_4c, bu_module_4b, bu_module_3,
               bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
