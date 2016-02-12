@@ -421,7 +421,7 @@ class InfGenModel(object):
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
-        self.dist_scale = sharedX( floatX([0.1]) )
+        self.dist_scale = sharedX( floatX([0.2]) )
         self.inf_params.append(self.dist_scale)
         # store a list of all parameters in this network
         self.params = self.inf_params + self.gen_params
@@ -528,7 +528,7 @@ class InfGenModel(object):
                     else:
                         # use samples without reparametrizing
                         cond_rvs = rvs
-                    cond_rvs = 0.1 * cond_rvs
+                    cond_rvs = (1.0 / float(i)) * cond_rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -628,7 +628,7 @@ class InfGenModel(object):
                     # reparametrize
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
-                    rand_vals = 0.1 * rand_vals
+                    rand_vals = (1.0 / float(i)) * rand_vals
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)

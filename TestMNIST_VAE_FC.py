@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu'
+desc = 'test_fc_vae_relu_bn_alt_kld'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -58,14 +58,14 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
+ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter = 1000       # # of iter at starting learning rate
+niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
@@ -356,7 +356,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
     im_res_dict = inf_gen_model.apply_im(Xg)
@@ -391,7 +391,7 @@ if iwae_samples == 1:
     vae_cost = vae_nll_cost + vae_kld_cost
     vae_obs_costs = vae_obs_nlls + vae_obs_klds
     # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + (lam_kld[0] * vae_kld_cost) + vae_reg_cost
+    full_cost_gen = vae_nll_cost + (lam_kld[0] * alt_kld_cost) + vae_reg_cost
     full_cost_inf = full_cost_gen
 else:
     # run an inference and reconstruction pass through the generative stuff
@@ -538,7 +538,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 25) or (epoch == 50) or (epoch == 100) or (epoch == 200):
+    if (epoch == 50) or (epoch == 100) or (epoch == 200) or (epoch == 300):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -593,30 +593,31 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
-    # generate some samples from the model prior
-    samples = np.asarray(sample_func(sample_z0mb))
-    grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-    # test reconstruction performance (inference + generation)
-    tr_rb = Xtr[0:100,:]
-    va_rb = Xva[0:100,:]
-    # get the model reconstructions
-    tr_rb = train_transform(tr_rb)
-    va_rb = train_transform(va_rb)
-    tr_recons = recon_func(tr_rb)
-    va_recons = recon_func(va_rb)
-    # stripe data for nice display (each reconstruction next to its target)
-    tr_vis_batch = np.zeros((200, nx))
-    va_vis_batch = np.zeros((200, nx))
-    for rec_pair in range(100):
-        idx_in = 2*rec_pair
-        idx_out = 2*rec_pair + 1
-        tr_vis_batch[idx_in,:] = tr_rb[rec_pair,:]
-        tr_vis_batch[idx_out,:] = tr_recons[rec_pair,:]
-        va_vis_batch[idx_in,:] = va_rb[rec_pair,:]
-        va_vis_batch[idx_out,:] = va_recons[rec_pair,:]
-    # draw images...
-    grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-    grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+    if (epoch % 10) == 0:
+        # generate some samples from the model prior
+        samples = np.asarray(sample_func(sample_z0mb))
+        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+        # test reconstruction performance (inference + generation)
+        tr_rb = Xtr[0:100,:]
+        va_rb = Xva[0:100,:]
+        # get the model reconstructions
+        tr_rb = train_transform(tr_rb)
+        va_rb = train_transform(va_rb)
+        tr_recons = recon_func(tr_rb)
+        va_recons = recon_func(va_rb)
+        # stripe data for nice display (each reconstruction next to its target)
+        tr_vis_batch = np.zeros((200, nx))
+        va_vis_batch = np.zeros((200, nx))
+        for rec_pair in range(100):
+            idx_in = 2*rec_pair
+            idx_out = 2*rec_pair + 1
+            tr_vis_batch[idx_in,:] = tr_rb[rec_pair,:]
+            tr_vis_batch[idx_out,:] = tr_recons[rec_pair,:]
+            va_vis_batch[idx_in,:] = va_rb[rec_pair,:]
+            va_vis_batch[idx_out,:] = va_recons[rec_pair,:]
+        # draw images...
+        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 
