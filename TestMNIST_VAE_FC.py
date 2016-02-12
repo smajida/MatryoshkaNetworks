@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_lrelu'
+desc = 'test_fc_vae_relu'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -54,7 +54,7 @@ Xva = Xte
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -65,9 +65,9 @@ niter = 200       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'lrelu' # activation func to use where they can be selected
+act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
@@ -500,8 +500,8 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #if ((epoch-1) < len(kld_weights)):
+    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -520,7 +520,7 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform(imb)
+        imb_img = train_transform( np.repeat(imb, 10, axis=0) )
         vmb_img = train_transform(vmb)
         # train vae on training batch
         g_result = g_train_func(imb_img)

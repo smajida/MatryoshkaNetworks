@@ -12,7 +12,7 @@ from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
 sigmoid = activations.Sigmoid()
-lrelu = activations.LeakyRectify()
+lrelu = activations.LeakyRectify(leak=0.1)
 bce = T.nnet.binary_crossentropy
 tanh = activations.Tanh()
 elu = activations.ELU()

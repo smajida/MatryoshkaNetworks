@@ -494,7 +494,7 @@ class InfGenModel(object):
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
         td_acts = []
-        for rvs, td_module in zip(rand_vals, self.td_modules):
+        for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
             td_act_i = None # this will be set to the output of td_module
             if td_mod_name in self.merge_info:
@@ -628,6 +628,7 @@ class InfGenModel(object):
                     # reparametrize
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
+                    rand_vals = 0.1 * rand_vals
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
