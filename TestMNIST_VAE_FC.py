@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_alt_kld'
+desc = 'test_fc_vae_relu_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -166,15 +166,24 @@ GenFCResModule(
 td_module_6 = \
 BasicFCModule(
     in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_6'
+) # output is (batch, ngf*8)
+
+td_module_7 = \
+BasicFCModule(
+    in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     act_func='ident',
-    mod_name='td_mod_6'
-) # output is (batch, c, 28, 28)
+    mod_name='td_mod_7'
+) # output is (batch, nx)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6]
+              td_module_4, td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -238,15 +247,24 @@ BasicFCResModule(
 
 bu_module_6 = \
 BasicFCModule(
-    in_chans=nx,
+    in_chans=(ngf*8),
     out_chans=(ngf*8),
-    apply_bn=False,
+    apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_6'
 )
 
+bu_module_7 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(ngf*8),
+    apply_bn=False,
+    act_func=act_func,
+    mod_name='bu_mod_7'
+)
+
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4,
+bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
               bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
