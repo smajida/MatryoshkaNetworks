@@ -563,7 +563,7 @@ class InfGenModel(object):
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
         """
-        bu_noise = noise if self.bu_noise else None
+        bu_noise = noise if self.use_bu_noise else None
         bu_acts = []
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
@@ -590,8 +590,8 @@ class InfGenModel(object):
         from distributions determined by merging partial results of the BU pass
         with results from the partially-completed TD pass.
         """
-        bu_noise = noise if self.bu_noise else None
-        td_noise = noise if self.td_noise else None
+        bu_noise = noise if self.use_bu_noise else None
+        td_noise = noise if self.use_td_noise else None
         # set aside a dict for recording KLd info at each layer where we use
         # conditional distributions over the latent variables.
         kld_dict = {}

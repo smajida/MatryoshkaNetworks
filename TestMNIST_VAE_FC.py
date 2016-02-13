@@ -70,6 +70,8 @@ use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
+use_td_noise = True # whether to use noise in TD pass
+use_bu_noise = True # whether to use noise in BU pass
 latent_rescale = False # whether to use alternative rescaling of latents
 
 ntrain = Xtr.shape[0]

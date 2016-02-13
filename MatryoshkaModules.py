@@ -271,6 +271,7 @@ class BasicFCModule(object):
             self.act_func = lambda x: lrelu(x)
         self.unif_drop = unif_drop
         self.use_bn_params = use_bn_params
+        self.use_noise = use_noise
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
