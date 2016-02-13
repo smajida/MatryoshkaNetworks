@@ -53,7 +53,7 @@ Xva = Xte[:,:]
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 400      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -67,7 +67,7 @@ use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 500 # number of samples to use in MEN bound
+iwae_samples = 100 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
 latent_rescale = True # whether to use alternative rescaling of latents
 
@@ -450,6 +450,8 @@ print("EXPERIMENT: {}".format(desc.upper()))
 
 Xva_blocks = np.split(Xva, 10, axis=0)
 for epoch in range(5):
+    epoch_vae_cost = 0.0
+    epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):
         Xva_block = shuffle(Xva_block)
         obs_count = Xva_block.shape[0]
@@ -474,12 +476,17 @@ for epoch in range(5):
         print(joint_str)
         out_file.write(joint_str+"\n")
         out_file.flush()
+        epoch_vae_cost += g_epoch_costs[1]
+        epoch_iwae_cost += g_epoch_costs[4]
         ######################
         # DRAW SOME PICTURES #
         ######################
         sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}.png".format(result_dir, epoch, block_num))
+    epoch_vae_cost = epoch_vae_cost / len(Xva_blocks)
+    epoch_iwae_cost = epoch_iwae_cost / len(Xva_blocks)
+    print("EPOCH {0:d} -- vae: {1:.2f}, iwae: {2:.2f}".format(epoch, epoch_vae_cost, epoch_iwae_cost))
 
 
 
