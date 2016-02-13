@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_2abc_4bc_no_bn_iwae_bias'
+desc = 'test_vae_lrelu_mods_ngf_64_noise_01_fast_kld'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -51,24 +51,49 @@ data_path = "{}/data/".format(EXP_DIR)
 Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 Xva = Xte[:,:]
 
-
-set_seed(1)       # seed for shared rngs
-nc = 1            # # of channels in image
-nbatch = 2       # # of examples in batch
-npx = 28          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
-ngfc = 128        # # of filters in fully connected layers of generative stuff
-nx = npx*npx*nc   # # of dimensions in X
-multi_rand = True # whether to use stochastic variables at multiple scales
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+set_seed(1)         # seed for shared rngs
+nc = 1              # # of channels in image
+nbatch = 400        # # of examples in batch
+npx = 28            # # of pixels width/height of images
+nz0 = 32            # # of dim for Z0
+nz1 = 16            # # of dim for Z1
+ngf = 64            # base # of filters for conv layers in generative stuff
+ngfc = 128          # # of filters in fully connected layers of generative stuff
+nx = npx*npx*nc     # # of dimensions in X
+multi_rand = True   # whether to use stochastic variables at multiple scales
+use_conv = True     # whether to use "internal" conv layers in gen/disc networks
+use_bn = True      # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'lrelu'
-iwae_samples = 1600  # number of samples to use in MEN bound
+iwae_samples = 2   # number of samples to use in MEN bound
 
 ntrain = Xtr.shape[0]
+
+def np_log_mean_exp(x, axis=None):
+    assert (axis is not None), "please provide an axis..."
+    m = np.max(x, axis=axis, keepdims=True)
+    lme = m + np.log(np.mean(np.exp(x - m), axis=axis, keepdims=True))
+    return lme
+
+def iwae_multi_eval(x, iters, cost_func, iwae_num):
+    # slow multi-pass evaluation of IWAE bound.
+    log_p_x = []
+    log_p_z = []
+    log_q_z = []
+    for i in range(iters):
+        result = cost_func(x)
+        b_size = int(result[0].shape[0] / iwae_num)
+        log_p_x.append(result[0].reshape((b_size, iwae_num)))
+        log_p_z.append(result[1].reshape((b_size, iwae_num)))
+        log_q_z.append(result[2].reshape((b_size, iwae_num)))
+    # stack up results from multiple passes
+    log_p_x = np.concatenate(log_p_x, axis=1)
+    log_p_z = np.concatenate(log_p_z, axis=1)
+    log_q_z = np.concatenate(log_q_z, axis=1)
+    # compute the IWAE bound for each example in x
+    log_ws_mat = log_p_x + log_p_z - log_q_z
+    iwae_bounds = -1.0 * np_log_mean_exp(log_ws_mat, axis=1)
+    return iwae_bounds
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
@@ -91,6 +116,7 @@ def rand_gen(size, noise_type='normal'):
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
+
 
 #########################################
 # Setup the top-down processing modules #
@@ -173,21 +199,21 @@ GenConvResModule(
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
 
-## (14, 14) -> (14, 14)
-#td_module_4a = \
-#GenConvResModule(
-#    in_chans=(ngf*2),
-#    out_chans=(ngf*2),
-#    conv_chans=(ngf*2),
-#    rand_chans=nz1,
-#    filt_shape=(3,3),
-#    use_rand=multi_rand,
-#    use_conv=use_conv,
-#    apply_bn=use_bn,
-#    act_func=act_func,
-#    us_stride=1,
-#    mod_name='td_mod_4a'
-#) # output is (batch, ngf*2, 14, 14)
+# (14, 14) -> (14, 14)
+td_module_4a = \
+GenConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    us_stride=1,
+    mod_name='td_mod_4a'
+) # output is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (14, 14)
 td_module_4b = \
@@ -226,16 +252,28 @@ td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='td_mod_5'
+) # output is (batch, c, 28, 28)
+
+# (28, 28) -> (28, 28)
+td_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_5'
+    mod_name='td_mod_6'
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_5]
+              td_module_3, td_module_4b, td_module_4c, td_module_6] #, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -310,19 +348,19 @@ BasicConvResModule(
     mod_name='bu_mod_3'
 ) # output is (batch, ngf*4, 7, 7)
 
-## (14, 14) -> (14, 14)
-#bu_module_4a = \
-#BasicConvResModule(
-#    in_chans=(ngf*2),
-#    out_chans=(ngf*2),
-#    conv_chans=(ngf*2),
-#    filt_shape=(3,3),
-#    use_conv=use_conv,
-#    apply_bn=use_bn,
-#    stride='single',
-#    act_func=act_func,
-#    mod_name='bu_mod_4a'
-#) # output is (batch, ngf*2, 14, 14)
+# (14, 14) -> (14, 14)
+bu_module_4a = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_4a'
+) # output is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (14, 14)
 bu_module_4b = \
@@ -356,6 +394,18 @@ BasicConvResModule(
 bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_5'
+) # output is (batch, ngf*1, 28, 28)
+
+# (28, 28) -> (28, 28)
+bu_module_6 = \
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
     apply_bn=False,
@@ -365,9 +415,8 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_5, bu_module_4c, bu_module_4b,
-              bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a,
-              bu_module_1]
+bu_modules = [bu_module_6, bu_module_4c, bu_module_4b, bu_module_3,
+              bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -429,19 +478,19 @@ InfConvMergeModule(
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
   # over the rand_vals used in td_mod_3.
 
-#im_module_4a = \
-#InfConvMergeModule(
-#    td_chans=(ngf*2),
-#    bu_chans=(ngf*2),
-#    rand_chans=nz1,
-#    conv_chans=(ngf*2),
-#    use_conv=True,
-#    apply_bn=use_bn,
-#    use_td_cond=use_td_cond,
-#    act_func=act_func,
-#    mod_name='im_mod_4a'
-#) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
-#  # over the rand_vals used in td_mod_4.
+im_module_4a = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_4a'
+) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
+  # over the rand_vals used in td_mod_4.
 
 im_module_4b = \
 InfConvMergeModule(
@@ -495,13 +544,17 @@ merge_info = {
 }
 
 # construct the "wrapper" object for managing all our modules
+output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=sigmoid
+    output_transform=output_transform,
+    latent_rescale=False
 )
+
+
 ###################
 # LOAD PARAMETERS #
 ###################
@@ -512,7 +565,7 @@ inf_gen_model.load_params(inf_gen_param_file)
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ######################
@@ -587,6 +640,7 @@ g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['iwae_bound', 'vae_bound', 'vae_nll_cost', 'vae_kld_cost',
               'iwae_bound_lme']
 # compile function for computing generator costs and updates
+iwae_cost_func = theano.function([Xg], [log_p_x, log_p_z, log_q_z])
 g_eval_func = theano.function([Xg], g_basic_costs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
@@ -596,8 +650,10 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-Xva_blocks = np.split(Xva, 10, axis=0)
-for epoch in range(5):
+Xva_blocks = [Xva] #np.split(Xva, 2, axis=0)
+for epoch in range(3):
+    epoch_vae_cost = 0.0
+    epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):
         Xva_block = shuffle(Xva_block)
         obs_count = Xva_block.shape[0]
@@ -605,9 +661,15 @@ for epoch in range(5):
         g_batch_count = 0.
         for imb in tqdm(iter_data(Xva_block, size=nbatch), total=obs_count/nbatch):
             # transform validation batch to "image format"
-            imb_img = train_transform(imb)
-            # train vae on training batch
-            g_result = g_eval_func(imb_img.astype(theano.config.floatX))
+            imb_img = floatX( train_transform(imb) )
+            # evaluate costs
+            g_result = g_eval_func(imb_img)
+            # evaluate costs more thoroughly
+            iwae_bounds = iwae_multi_eval(imb_img, 250,
+                                          cost_func=iwae_cost_func,
+                                          iwae_num=iwae_samples)
+            g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
+            # accumulate costs
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             g_batch_count += 1
         ##################################
@@ -622,13 +684,17 @@ for epoch in range(5):
         print(joint_str)
         out_file.write(joint_str+"\n")
         out_file.flush()
+        epoch_vae_cost += g_epoch_costs[1]
+        epoch_iwae_cost += g_epoch_costs[4]
         ######################
         # DRAW SOME PICTURES #
         ######################
         sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}.png".format(result_dir, epoch, block_num))
-
+    epoch_vae_cost = epoch_vae_cost / len(Xva_blocks)
+    epoch_iwae_cost = epoch_iwae_cost / len(Xva_blocks)
+    print("EPOCH {0:d} -- vae: {1:.2f}, iwae: {2:.2f}".format(epoch, epoch_vae_cost, epoch_iwae_cost))
 
 
 
