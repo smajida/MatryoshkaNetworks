@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_noise_01_no_latent_rescale'
+desc = 'test_fc_vae_relu_bn_all_noise_01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -179,6 +179,7 @@ BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
+    use_noise=False,
     act_func='ident',
     mod_name='td_mod_7'
 ) # output is (batch, nx)
@@ -352,7 +353,9 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=output_transform,
-    latent_rescale=latent_rescale
+    latent_rescale=latent_rescale,
+    use_td_noise=use_td_noise,
+    use_bu_noise=use_bu_noise
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -465,10 +468,9 @@ else:
                     (lam_vae[0] * (vae_nll_cost + vae_kld_cost)) + \
                     vae_reg_cost
     full_cost_inf = full_cost_gen
-
-    # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_rd['td_output']
+# get simple reconstruction, for other purposes
+im_rd = inf_gen_model.apply_im(Xg)
+Xgr2 = im_rd['td_output']
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -493,7 +495,7 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg], Xg_recon)
+recon_func = theano.function([Xg], Xgr2)
 sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")

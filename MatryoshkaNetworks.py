@@ -403,11 +403,15 @@ class InfGenModel(object):
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
         latent_rescale: whether to do weird latent rescaling.
+        use_td_noise: whether to apply noise in TD pass
+        use_bu_noise: whether to apply noise in BU pass (includes IM too)
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
                  merge_info, output_transform,
-                 latent_rescale=False):
+                 latent_rescale=False,
+                 use_td_noise=False,
+                 use_bu_noise=True):
         # grab the bottom-up, top-down, and info merging modules
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
@@ -436,6 +440,8 @@ class InfGenModel(object):
             self.output_transform = output_transform
         # derp derp
         self.latent_rescale = latent_rescale
+        self.use_td_noise = use_td_noise
+        self.use_bu_noise = use_bu_noise
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
         samps = self.generate_samples(32)
@@ -497,6 +503,7 @@ class InfGenModel(object):
             # no random values were provided, which means we'll be generating
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
+        td_noise = noise if self.use_td_noise else None
         td_acts = []
         for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
@@ -509,7 +516,8 @@ class InfGenModel(object):
                     # feedforward through the top-most generator module.
                     # this module has a fixed ZMUV Gaussian prior.
                     td_act_i = td_module.apply(rand_vals=rvs,
-                                               batch_size=batch_size)
+                                               batch_size=batch_size,
+                                               noise=td_noise)
                 else:
                     # feedforward through an internal TD module
                     im_module = self.im_modules_dict[im_mod_name]
@@ -525,7 +533,8 @@ class InfGenModel(object):
                     if im_module.use_td_cond:
                         # use top-down conditioning
                         cond_mean_td, cond_logvar_td = \
-                                im_module.apply_td(td_input=td_acts[-1])
+                                im_module.apply_td(td_input=td_acts[-1],
+                                                   noise=td_noise)
                         cond_rvs = reparametrize(cond_mean_td,
                                                  cond_logvar_td,
                                                  rvs=rvs)
@@ -537,11 +546,13 @@ class InfGenModel(object):
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
-                                               rand_vals=cond_rvs)
+                                               rand_vals=cond_rvs,
+                                               noise=td_noise)
             else:
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules (no rand input)
-                td_act_i = td_module.apply(input=td_acts[-1], rand_vals=None)
+                td_act_i = td_module.apply(input=td_acts[-1], rand_vals=None,
+                                           noise=td_noise)
             td_acts.append(td_act_i)
         # apply some transform (e.g. tanh or sigmoid) to final activations
         result = self.output_transform(td_acts[-1])
@@ -552,13 +563,14 @@ class InfGenModel(object):
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
         """
+        bu_noise = noise if self.bu_noise else None
         bu_acts = []
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input, noise=noise)
+                res = bu_mod.apply(input, noise=bu_noise)
             else:
-                res = bu_mod.apply(bu_acts[i-1], noise=noise)
+                res = bu_mod.apply(bu_acts[i-1], noise=bu_noise)
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
@@ -578,13 +590,15 @@ class InfGenModel(object):
         from distributions determined by merging partial results of the BU pass
         with results from the partially-completed TD pass.
         """
+        bu_noise = noise if self.bu_noise else None
+        td_noise = noise if self.td_noise else None
         # set aside a dict for recording KLd info at each layer where we use
         # conditional distributions over the latent variables.
         kld_dict = {}
         z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input, noise=noise)
+        bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -610,7 +624,7 @@ class InfGenModel(object):
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
                     td_act_i = td_module.apply(rand_vals=rand_vals,
-                                               noise=noise)
+                                               noise=td_noise)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]              # info from TD pass
@@ -620,14 +634,15 @@ class InfGenModel(object):
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info,
                                                bu_input=bu_info,
-                                               noise=noise)
+                                               noise=bu_noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # get the model distribution
                     if im_module.use_td_cond:
                         # get the top-down conditional distribution
                         cond_mean_td, cond_logvar_td = \
-                                im_module.apply_td(td_input=td_info)
+                                im_module.apply_td(td_input=td_info,
+                                                   noise=td_noise)
                     else:
                         # use a fixed ZMUV Gaussian prior
                         cond_mean_td = 0.0 * cond_mean_im
@@ -639,7 +654,8 @@ class InfGenModel(object):
                         rand_vals = (1.0 / float(i)) * rand_vals
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=rand_vals)
+                                               rand_vals=rand_vals,
+                                               noise=td_noise)
                     if self.latent_rescale:
                         rand_vals = (float(i) / 1.0) * rand_vals
                 # record log probability of z under p and q, for IWAE bound
@@ -666,7 +682,8 @@ class InfGenModel(object):
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules
                 td_info = td_acts[-1] # incoming info from TD pass
-                td_act_i = td_module.apply(input=td_info, rand_vals=None)
+                td_act_i = td_module.apply(input=td_info, rand_vals=None,
+                                           noise=td_noise)
                 td_acts.append(td_act_i)
         td_output = self.output_transform(td_acts[-1])
         im_res_dict = {}

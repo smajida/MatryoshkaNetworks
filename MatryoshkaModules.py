@@ -9,7 +9,7 @@ from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, \
                     add_noise
-                    
+
 from lib.theano_utils import floatX, sharedX
 
 relu = activations.Rectify()
@@ -245,12 +245,14 @@ class BasicFCModule(object):
         act_func: --
         unif_drop: drop rate for uniform dropout
         use_bn_params: whether to use params for BN
+        use_noise: whether to use the provided noise durnig apply()
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, in_chans, out_chans,
                  apply_bn=True, act_func='ident',
                  unif_drop=0.0,
                  use_bn_params=True,
+                 use_noise=True,
                  mod_name='basic_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
@@ -311,6 +313,7 @@ class BasicFCModule(object):
         """
         Apply this convolutional module to the given input.
         """
+        noise = noise if self.use_noise else None
         # apply uniform and/or channel-wise dropout if desired
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
         h1 = T.dot(input, self.w1)
