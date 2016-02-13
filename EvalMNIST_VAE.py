@@ -565,7 +565,7 @@ inf_gen_model.load_params(inf_gen_param_file)
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
+Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ######################
