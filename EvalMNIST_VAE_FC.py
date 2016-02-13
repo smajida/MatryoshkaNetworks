@@ -53,7 +53,7 @@ Xva = Xte[:,:]
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 400      # # of examples in batch
+nbatch = 500      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -67,8 +67,8 @@ use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 100 # number of samples to use in MEN bound
-noise_std = 0.1  # amount of noise to inject in BU and IM modules
+iwae_samples = 10 # number of samples to use in MEN bound
+noise_std = 0.1   # amount of noise to inject in BU and IM modules
 latent_rescale = True # whether to use alternative rescaling of latents
 
 ntrain = Xtr.shape[0]
@@ -80,34 +80,25 @@ def np_log_mean_exp(x, axis=None):
     lme = m + np.log(np.mean(np.exp(x - m), axis=axis, keepdims=True))
     return lme
 
-def iwae_slow_eval(x, iters, cost_func):
+def iwae_multi_eval(x, iters, cost_func, iwae_num):
     # slow multi-pass evaluation of IWAE bound.
     log_p_x = []
     log_p_z = []
     log_q_z = []
     for i in range(iters):
         result = cost_func(x)
-        log_p_x.append(result[0])
-        log_p_z.append(result[1])
-        log_q_z.append(result[2])
+        b_size = int(result[0].shape[0] / iwae_num)
+        log_p_x.append(result[0].reshape((b_size, iwae_num)))
+        log_p_z.append(result[1].reshape((b_size, iwae_num)))
+        log_q_z.append(result[2].reshape((b_size, iwae_num)))
     # stack up results from multiple passes
     log_p_x = np.concatenate(log_p_x, axis=1)
     log_p_z = np.concatenate(log_p_z, axis=1)
     log_q_z = np.concatenate(log_q_z, axis=1)
-
-    # compute quantities used in the IWAE bound
-    log_ws_vec = log_p_x + log_p_z - log_q_z
-    log_ws_mat = log_ws_vec.reshape((batch_size, iwae_samples))
-    ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
-    ws_mat = T.exp(ws_mat)
-    nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-    nis_weights = theano.gradient.disconnected_grad(nis_weights)
-
-    iwae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
-                             T.sum((nis_weights * T.log(nis_weights)), axis=1))
-
-    iwae_bound = T.mean(iwae_obs_costs)
-    iwae_bound_lme = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
+    # compute the IWAE bound for each example in x
+    log_ws_mat = log_p_x + log_p_z - log_q_z
+    iwae_bounds = -1.0 * np_log_mean_exp(log_ws_mat, axis=1)
+    return iwae_bounds
 
 def train_transform(X):
     return floatX(X)
@@ -484,7 +475,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-Xva_blocks = np.split(Xva, 10, axis=0)
+Xva_blocks = np.split(Xva, 2, axis=0)
 for epoch in range(5):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
@@ -495,9 +486,15 @@ for epoch in range(5):
         g_batch_count = 0.
         for imb in tqdm(iter_data(Xva_block, size=nbatch), total=obs_count/nbatch):
             # transform validation batch to "image format"
-            imb_img = train_transform(imb)
-            # train vae on training batch
-            g_result = g_eval_func(imb_img.astype(theano.config.floatX))
+            imb_img = floatX( train_transform(imb) )
+            # evaluate costs
+            g_result = g_eval_func(imb_img)
+            # evaluate costs more thoroughly
+            iwae_bounds = iwae_multi_eval(imb_img, 100,
+                                          cost_func=iwae_cost_func,
+                                          iwae_num=iwae_samples)
+            g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
+            # accumulate costs
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             g_batch_count += 1
         ##################################
