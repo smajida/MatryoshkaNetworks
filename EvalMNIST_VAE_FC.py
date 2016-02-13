@@ -74,6 +74,41 @@ latent_rescale = True # whether to use alternative rescaling of latents
 ntrain = Xtr.shape[0]
 
 
+def np_log_mean_exp(x, axis=None):
+    assert (axis is not None), "please provide an axis..."
+    m = np.max(x, axis=axis, keepdims=True)
+    lme = m + np.log(np.mean(np.exp(x - m), axis=axis, keepdims=True))
+    return lme
+
+def iwae_slow_eval(x, iters, cost_func):
+    # slow multi-pass evaluation of IWAE bound.
+    log_p_x = []
+    log_p_z = []
+    log_q_z = []
+    for i in range(iters):
+        result = cost_func(x)
+        log_p_x.append(result[0])
+        log_p_z.append(result[1])
+        log_q_z.append(result[2])
+    # stack up results from multiple passes
+    log_p_x = np.concatenate(log_p_x, axis=1)
+    log_p_z = np.concatenate(log_p_z, axis=1)
+    log_q_z = np.concatenate(log_q_z, axis=1)
+
+    # compute quantities used in the IWAE bound
+    log_ws_vec = log_p_x + log_p_z - log_q_z
+    log_ws_mat = log_ws_vec.reshape((batch_size, iwae_samples))
+    ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
+    ws_mat = T.exp(ws_mat)
+    nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
+    nis_weights = theano.gradient.disconnected_grad(nis_weights)
+
+    iwae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
+                             T.sum((nis_weights * T.log(nis_weights)), axis=1))
+
+    iwae_bound = T.mean(iwae_obs_costs)
+    iwae_bound_lme = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
+
 def train_transform(X):
     return floatX(X)
 
@@ -439,6 +474,7 @@ g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['iwae_bound', 'vae_bound', 'vae_nll_cost', 'vae_kld_cost',
               'iwae_bound_lme']
 # compile function for computing generator costs and updates
+iwae_cost_func = theano.function([Xg], [log_p_x, log_p_z, log_q_z])
 g_eval_func = theano.function([Xg], g_basic_costs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
