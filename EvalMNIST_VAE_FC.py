@@ -53,7 +53,7 @@ Xva = Xte[:,:]
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 32       # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -67,7 +67,7 @@ use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 128 # number of samples to use in MEN bound
+iwae_samples = 500 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
 latent_rescale = True # whether to use alternative rescaling of latents
 
@@ -364,7 +364,7 @@ inf_gen_model.load_params(inf_gen_param_file)
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ######################

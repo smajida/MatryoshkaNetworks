@@ -640,6 +640,8 @@ class InfGenModel(object):
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals)
+                    if self.latent_rescale:
+                        rand_vals = (float(i) / 1.0) * rand_vals
                 # record log probability of z under p and q, for IWAE bound
                 log_p_z = log_prob_gaussian(T.flatten(rand_vals, 2),
                                             T.flatten(cond_mean_td, 2),
