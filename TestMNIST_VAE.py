@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_64_noise_01_fast_kld'
+desc = 'test_vae_relu_mods_all_noise_mod_type_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,9 +68,12 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'lrelu' # activation func to use where they can be selected
+act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
+use_bu_noise = True
+use_td_noise = True
+mod_type = 1
 
 ntrain = Xtr.shape[0]
 
@@ -119,7 +122,7 @@ td_module_2a = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -127,6 +130,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
+    mod_type=mod_type,
     mod_name='td_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -135,7 +139,7 @@ td_module_2b = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -143,6 +147,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
+    mod_type=mod_type,
     mod_name='td_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -151,7 +156,7 @@ td_module_2c = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -159,6 +164,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
+    mod_type=mod_type,
     mod_name='td_mod_2c'
 ) # output is (batch, ngf*2, 7, 7)
 
@@ -175,6 +181,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=2,
+    mod_type=mod_type,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -191,6 +198,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
+    mod_type=mod_type,
     mod_name='td_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -207,6 +215,7 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
+    mod_type=mod_type,
     mod_name='td_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -222,6 +231,7 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     act_func=act_func,
+    mod_type=mod_type,
     us_stride=2,
     mod_name='td_mod_4c'
 ) # output is (batch, ngf*1, 28, 28)
@@ -231,7 +241,7 @@ td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*1),
+    out_chans=32,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -242,9 +252,10 @@ BasicConvModule(
 td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=32,
     out_chans=nc,
     apply_bn=False,
+    use_noise=False,
     stride='single',
     act_func='ident',
     mod_name='td_mod_6'
@@ -276,7 +287,7 @@ bu_module_2a = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -290,7 +301,7 @@ bu_module_2b = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -304,7 +315,7 @@ bu_module_2c = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -373,7 +384,7 @@ BasicConvResModule(
 bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=32,
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='single',
@@ -386,7 +397,7 @@ bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
-    out_chans=(ngf*1),
+    out_chans=32,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -529,8 +540,7 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform,
-    latent_rescale=False
+    output_transform=output_transform
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -557,7 +567,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
     im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
@@ -653,7 +663,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.0004)
+lrt = sharedX(0.001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)

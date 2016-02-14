@@ -534,12 +534,14 @@ class BasicConvModule(object):
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         use_bn_params: whether to use params for BN
+        use_noise: whether to use provided noise during apply()
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, filt_shape, in_chans, out_chans,
                  stride='single', apply_bn=True, act_func='ident',
                  unif_drop=0.0, chan_drop=0.0,
                  use_bn_params=True,
+                 use_noise=True,
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
@@ -565,6 +567,7 @@ class BasicConvModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.use_bn_params = use_bn_params
+        self.use_noise = use_noise
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -607,6 +610,7 @@ class BasicConvModule(object):
         """
         Apply this convolutional module to the given input.
         """
+        noise = noise is self.use_noise else None
         bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
@@ -1122,7 +1126,7 @@ class GenConvResModule(object):
                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
                  use_rand=True, use_conv=True, us_stride=2,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
-                 use_bn_params=True, act_func='relu',
+                 use_bn_params=True, act_func='relu', mod_type=1,
                  mod_name='gm_conv'):
         assert ((us_stride == 1) or (us_stride == 2)), \
                 "us_stride must be 1 or 2."
@@ -1153,6 +1157,7 @@ class GenConvResModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
+        self.mod_type = mod_type
         # use small dummy rand size if we won't use random vars
         if not self.use_rand:
             self.rand_chans = 4
@@ -1186,6 +1191,9 @@ class GenConvResModule(object):
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
+        # derp a derp parameterrrrr
+        self.wx = weight_ifn((self.in_chans, self.rand_chans, 1, 1),
+                             "{}_wx".format(self.mod_name))
         return
 
     def load_params(self, param_dict):
@@ -1201,6 +1209,7 @@ class GenConvResModule(object):
         self.w3.set_value(floatX(param_dict['w3']))
         self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
+        self.wx.set_value(floatX(param_dict['wx']))
         return
 
     def dump_params(self):
@@ -1217,6 +1226,7 @@ class GenConvResModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
+        param_dict['wx'] = self.wx.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -1227,10 +1237,6 @@ class GenConvResModule(object):
         batch_size = input.shape[0]    # number of inputs in this batch
         ss = self.us_stride            # stride for "learned upsampling"
         bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
-
-        # apply dropout to input
-        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
-                               share_mask=share_mask)
 
         # get shape for random values that will augment input
         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
@@ -1251,8 +1257,19 @@ class GenConvResModule(object):
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 
-        # stack random values on top of input
-        full_input = T.concatenate([rand_vals, input], axis=1)
+        # apply dropout to input
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop,
+                               share_mask=share_mask)
+
+        if self.mod_type == 1:
+            # perturb top-down activations based on rand_vals
+            act_pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(0, 0))
+            input = self.act_func( input + act_pert )
+            # stack random values on top of input
+            full_input = T.concatenate([0.0*rand_vals, input], axis=1)
+        else:
+            # stack random values on top of input
+            full_input = T.concatenate([rand_vals, input], axis=1)
 
         if self.use_conv:
             # apply first internal conv layer

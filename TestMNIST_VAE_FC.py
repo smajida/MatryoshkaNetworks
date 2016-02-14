@@ -355,7 +355,6 @@ inf_gen_model = InfGenModel(
     im_modules=im_modules,
     merge_info=merge_info,
     output_transform=output_transform,
-    latent_rescale=latent_rescale,
     use_td_noise=use_td_noise,
     use_bu_noise=use_bu_noise
 )

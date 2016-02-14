@@ -402,14 +402,12 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
-        latent_rescale: whether to do weird latent rescaling.
         use_td_noise: whether to apply noise in TD pass
         use_bu_noise: whether to apply noise in BU pass (includes IM too)
     """
     def __init__(self,
                  bu_modules, td_modules, im_modules,
                  merge_info, output_transform,
-                 latent_rescale=False,
                  use_td_noise=False,
                  use_bu_noise=True):
         # grab the bottom-up, top-down, and info merging modules
@@ -439,7 +437,6 @@ class InfGenModel(object):
         else:
             self.output_transform = output_transform
         # derp derp
-        self.latent_rescale = latent_rescale
         self.use_td_noise = use_td_noise
         self.use_bu_noise = use_bu_noise
         print("Compiling sample generator...")
@@ -541,8 +538,6 @@ class InfGenModel(object):
                     else:
                         # use samples without reparametrizing
                         cond_rvs = rvs
-                    if self.latent_rescale:
-                        cond_rvs = (1.0 / float(i+1)) * cond_rvs
                     # feedforward using the reparametrized stochastic
                     # variables and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -650,14 +645,10 @@ class InfGenModel(object):
                     # reparametrize
                     rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
-                    if self.latent_rescale:
-                        rand_vals = (1.0 / float(i)) * rand_vals
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=rand_vals,
                                                noise=td_noise)
-                    if self.latent_rescale:
-                        rand_vals = (float(i) / 1.0) * rand_vals
                 # record log probability of z under p and q, for IWAE bound
                 log_p_z = log_prob_gaussian(T.flatten(rand_vals, 2),
                                             T.flatten(cond_mean_td, 2),
