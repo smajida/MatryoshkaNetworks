@@ -30,17 +30,16 @@ from load import load_binarized_mnist
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenTopModule, InfConvMergeModule, \
-                              InfTopModule, BasicConvResModule, \
-                              DiscConvResModule, DiscFCModule
-from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
+from MatryoshkaModules import BasicFCModule, GenFCResModule, \
+                              GenTopModule, InfFCMergeModule, \
+                              InfTopModule, BasicFCResModule
+from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_all_noise_mod_type_0_td_gates'
+desc = 'test_fc_vae_relu_bn_all_noise_005'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -57,33 +56,33 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
-ngfc = 128        # # of filters in fully connected layers of generative stuff
+ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
-niter = 300       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter = 500       # # of iter at starting learning rate
+niter_decay = 500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-use_td_cond = True # whether to use top-down conditioning in generator
+use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.1  # amount of noise to inject in BU and IM modules
-use_bu_noise = True
-use_td_noise = True
-mod_type = 0
+noise_std = 0.05  # amount of noise to inject in BU and IM modules
+use_td_noise = True # whether to use noise in TD pass
+use_bu_noise = True # whether to use noise in BU pass
+latent_rescale = False # whether to use alternative rescaling of latents
 
 ntrain = Xtr.shape[0]
 
 
 def train_transform(X):
-    # transform vectorized observations into convnet inputs
-    return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
+    return floatX(X)
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
+    X = X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3)
     X = X * 255.0
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
@@ -105,413 +104,231 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (7, 7)
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 7, 7),
+    out_shape=(ngf*8,),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
-) # output is (batch, ngf*4, 7, 7)
+) # output is (batch, ngf*2)
 
-# (7, 7) -> (7, 7)
-td_module_2a = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+td_module_2 = \
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    filt_shape=(3,3),
     use_rand=multi_rand,
-    use_conv=use_conv,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2a'
-) # output is (batch, ngf*4, 7, 7)
+    mod_name='td_mod_2'
+) # output is (batch, ngf*4)
 
-# (7, 7) -> (7, 7)
-td_module_2b = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2b'
-) # output is (batch, ngf*4, 7, 7)
-
-# (7, 7) -> (7, 7)
-td_module_2c = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_2c'
-) # output is (batch, ngf*2, 7, 7)
-
-# (7, 7) -> (14, 14)
 td_module_3 = \
-GenConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    filt_shape=(3,3),
     use_rand=multi_rand,
-    use_conv=use_conv,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
-    us_stride=2,
     mod_name='td_mod_3'
-) # output is (batch, ngf*2, 14, 14)
+) # output is (batch, ngf*8)
 
-# (14, 14) -> (14, 14)
-td_module_4a = \
-GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+td_module_4 = \
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    filt_shape=(3,3),
     use_rand=multi_rand,
-    use_conv=use_conv,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_4a'
-) # output is (batch, ngf*2, 14, 14)
+    mod_name='td_mod_4'
+) # output is (batch, ngf*16)
 
-# (14, 14) -> (14, 14)
-td_module_4b = \
-GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=1,
-    mod_name='td_mod_4b'
-) # output is (batch, ngf*2, 14, 14)
-
-# (14, 14) -> (28, 28)
-td_module_4c = \
-GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func=act_func,
-    us_stride=2,
-    mod_name='td_mod_4c'
-) # output is (batch, ngf*1, 28, 28)
-
-# (28, 28) -> (28, 28)
 td_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
-    out_chans=32,
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
     apply_bn=use_bn,
-    stride='single',
     act_func=act_func,
     mod_name='td_mod_5'
-) # output is (batch, c, 28, 28)
+) # output is (batch, ngf*16)
 
-# (28, 28) -> (28, 28)
 td_module_6 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=32,
-    out_chans=nc,
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_6'
+) # output is (batch, ngf*8)
+
+td_module_7 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=nx,
     apply_bn=False,
     use_noise=False,
-    stride='single',
     act_func='ident',
-    mod_name='td_mod_6'
-) # output is (batch, c, 28, 28)
+    mod_name='td_mod_7'
+) # output is (batch, nx)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2, td_module_3,
+              td_module_4, td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
 # -- these do inference                  #
 ##########################################
 
-# (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*4*7*7),
+    bu_chans=(ngf*8),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
-) # output is (batch, nz0), (batch, nz0)
+)
 
-# (7, 7) -> (7, 7)
-bu_module_2a = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
+bu_module_2 = \
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
-    stride='single',
     act_func=act_func,
-    mod_name='bu_mod_2a'
-) # output is (batch, ngf*4, 7, 7)
+    mod_name='bu_mod_2'
+)
 
-# (7, 7) -> (7, 7)
-bu_module_2b = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_2b'
-) # output is (batch, ngf*4, 7, 7)
-
-# (7, 7) -> (7, 7)
-bu_module_2c = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_2c'
-) # output is (batch, ngf*4, 7, 7)
-
-# (14, 14) -> (7, 7)
 bu_module_3 = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
-    stride='double',
     act_func=act_func,
     mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 7, 7)
+)
 
-# (14, 14) -> (14, 14)
-bu_module_4a = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
+bu_module_4 = \
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
-    stride='single',
     act_func=act_func,
-    mod_name='bu_mod_4a'
-) # output is (batch, ngf*2, 14, 14)
+    mod_name='bu_mod_4'
+)
 
-# (14, 14) -> (14, 14)
-bu_module_4b = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_4b'
-) # output is (batch, ngf*2, 14, 14)
-
-# (28, 28) -> (14, 14)
-bu_module_4c = \
-BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*1),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_4c'
-) # output is (batch, ngf*2, 14, 14)
-
-# (28, 28) -> (28, 28)
 bu_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=32,
-    out_chans=(ngf*1),
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
-    stride='single',
     act_func=act_func,
     mod_name='bu_mod_5'
-) # output is (batch, ngf*1, 28, 28)
+)
 
-# (28, 28) -> (28, 28)
 bu_module_6 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=nc,
-    out_chans=32,
-    apply_bn=False,
-    stride='single',
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_6'
-) # output is (batch, ngf*1, 28, 28)
+)
+
+bu_module_7 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(ngf*8),
+    apply_bn=False,
+    act_func=act_func,
+    mod_name='bu_mod_7'
+)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
-              bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
 #########################################
 
-im_module_2a = \
-InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+im_module_2 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
+    use_fc=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    mod_type=mod_type,
     act_func=act_func,
-    mod_name='im_mod_2a'
-) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
-  # over the rand_vals used in td_mod_2a.
-
-im_module_2b = \
-InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    apply_bn=use_bn,
-    use_td_cond=use_td_cond,
-    mod_type=mod_type,
-    act_func=act_func,
-    mod_name='im_mod_2b'
-) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
-  # over the rand_vals used in td_mod_2b.
-
-im_module_2c = \
-InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    apply_bn=use_bn,
-    use_td_cond=use_td_cond,
-    mod_type=mod_type,
-    act_func=act_func,
-    mod_name='im_mod_2c'
-) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
-  # over the rand_vals used in td_mod_2c.
+    mod_name='im_mod_2'
+)
 
 im_module_3 = \
-InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
+    use_fc=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_3'
-) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
-  # over the rand_vals used in td_mod_3.
+)
 
-im_module_4a = \
-InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+im_module_4 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
+    use_fc=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    mod_type=mod_type,
     act_func=act_func,
-    mod_name='im_mod_4a'
-) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
-  # over the rand_vals used in td_mod_4.
+    mod_name='im_mod_4'
+)
 
-im_module_4b = \
-InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+im_module_5 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8),
+    fc_chans=(ngf*8),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
+    use_fc=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
-    mod_type=mod_type,
     act_func=act_func,
-    mod_name='im_mod_4b'
-) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
-  # over the rand_vals used in td_mod_4.
+    mod_name='im_mod_5'
+)
 
-im_module_4c = \
-InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    apply_bn=use_bn,
-    use_td_cond=use_td_cond,
-    mod_type=mod_type,
-    act_func=act_func,
-    mod_name='im_mod_4c'
-) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
-  # over the rand_vals used in td_mod_4.
-
-im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_3,
-              im_module_4b, im_module_4c]
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -524,13 +341,10 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_3,
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_module': 'bu_mod_2a', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2b'},
-    'td_mod_2c': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2c'},
+    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-#    'td_mod_4a': {'bu_module': 'bu_mod_4a', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4b'},
-    'td_mod_4c': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4c'}
+    'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
+    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules
@@ -540,7 +354,9 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform
+    output_transform=output_transform,
+    use_td_noise=use_td_noise,
+    use_bu_noise=use_bu_noise
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -560,7 +376,7 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -575,6 +391,8 @@ if iwae_samples == 1:
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
+
+    #log_p_x = T.sum(bce(T.flatten(Xg_recon, 2), T.flatten(Xg, 2)), axis=1)
 
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg,2), T.flatten(Xg_recon,2),
@@ -615,6 +433,8 @@ else:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
 
+    # log_p_x = T.sum(bce(T.flatten(Xg_recon, 2), T.flatten(Xg, 2)), axis=1)
+
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
                     do_sum=False), axis=1)
@@ -649,10 +469,9 @@ else:
                     (lam_vae[0] * (vae_nll_cost + vae_kld_cost)) + \
                     vae_reg_cost
     full_cost_inf = full_cost_gen
-
-    # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_rd['td_output']
+# get simple reconstruction, for other purposes
+im_rd = inf_gen_model.apply_im(Xg)
+Xgr2 = im_rd['td_output']
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -677,7 +496,7 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg], Xg_recon)
+recon_func = theano.function([Xg], Xgr2)
 sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")
@@ -704,15 +523,15 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(0.1,1.0,20)
+kld_weights = np.linspace(0.0,1.0,100)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    #if ((epoch-1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -731,11 +550,11 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform(imb)
+        imb_img = train_transform( np.repeat(imb, 10, axis=0) )
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(imb_img.astype(theano.config.floatX))
+        g_result = g_train_func(imb_img)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -751,7 +570,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_train_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 25) or (epoch == 50) or (epoch == 150) or (epoch == 200):
+    if (epoch == 50) or (epoch == 100) or (epoch == 200) or (epoch == 300):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -806,30 +625,31 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
-    # generate some samples from the model prior
-    samples = np.asarray(sample_func(sample_z0mb))
-    grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-    # test reconstruction performance (inference + generation)
-    tr_rb = Xtr[0:100,:]
-    va_rb = Xva[0:100,:]
-    # get the model reconstructions
-    tr_rb = train_transform(tr_rb)
-    va_rb = train_transform(va_rb)
-    tr_recons = recon_func(tr_rb)
-    va_recons = recon_func(va_rb)
-    # stripe data for nice display (each reconstruction next to its target)
-    tr_vis_batch = np.zeros((200, nc, npx, npx))
-    va_vis_batch = np.zeros((200, nc, npx, npx))
-    for rec_pair in range(100):
-        idx_in = 2*rec_pair
-        idx_out = 2*rec_pair + 1
-        tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-        tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-        va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-        va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-    # draw images...
-    grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-    grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+    if (epoch % 10) == 0:
+        # generate some samples from the model prior
+        samples = np.asarray(sample_func(sample_z0mb))
+        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+        # test reconstruction performance (inference + generation)
+        tr_rb = Xtr[0:100,:]
+        va_rb = Xva[0:100,:]
+        # get the model reconstructions
+        tr_rb = train_transform(tr_rb)
+        va_rb = train_transform(va_rb)
+        tr_recons = recon_func(tr_rb)
+        va_recons = recon_func(va_rb)
+        # stripe data for nice display (each reconstruction next to its target)
+        tr_vis_batch = np.zeros((200, nx))
+        va_vis_batch = np.zeros((200, nx))
+        for rec_pair in range(100):
+            idx_in = 2*rec_pair
+            idx_out = 2*rec_pair + 1
+            tr_vis_batch[idx_in,:] = tr_rb[rec_pair,:]
+            tr_vis_batch[idx_out,:] = tr_recons[rec_pair,:]
+            va_vis_batch[idx_in,:] = va_rb[rec_pair,:]
+            va_vis_batch[idx_out,:] = va_recons[rec_pair,:]
+        # draw images...
+        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 
