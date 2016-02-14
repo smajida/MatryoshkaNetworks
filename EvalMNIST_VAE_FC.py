@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_noise_01_no_latent_rescale'
+desc = 'test_fc_vae_relu_bn_bu_noise_01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -474,7 +474,7 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 Xva_blocks = np.split(Xva, 2, axis=0)
-for epoch in range(5):
+for epoch in range(2):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):

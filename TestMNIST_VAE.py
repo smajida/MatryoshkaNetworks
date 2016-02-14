@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_all_noise_mod_type_1'
+desc = 'test_vae_relu_mods_small_noise_basic_kld_mod_type_0'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -70,10 +70,10 @@ use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.1  # amount of noise to inject in BU and IM modules
+noise_std = 0.05  # amount of noise to inject in BU and IM modules
 use_bu_noise = True
 use_td_noise = True
-mod_type = 1
+mod_type = 0
 
 ntrain = Xtr.shape[0]
 
@@ -710,9 +710,9 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    #lam_kld.set_value(floatX([1.0]))
+    #if ((epoch-1) < len(kld_weights)):
+    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
