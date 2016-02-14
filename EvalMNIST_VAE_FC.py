@@ -69,7 +69,6 @@ use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 10 # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
-latent_rescale = False # whether to use alternative rescaling of latents
 
 ntrain = Xtr.shape[0]
 
@@ -376,8 +375,7 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform,
-    latent_rescale=latent_rescale
+    output_transform=output_transform
 )
 
 ###################

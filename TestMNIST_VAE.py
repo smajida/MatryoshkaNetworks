@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_all_noise_mod_type_1'
+desc = 'test_vae_relu_mods_all_noise_mod_type_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -73,7 +73,7 @@ iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
 use_bu_noise = True
 use_td_noise = True
-mod_type = 1
+mod_type = 2
 
 ntrain = Xtr.shape[0]
 
@@ -263,7 +263,7 @@ BasicConvModule(
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_6] #, td_module_6]
+              td_module_3, td_module_4b, td_module_4c, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -405,7 +405,7 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_4c, bu_module_4b, bu_module_3,
+bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
               bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
