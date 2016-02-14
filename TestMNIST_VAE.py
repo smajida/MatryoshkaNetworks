@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_mods_all_noise_mod_type_2'
+desc = 'test_vae_relu_mods_all_noise_mod_type_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -73,7 +73,7 @@ iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
 use_bu_noise = True
 use_td_noise = True
-mod_type = 2
+mod_type = 1
 
 ntrain = Xtr.shape[0]
 
@@ -130,7 +130,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
-    mod_type=mod_type,
     mod_name='td_mod_2a'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -147,7 +146,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
-    mod_type=mod_type,
     mod_name='td_mod_2b'
 ) # output is (batch, ngf*4, 7, 7)
 
@@ -164,7 +162,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
-    mod_type=mod_type,
     mod_name='td_mod_2c'
 ) # output is (batch, ngf*2, 7, 7)
 
@@ -181,7 +178,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=2,
-    mod_type=mod_type,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -198,7 +194,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
-    mod_type=mod_type,
     mod_name='td_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -215,7 +210,6 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     us_stride=1,
-    mod_type=mod_type,
     mod_name='td_mod_4b'
 ) # output is (batch, ngf*2, 14, 14)
 
@@ -231,7 +225,6 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     act_func=act_func,
-    mod_type=mod_type,
     us_stride=2,
     mod_name='td_mod_4c'
 ) # output is (batch, ngf*1, 28, 28)
@@ -421,6 +414,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
@@ -435,6 +429,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
@@ -449,6 +444,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
@@ -463,6 +459,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -477,6 +474,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4a'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -491,6 +489,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -505,6 +504,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4c'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution

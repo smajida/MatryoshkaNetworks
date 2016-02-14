@@ -1126,7 +1126,7 @@ class GenConvResModule(object):
                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
                  use_rand=True, use_conv=True, us_stride=2,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
-                 use_bn_params=True, act_func='relu', mod_type=1,
+                 use_bn_params=True, act_func='relu', mod_type=0,
                  mod_name='gm_conv'):
         assert ((us_stride == 1) or (us_stride == 2)), \
                 "us_stride must be 1 or 2."
@@ -1525,6 +1525,7 @@ class InfConvMergeModule(object):
                  apply_bn=True,
                  use_td_cond=False,
                  use_bn_params=True,
+                 mod_type=0,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
@@ -1548,6 +1549,7 @@ class InfConvMergeModule(object):
         self.apply_bn = apply_bn
         self.use_td_cond = use_td_cond
         self.use_bn_params = use_bn_params
+        self.mod_type = mod_type
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1564,8 +1566,12 @@ class InfConvMergeModule(object):
         # Initialize "inference" model parameters. #
         ############################################
         # initialize first conv layer parameters
-        self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
-                                "{}_w1_im".format(self.mod_name))
+        if self.mod_type == 0:
+            self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
+                                    "{}_w1_im".format(self.mod_name))
+        else:
+            self.w1_im = weight_ifn((self.conv_chans, (3*self.td_chans), 3, 3),
+                                    "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
@@ -1574,8 +1580,12 @@ class InfConvMergeModule(object):
                                 "{}_w2_im".format(self.mod_name))
         self.params.extend([self.w2_im])
         # initialize convolutional projection layer parameters
-        self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
-                                "{}_w3_im".format(self.mod_name))
+        if self.mod_type == 0:
+            self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
+                                    "{}_w3_im".format(self.mod_name))
+        else:
+            self.w3_im = weight_ifn((2*self.rand_chans, (3*self.td_chans), 3, 3),
+                                    "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
         #############################################
@@ -1682,7 +1692,10 @@ class InfConvMergeModule(object):
         Combine td_input and bu_input, to put distributions over some stuff.
         """
         # stack top-down and bottom-up inputs on top of each other
-        full_input = T.concatenate([td_input, bu_input], axis=1)
+        if self.mod_type == 0:
+            full_input = T.concatenate([td_input, bu_input], axis=1)
+        else:
+            full_input = T.concatenate([td_input, bu_input, td_input-bu_input], axis=1)
         # do dropout
         full_input = conv_drop_func(full_input, self.unif_drop, self.chan_drop,
                                     share_mask=share_mask)
