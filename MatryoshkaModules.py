@@ -610,7 +610,7 @@ class BasicConvModule(object):
         """
         Apply this convolutional module to the given input.
         """
-        noise = noise is self.use_noise else None
+        noise = noise if self.use_noise else None
         bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
