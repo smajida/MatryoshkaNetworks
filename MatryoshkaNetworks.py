@@ -24,6 +24,7 @@ from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 #
 
 tanh = activations.Tanh()
+sigmoid = activations.Sigmoid()
 
 def tanh_clip(x, bound=10.0):
     """
@@ -614,10 +615,10 @@ class InfGenModel(object):
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     # do reparametrization
-                    rand_vals = reparametrize(cond_mean_im, cond_logvar_im,
+                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
                     # feedforward through the top-most TD module
-                    td_act_i = td_module.apply(rand_vals=rand_vals,
+                    td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
                 else:
                     # handle conditionals based on merging BU and TD info
