@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_lrelu_mods_ngf_64_noise_01_fast_kld'
+desc = 'test_vae_relu_mods_all_noise_mod_type_0'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -51,21 +51,27 @@ data_path = "{}/data/".format(EXP_DIR)
 Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
 Xva = Xte[:,:]
 
-set_seed(1)         # seed for shared rngs
-nc = 1              # # of channels in image
-nbatch = 400        # # of examples in batch
-npx = 28            # # of pixels width/height of images
-nz0 = 32            # # of dim for Z0
-nz1 = 16            # # of dim for Z1
-ngf = 64            # base # of filters for conv layers in generative stuff
-ngfc = 128          # # of filters in fully connected layers of generative stuff
-nx = npx*npx*nc     # # of dimensions in X
-multi_rand = True   # whether to use stochastic variables at multiple scales
-use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = True      # whether to use batch normalization throughout the model
-use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'lrelu'
-iwae_samples = 2   # number of samples to use in MEN bound
+set_seed(1)       # seed for shared rngs
+nc = 1            # # of channels in image
+nbatch = 400      # # of examples in batch
+npx = 28          # # of pixels width/height of images
+nz0 = 32          # # of dim for Z0
+nz1 = 16          # # of dim for Z1
+ngf = 64          # base # of filters for conv layers in generative stuff
+ngfc = 128        # # of filters in fully connected layers of generative stuff
+nx = npx*npx*nc   # # of dimensions in X
+niter = 300       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
+multi_rand = True # whether to use stochastic variables at multiple scales
+use_conv = True   # whether to use "internal" conv layers in gen/disc networks
+use_bn = True     # whether to use batch normalization throughout the model
+use_td_cond = True # whether to use top-down conditioning in generator
+act_func = 'relu' # activation func to use where they can be selected
+iwae_samples = 2 # number of samples to use in MEN bound
+noise_std = 0.1  # amount of noise to inject in BU and IM modules
+use_bu_noise = True
+use_td_noise = True
+mod_type = 0
 
 ntrain = Xtr.shape[0]
 
@@ -140,7 +146,7 @@ td_module_2a = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -156,7 +162,7 @@ td_module_2b = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -172,7 +178,7 @@ td_module_2c = \
 GenConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -252,7 +258,7 @@ td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*1),
+    out_chans=32,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -263,9 +269,10 @@ BasicConvModule(
 td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=32,
     out_chans=nc,
     apply_bn=False,
+    use_noise=False,
     stride='single',
     act_func='ident',
     mod_name='td_mod_6'
@@ -273,7 +280,7 @@ BasicConvModule(
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c,
-              td_module_3, td_module_4b, td_module_4c, td_module_6] #, td_module_6]
+              td_module_3, td_module_4b, td_module_4c, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -297,7 +304,7 @@ bu_module_2a = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -311,7 +318,7 @@ bu_module_2b = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -325,7 +332,7 @@ bu_module_2c = \
 BasicConvResModule(
     in_chans=(ngf*4),
     out_chans=(ngf*4),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*4),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -394,7 +401,7 @@ BasicConvResModule(
 bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=32,
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='single',
@@ -407,7 +414,7 @@ bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
-    out_chans=(ngf*1),
+    out_chans=32,
     apply_bn=False,
     stride='single',
     act_func=act_func,
@@ -415,7 +422,7 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_4c, bu_module_4b, bu_module_3,
+bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_3,
               bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
@@ -431,6 +438,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2a'
 ) # merge input to td_mod_2a and output of bu_mod_2a, to place a distribution
@@ -445,6 +453,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2b'
 ) # merge input to td_mod_2b and output of bu_mod_2b, to place a distribution
@@ -459,6 +468,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_2c'
 ) # merge input to td_mod_2c and output of bu_mod_2c, to place a distribution
@@ -473,6 +483,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_3'
 ) # merge input to td_mod_3 and output of bu_mod_3, to place a distribution
@@ -487,6 +498,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4a'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -501,6 +513,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4b'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -515,6 +528,7 @@ InfConvMergeModule(
     use_conv=True,
     apply_bn=use_bn,
     use_td_cond=use_td_cond,
+    mod_type=mod_type,
     act_func=act_func,
     mod_name='im_mod_4c'
 ) # merge input to td_mod_4 and output of bu_mod_4, to place a distribution
@@ -550,10 +564,8 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform,
-    latent_rescale=False
+    output_transform=output_transform
 )
-
 
 ###################
 # LOAD PARAMETERS #
