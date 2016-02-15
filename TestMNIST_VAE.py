@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_short_model_basic_kld_no_gates_ngf_50'
+desc = 'test_vae_relu_short_model_basic_kld_all_noise_015'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -59,7 +59,7 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 50          # base # of filters for conv layers in generative stuff
+ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 256        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 400       # # of iter at starting learning rate
@@ -70,7 +70,7 @@ use_bn = True     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.1  # amount of noise to inject in BU and IM modules
+noise_std = 0.15  # amount of noise to inject in BU and IM modules
 use_bu_noise = True
 use_td_noise = True
 mod_type = 0
