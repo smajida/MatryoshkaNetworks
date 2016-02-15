@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_vae_relu_deeper_model_basic_kld_no_gates'
+desc = 'test_vae_relu_short_model_basic_kld_no_gates_small_batch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -55,7 +55,7 @@ Xva = Xte
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -230,8 +230,10 @@ BasicConvModule(
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_2a, td_module_3, td_module_4,
-              td_module_4a, td_module_5, td_module_6, td_module_7]
+#td_modules = [td_module_1, td_module_2, td_module_2a, td_module_3, td_module_4,
+#              td_module_4a, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
+              td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -359,8 +361,10 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4a, bu_module_4,
-              bu_module_3, bu_module_2a, bu_module_2, bu_module_1]
+#bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4a, bu_module_4,
+#              bu_module_3, bu_module_2a, bu_module_2, bu_module_1]
+bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
