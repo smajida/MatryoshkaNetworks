@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_bu_noise_01_nb100'
+desc = 'test_fc_vae_relu_bn_all_noise_01_fast_kld'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -54,7 +54,7 @@ Xva = Xte
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 100      # # of examples in batch
+nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -62,7 +62,7 @@ ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 500 # # of iter to linearly decay learning rate to zero
+niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -70,8 +70,9 @@ use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
-use_td_noise = False # whether to use noise in TD pass
+use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
+derp_factor = 9001 # it's over 9000
 
 ntrain = Xtr.shape[0]
 
@@ -522,7 +523,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(0.0,1.0,100)
+kld_weights = np.linspace(0.0,1.0,25)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
