@@ -643,8 +643,8 @@ class InfGenModel(object):
                         # don't use top-down gating of latent variables
                         td_gates = (0.0 * cond_mean_im) + 1.0
                     # gate the conditional distribution parameters
-                    cond_mean_im = td_gates * cond_mean_im
-                    cond_logvar_im = td_gates * cond_logvar_im
+                    #cond_mean_im = td_gates * cond_mean_im
+                    #cond_logvar_im = td_gates * cond_logvar_im
                     # reparametrize and gate the latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
