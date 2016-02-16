@@ -19,13 +19,13 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.ops import log_mean_exp
+from lib.ops import log_mean_exp, binarize_data
 from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
-from load import load_binarized_mnist
+from load import load_binarized_mnist, load_udm
 
 #
 # Phil's business
@@ -45,10 +45,20 @@ inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-# load binarized MNIST dataset
+fixed_binarization = True
+# load MNIST dataset, either fixed or dynamic binarization
 data_path = "{}/data/".format(EXP_DIR)
-Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
-Xva = Xte[:,:]
+if fixed_binarization:
+    Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
+    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
+    Xva = Xte
+else:
+    dataset = load_udm("{}mnist.pkl.gz", to_01=True)
+    Xtr = dataset[0][0]
+    Xva = dataset[1][0]
+    Xte = dataset[2][0]
+    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
+    Xva = Xte
 
 
 set_seed(1)       # seed for shared rngs
@@ -100,6 +110,8 @@ def iwae_multi_eval(x, iters, cost_func, iwae_num):
     return iwae_bounds
 
 def train_transform(X):
+    if not fixed_binarization:
+        X = binarize_data(X)
     return floatX(X)
 
 def draw_transform(X):
