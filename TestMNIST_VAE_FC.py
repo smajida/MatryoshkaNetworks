@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_bu_noise_01_dyn_bin'
+desc = 'test_fc_vae_relu_bn_bu_noise_01_dyn_bin_bigger'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +67,10 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
-ngf = 64          # base # of filters for conv layers in generative stuff
+if fixed_binarization:
+    ngf = 64      # base # of filters for conv layers in generative stuff
+else:
+    ngf = 100     # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
