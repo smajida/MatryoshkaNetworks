@@ -24,7 +24,7 @@ from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
-from lib.data_utils import shuffle, iter_data, binarize_data
+from lib.data_utils import shuffle, iter_data
 from load import load_binarized_mnist, load_udm
 
 #

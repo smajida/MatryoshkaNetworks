@@ -190,9 +190,10 @@ def load_svhn_ss(tr_file, te_file, ex_file=None, ex_count=None):
                  'Xex': Xex}
     return data_dict
 
-def load_udm(dataset):
+def load_udm(dataset, to_01=False):
     """Loads the UdM train/validate/test split of MNIST."""
     # Download the MNIST dataset if it is not present
+    print("Loading real-valued MNIST data...")
     data_dir, data_file = os.path.split(dataset)
     # Load the dataset
     f = gzip.open(dataset, 'rb')
@@ -205,6 +206,16 @@ def load_udm(dataset):
     train_set[0] = np.asarray(train_set[0])
     valid_set[0] = np.asarray(valid_set[0])
     test_set[0] = np.asarray(test_set[0])
+    if to_01:
+        # training set...
+        train_set[0] = train_set[0] - np.min(train_set[0])
+        train_set[0] = train_set[0] / np.max(train_set[0])
+        # validation set...
+        valid_set[0] = valid_set[0] - np.min(valid_set[0])
+        valid_set[0] = valid_set[0] / np.max(valid_set[0])
+        # test set...
+        test_set[0] = test_set[0] - np.min(test_set[0])
+        test_set[0] = test_set[0] / np.max(test_set[0])
 
     # old, ugly code
     test_set_x, test_set_y = test_set[0], test_set[1]
