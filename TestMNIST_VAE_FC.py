@@ -53,7 +53,7 @@ if fixed_binarization:
     Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
     Xva = Xte
 else:
-    dataset = load_udm("{}mnist.pkl.gz", to_01=True)
+    dataset = load_udm("{}mnist.pkl.gz".format(data_path), to_01=True)
     Xtr = dataset[0][0]
     Xva = dataset[1][0]
     Xte = dataset[2][0]
