@@ -65,12 +65,16 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 64          # # of dim for Z1
+if fixed_binarization:
+    nz0 = 64          # # of dim for Z0
+    nz1 = 64          # # of dim for Z1
+else:
+    nz0 = 64           # # of dim for Z0
+    nz1 = 128          # # of dim for Z1
 if fixed_binarization:
     ngf = 64      # base # of filters for conv layers in generative stuff
 else:
-    ngf = 100     # base # of filters for conv layers in generative stuff
+    ngf = 128     # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
@@ -237,10 +241,10 @@ BasicFCModule(
 ) # output is (batch, nx)
 
 # modules must be listed in "evaluation order"
-if fixed_binarization:
+if True: #fixed_binarization:
     td_modules = [td_module_1, td_module_2, td_module_3,
                   td_module_4, td_module_5, td_module_6, td_module_7]
-else: 
+else:
     td_modules = [td_module_1, td_module_1a, td_module_2, td_module_2a, td_module_3, td_module_3a,
                   td_module_4, td_module_4a, td_module_5, td_module_6, td_module_7]
 
@@ -359,7 +363,7 @@ BasicFCModule(
 )
 
 # modules must be listed in "evaluation order"
-if fixed_binarization:
+if True: #fixed_binarization:
     bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
                   bu_module_3, bu_module_2, bu_module_1]
 else:
