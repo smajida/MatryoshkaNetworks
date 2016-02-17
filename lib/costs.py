@@ -76,6 +76,8 @@ def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
         mask = T.ones((1, p_approx.shape[1]))
     log_prob_1 = p_true * T.log(p_approx+1e-8)
     log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx)+1e-8)
+    #log_prob_1 = p_true * T.log(p_approx)
+    #log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx))
     log_prob_01 = log_prob_1 + log_prob_0
     if do_sum:
         result = T.sum((log_prob_01 * mask), axis=1, keepdims=False)

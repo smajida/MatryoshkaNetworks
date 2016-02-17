@@ -39,7 +39,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_bu_noise_01_dyn_bin_bigger'
+desc = 'test_fc_vae_relu_bn_bu_noise_01_dyn_bin_even_bigger'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -129,6 +129,15 @@ GenTopModule(
     mod_name='td_mod_1'
 ) # output is (batch, ngf*2)
 
+td_module_1a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_1a'
+) # output is (batch, ngf*8)
+
 td_module_2 = \
 GenFCResModule(
     in_chans=(ngf*8),
@@ -141,6 +150,15 @@ GenFCResModule(
     act_func=act_func,
     mod_name='td_mod_2'
 ) # output is (batch, ngf*4)
+
+td_module_2a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_2a'
+) # output is (batch, ngf*8)
 
 td_module_3 = \
 GenFCResModule(
@@ -155,6 +173,15 @@ GenFCResModule(
     mod_name='td_mod_3'
 ) # output is (batch, ngf*8)
 
+td_module_3a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_3a'
+) # output is (batch, ngf*8)
+
 td_module_4 = \
 GenFCResModule(
     in_chans=(ngf*8),
@@ -167,6 +194,15 @@ GenFCResModule(
     act_func=act_func,
     mod_name='td_mod_4'
 ) # output is (batch, ngf*16)
+
+td_module_4a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_4a'
+) # output is (batch, ngf*8)
 
 td_module_5 = \
 GenFCResModule(
@@ -201,8 +237,12 @@ BasicFCModule(
 ) # output is (batch, nx)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6, td_module_7]
+if fixed_binarization:
+    td_modules = [td_module_1, td_module_2, td_module_3,
+                  td_module_4, td_module_5, td_module_6, td_module_7]
+else: 
+    td_modules = [td_module_1, td_module_1a, td_module_2, td_module_2a, td_module_3, td_module_3a,
+                  td_module_4, td_module_4a, td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -220,6 +260,15 @@ InfTopModule(
     mod_name='bu_mod_1'
 )
 
+bu_module_1a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_1a'
+) # output is (batch, ngf*8)
+
 bu_module_2 = \
 BasicFCResModule(
     in_chans=(ngf*8),
@@ -230,6 +279,15 @@ BasicFCResModule(
     act_func=act_func,
     mod_name='bu_mod_2'
 )
+
+bu_module_2a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_2a'
+) # output is (batch, ngf*8)
 
 bu_module_3 = \
 BasicFCResModule(
@@ -242,6 +300,15 @@ BasicFCResModule(
     mod_name='bu_mod_3'
 )
 
+bu_module_3a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_3a'
+) # output is (batch, ngf*8)
+
 bu_module_4 = \
 BasicFCResModule(
     in_chans=(ngf*8),
@@ -252,6 +319,15 @@ BasicFCResModule(
     act_func=act_func,
     mod_name='bu_mod_4'
 )
+
+bu_module_4a = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_4a'
+) # output is (batch, ngf*8)
 
 bu_module_5 = \
 BasicFCResModule(
@@ -283,8 +359,13 @@ BasicFCModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+if fixed_binarization:
+    bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
+                  bu_module_3, bu_module_2, bu_module_1]
+else:
+    bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4a, bu_module_4,
+                  bu_module_3a, bu_module_3, bu_module_2a, bu_module_2, bu_module_1a, bu_module_1]
+
 
 #########################################
 # Setup the information merging modules #
