@@ -412,12 +412,12 @@ Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
 im_res_dict = inf_gen_model.apply_im(Xg_rep)
 Xg_rep_recon = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
-log_p_z = sum(im_res_dict['log_p_z'])
-log_q_z = sum(im_res_dict['log_q_z'])
+log_p_z = sum(im_res_dict['log_p_z']) # per-sample sum of log_p_z
+log_q_z = sum(im_res_dict['log_q_z']) # per-sample sum of log_q_z
 
 log_p_x = T.sum(log_prob_bernoulli( \
                 T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
-                do_sum=False), axis=1)
+                do_sum=False), axis=1) # per-sample log_p_x
 
 # compute quantities used in the IWAE bound
 log_ws_vec = log_p_x + log_p_z - log_q_z
