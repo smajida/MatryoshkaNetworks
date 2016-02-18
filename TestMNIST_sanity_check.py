@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
-j = 5
+j = 4
 # setup paths for dumping diagnostic info
 desc = "test_fc_vae_sanity_check_ll_cool_j{}".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
