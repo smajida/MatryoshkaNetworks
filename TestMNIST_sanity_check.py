@@ -199,7 +199,20 @@ GenFCResModule(
     mod_name='td_mod_j5'
 ) # output is (batch, ngf*1)
 
-td_j_modules = [td_module_j2, td_module_j3, td_module_j4, td_module_j5]
+td_module_j6 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j6'
+) # output is (batch, ngf*1)
+
+td_j_modules = [td_module_j2, td_module_j3, td_module_j4, td_module_j5, td_module_j6]
 td_j_modules = [tdj_mod for tdj_mod in td_j_modules[:(j-1)]]
 
 # modules must be listed in "evaluation order"
@@ -277,7 +290,16 @@ BasicFCModule(
     mod_name='bu_mod_j5'
 )
 
-bu_j_modules = [bu_module_j2, bu_module_j3, bu_module_j4, bu_module_j5]
+bu_module_j6 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j6'
+)
+
+bu_j_modules = [bu_module_j2, bu_module_j3, bu_module_j4, bu_module_j5, bu_module_j6]
 bu_j_modules = [buj_mod for buj_mod in bu_j_modules[:(j-1)]]
 bu_j_modules.reverse()
 
@@ -286,7 +308,7 @@ bu_modules = [bu_module_3, bu_module_2] + bu_j_modules + [bu_module_1]
 
 
 #########################################
-# Setup the information merging modules #
+# Setup the information merging modules # # should be a loopy factory gew-gaa
 #########################################
 
 im_module_j2 = \
@@ -341,13 +363,26 @@ InfFCMergeModule(
     mod_name='im_mod_j5'
 )
 
+im_module_j6 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j6'
+)
+
 # initialize the merge info dict for a network of depth 1
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
 }
 
 # ugly code for configuring info-merging in variable depth network
-im_modules = [im_module_j2, im_module_j3, im_module_j4, im_module_j5]
+im_modules = [im_module_j2, im_module_j3, im_module_j4, im_module_j5, im_module_j6]
 im_modules = [imj_mod for imj_mod in im_modules[:(j-1)]]
 imj_merge_info = [("td_mod_j{}".format(jj+2), \
                   {"bu_module": "bu_mod_j{}".format(jj+2), \
