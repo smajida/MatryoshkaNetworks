@@ -438,7 +438,7 @@ inf_gen_model.load_params(inf_gen_param_file)
 
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.matrix()  # symbolic var for inputs to bottom-up inference network
-Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
+Z0 = T.matrix()  # symbolic var for "noise" inputs to the generative stuff
 
 ######################
 # Compute IWAE bound #
@@ -467,7 +467,9 @@ nis_weights = theano.gradient.disconnected_grad(nis_weights)
 iwae_obs_costs = -1.0 * (T.sum((nis_weights * log_ws_mat), axis=1) - \
                          T.sum((nis_weights * T.log(nis_weights)), axis=1))
 
+# bad bound -- we don't report this
 iwae_bound = T.mean(iwae_obs_costs)
+# good bound, does log mean exp.... this is what we report
 iwae_bound_lme = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
 
 ########################################
