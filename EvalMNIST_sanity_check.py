@@ -38,8 +38,9 @@ from MatryoshkaNetworks import InfGenModel
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
+j = 1
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_sanity_check'
+desc = "test_fc_vae_sanity_check_ll_cool_j{}".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -59,7 +60,6 @@ else:
     Xte = dataset[2][0]
     Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
     Xva = Xte
-
 
 set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
@@ -82,6 +82,7 @@ noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
 derp_factor = 9001 # it's over 9000
+
 ntrain = Xtr.shape[0]
 
 
@@ -170,8 +171,77 @@ BasicFCModule(
     mod_name='td_mod_3'
 )
 
+# optional modules for testing benefits of Megadepth
+td_module_j2 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j2'
+) # output is (batch, ngf*1)
+
+td_module_j3 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j3'
+) # output is (batch, ngf*1)
+
+td_module_j4 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j4'
+) # output is (batch, ngf*1)
+
+td_module_j5 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j5'
+) # output is (batch, ngf*1)
+
+td_module_j6 = \
+GenFCResModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_j6'
+) # output is (batch, ngf*1)
+
+td_j_modules = [td_module_j2, td_module_j3, td_module_j4, td_module_j5, td_module_j6]
+td_j_modules = [tdj_mod for tdj_mod in td_j_modules[:(j-1)]]
+
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3]
+td_modules = [td_module_1] + td_j_modules + [td_module_2, td_module_3]
 
 
 ##########################################
@@ -208,19 +278,142 @@ BasicFCModule(
     mod_name='bu_mod_3'
 )
 
+# optional modules for testing benefits of Megadepth
+bu_module_j2 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j2'
+)
+
+bu_module_j3 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j3'
+)
+
+bu_module_j4 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j4'
+)
+
+bu_module_j5 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j5'
+)
+
+bu_module_j6 = \
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_j6'
+)
+
+bu_j_modules = [bu_module_j2, bu_module_j3, bu_module_j4, bu_module_j5, bu_module_j6]
+bu_j_modules = [buj_mod for buj_mod in bu_j_modules[:(j-1)]]
+bu_j_modules.reverse()
+
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_3, bu_module_2] + bu_j_modules + [bu_module_1]
 
 
 #########################################
-# Setup the information merging modules #
+# Setup the information merging modules # # should be a loopy factory gew-gaa
 #########################################
 
-im_modules = []
+im_module_j2 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j2'
+)
 
+im_module_j3 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j3'
+)
+
+im_module_j4 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j4'
+)
+
+im_module_j5 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j5'
+)
+
+im_module_j6 = \
+InfFCMergeModule(
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
+    fc_chans=(ngf*1),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    use_td_cond=use_td_cond,
+    act_func=act_func,
+    mod_name='im_mod_j6'
+)
+
+# initialize the merge info dict for a network of depth 1
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
 }
+
+# ugly code for configuring info-merging in variable depth network
+im_modules = [im_module_j2, im_module_j3, im_module_j4, im_module_j5, im_module_j6]
+im_modules = [imj_mod for imj_mod in im_modules[:(j-1)]]
+imj_merge_info = [("td_mod_j{}".format(jj+2), \
+                  {"bu_module": "bu_mod_j{}".format(jj+2), \
+                   "im_module": "im_mod_j{}".format(jj+2)}) for jj in range(len(im_modules))]
+for jj in range(j-1):
+    merge_info[imj_merge_info[jj][0]] = imj_merge_info[jj][1]
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
@@ -233,8 +426,6 @@ inf_gen_model = InfGenModel(
     use_td_noise=use_td_noise,
     use_bu_noise=use_bu_noise
 )
-
-#inf_gen_model.load_params(inf_gen_param_file)
 
 ###################
 # LOAD PARAMETERS #
