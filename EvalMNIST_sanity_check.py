@@ -1,11 +1,8 @@
 import os
-import json
 from time import time
 import numpy as np
 import numpy.random as npr
 from tqdm import tqdm
-from matplotlib import pyplot as plt
-from sklearn.externals import joblib
 
 import sys
 sys.setrecursionlimit(100000)
@@ -40,7 +37,7 @@ EXP_DIR = "./mnist"
 
 j = 1
 # setup paths for dumping diagnostic info
-desc = "test_fc_vae_sanity_check_ll_cool_j{}_yes_bn".format(j)
+desc = "test_sanity_check_ll_cool_j{}_no_noise_no_bn".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -73,18 +70,18 @@ nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
 niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
-use_fc = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
-use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 20  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
+derp_factor = 9001 # it's over 9000
+# params for ablation testing
+use_fc = True     # whether to use "internal" conv layers in gen/disc networks
+use_bn = False     # whether to use batch normalization throughout the model
 use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
-derp_factor = 9001 # it's over 9000
 train_dist_scale = False
-clip_sigmoid_inputs = True 
-top_fc = False
+clip_sigmoid_inputs = True
+top_fc = True 
 
 ntrain = Xtr.shape[0]
 
@@ -347,7 +344,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j2'
 )
@@ -360,7 +356,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j3'
 )
@@ -373,7 +368,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j4'
 )
@@ -386,7 +380,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j5'
 )
@@ -399,7 +392,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j6'
 )

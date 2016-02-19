@@ -1,11 +1,8 @@
 import os
-import json
 from time import time
 import numpy as np
 import numpy.random as npr
 from tqdm import tqdm
-from matplotlib import pyplot as plt
-from sklearn.externals import joblib
 
 import sys
 sys.setrecursionlimit(100000)
@@ -82,7 +79,6 @@ niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
@@ -383,7 +379,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_2'
 )
@@ -396,7 +391,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_3'
 )
@@ -409,7 +403,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_4'
 )
@@ -422,7 +415,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_5'
 )
@@ -724,7 +716,7 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
-    if (epoch % 10) == 0:
+    if (epoch < 20) or (((epoch - 1) % 20) == 0):
         # generate some samples from the model prior
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))

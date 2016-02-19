@@ -12,7 +12,6 @@ from collections import OrderedDict
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.vis import color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat, \
                     mean_pool_rows
@@ -392,7 +391,7 @@ class VarInfModel(object):
 class InfGenModel(object):
     """
     A deep, hierarchical generator network. This provides a wrapper around a
-    collection of bottom-up, top-down, and info merging Matryoshka modules.
+    collection of bottom-up, top-down, and info-merging Matryoshka modules.
 
     Params:
         bu_modules: modules for computing bottom-up (inference) information.
@@ -403,8 +402,8 @@ class InfGenModel(object):
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
-        use_td_noise: whether to apply noise in TD pass
-        use_bu_noise: whether to apply noise in BU pass (includes IM too)
+        use_td_noise: whether to apply noise in TD modules
+        use_bu_noise: whether to apply noise in BU/IM modules
         train_dist_scale: whether to train rescaling param (for testing)
     """
     def __init__(self,
@@ -429,11 +428,12 @@ class InfGenModel(object):
             self.inf_params.extend(module.params)
         # make dist_scale parameter (add it to the inf net parameters)
         if train_dist_scale:
-            self.dist_scale = sharedX( floatX([0.2]) )
+            # init to a somewhat arbitrary value -- not magic (probably)
+            self.dist_scale = sharedX( floatX([0.2]) ) 
             self.inf_params.append(self.dist_scale)
         else:
             self.dist_scale = sharedX( floatX([1.0]) )
-        # store a list of all parameters in this network
+        # gather a list of all parameters in this network
         self.params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
@@ -446,6 +446,7 @@ class InfGenModel(object):
         self.use_td_noise = use_td_noise
         self.use_bu_noise = use_bu_noise
         print("Compiling sample generator...")
+        # i'm the operator with my sample generator
         self.generate_samples = self._construct_generate_samples()
         samps = self.generate_samples(32)
         print("DONE.")
@@ -494,7 +495,9 @@ class InfGenModel(object):
 
     def apply_td(self, rand_vals=None, batch_size=None, noise=None):
         """
-        Apply this generator network using the given random values.
+        Compute a stochastic top-down pass using the given random values.
+        -- batch_size must be provided if rand_vals is None, so we can
+           determine the appropriate size for latent samples.
         """
         assert not ((batch_size is None) and (rand_vals is None)), \
                 "need _either_ batch_size or rand_vals."
@@ -510,7 +513,6 @@ class InfGenModel(object):
         td_acts = []
         for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
-            td_act_i = None # this will be set to the output of td_module
             if td_mod_name in self.merge_info:
                 # handle computation for a TD module that requires
                 # sampling some stochastic latent variables.
@@ -525,31 +527,20 @@ class InfGenModel(object):
                     # feedforward through an internal TD module
                     im_module = self.im_modules_dict[im_mod_name]
                     if rvs is None:
-                        # sample values to reparametrize, if none given
+                        # sample values to reparametrize
                         td_shape = td_acts[-1].shape
                         rand_chans = im_module.rand_chans
-                        if td_acts[-1].ndim == 2:
+                        if td_acts[-1].ndim == 2: 
+                            # this is a fully-connected module
                             rvs_size = (td_shape[0], rand_chans)
                         else:
+                            # this is a convolutional module
                             rvs_size = (td_shape[0], rand_chans, td_shape[2], td_shape[3])
                         rvs = cu_rng.normal(size=rvs_size, dtype=theano.config.floatX)
-                    # get top-down latent gating information
-                    if im_module.use_td_cond:
-                        # use top-down gating of latent variables
-                        td_gates, _ = \
-                                im_module.apply_td(td_input=td_acts[-1],
-                                                   noise=td_noise)
-                        td_gates = sigmoid(T.clip(td_gates, -15.0, 15.0) + 1.0)
-
-                    else:
-                        # don't use top-down gating of latent variables
-                        td_gates = (0.0 * rvs) + 1.0
-                    # gate the latent variables
-                    cond_rvs = td_gates * rvs
-                    # feedforward using the reparametrized stochastic
-                    # variables and incoming activations.
+                    # feedforward using the reparametrized latent variable
+                    # samples and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
-                                               rand_vals=cond_rvs,
+                                               rand_vals=rvs,
                                                noise=td_noise)
             else:
                 # handle computation for a TD module that only requires
@@ -584,6 +575,8 @@ class InfGenModel(object):
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
 
+        -- this does all the heavy lifting --
+
         This first computes the full bottom-up pass to collect the output of
         each BU module, where the output of the final BU module is the means
         and log variances for a diagonal Gaussian distribution over the latent
@@ -595,8 +588,8 @@ class InfGenModel(object):
         """
         bu_noise = noise if self.use_bu_noise else None
         td_noise = noise if self.use_td_noise else None
-        # set aside a dict for recording KLd info at each layer where we use
-        # conditional distributions over the latent variables.
+        # set aside a dict for recording KLd info at each layer that requires
+        # samples from a conditional distribution over the latent variables.
         kld_dict = {}
         z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
@@ -615,14 +608,15 @@ class InfGenModel(object):
                 im_mod_name = self.merge_info[td_mod_name]['im_module']
                 if im_mod_name is None:
                     # handle conditionals based purely on BU info
+                    # -- this should only happen for the top-most TD module
                     cond_mean_im = bu_res_dict[bu_mod_name][0]
                     cond_logvar_im = bu_res_dict[bu_mod_name][1]
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    # do reparametrization
+                    # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
-                    # feedforward through the top-most TD module
+                    # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
                 else:
@@ -630,36 +624,25 @@ class InfGenModel(object):
                     td_info = td_acts[-1]              # info from TD pass
                     bu_info = bu_res_dict[bu_mod_name] # info from BU pass
                     im_module = self.im_modules_dict[im_mod_name]
-                    # get the inference distribution
+                    # get the conditional distribution SSs (Sufficient Stat s)
                     cond_mean_im, cond_logvar_im = \
                             im_module.apply_im(td_input=td_info,
                                                bu_input=bu_info,
                                                noise=bu_noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    # get top-down latent gating information
-                    if im_module.use_td_cond:
-                        # use top-down gating of latent variables
-                        td_gates, _ = \
-                                im_module.apply_td(td_input=td_acts[-1],
-                                                   noise=td_noise)
-                        td_gates = sigmoid(T.clip(td_gates, -15.0, 15.0) + 1.0)
-                    else:
-                        # don't use top-down gating of latent variables
-                        td_gates = (0.0 * cond_mean_im) + 1.0
-                    # gate the conditional distribution parameters
-                    cond_mean_im = td_gates * cond_mean_im
-                    cond_logvar_im = td_gates * cond_logvar_im
-                    # reparametrize and gate the latent samples
+                    # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
-                    cond_rvs = td_gates * cond_rvs
-
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
                                                noise=td_noise)
-                # record log probability of z under p and q, for IWAE bound
+                # record top-down activations produced by the TD module
+                td_acts.append(td_act_i)
+                # get the log likelihood of the current latent samples under
+                # both the proposal distribution q(z | x) and the prior p(z).
+                # -- these are used when computing the IWAE bound.
                 log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
                                             T.flatten(0.0*cond_rvs, 2),
                                             log_vars=T.flatten(0.0*cond_rvs, 2),
@@ -671,9 +654,12 @@ class InfGenModel(object):
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
                 z_dict[td_mod_name] = cond_rvs
-                # record TD info produced by current module
-                td_acts.append(td_act_i)
                 # record KLd info for the relevant conditional distribution
+                # 
+                # NOTE: Some people might not hesitate before describing our
+                #       approach to computing KL(q(z|x) || p(z)) as an
+                #       application of Rao-Blackwellization in pursuit of
+                #       reduced estimator variance.
                 kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
                                      T.flatten(cond_logvar_im, 2),
                                      0.0, 0.0)
@@ -685,7 +671,10 @@ class InfGenModel(object):
                 td_act_i = td_module.apply(input=td_info, rand_vals=None,
                                            noise=td_noise)
                 td_acts.append(td_act_i)
+        # apply output transform (into observation space, presumably), to get
+        # the final "reconstruction" produced by the merged BU/TD pass.
         td_output = self.output_transform(td_acts[-1])
+        # package results into a handy dictionary
         im_res_dict = {}
         im_res_dict['td_output'] = td_output
         im_res_dict['kld_dict'] = kld_dict

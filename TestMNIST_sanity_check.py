@@ -1,11 +1,8 @@
 import os
-import json
 from time import time
 import numpy as np
 import numpy.random as npr
 from tqdm import tqdm
-from matplotlib import pyplot as plt
-from sklearn.externals import joblib
 
 import sys
 sys.setrecursionlimit(100000)
@@ -40,7 +37,7 @@ EXP_DIR = "./mnist"
 
 j = 1
 # setup paths for dumping diagnostic info
-desc = "test_fc_vae_sanity_check_ll_cool_j{}_no_bn_top_fc".format(j)
+desc = "test_sanity_check_ll_cool_j{}_no_noise_no_bn".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,27 +59,27 @@ else:
     Xva = Xte
 
 
-set_seed(1)       # seed for shared rngs
-nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
-npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 64          # # of dim for Z1
-ngf = 512         # base # of filters for conv layers in generative stuff
-ngfc = 512        # number of filters in top-most fc layer
-nx = npx*npx*nc   # # of dimensions in X
-niter = 500       # # of iter at starting learning rate
-niter_decay = 1000 # # of iter to linearly decay learning rate to zero
-multi_rand = True # whether to use stochastic variables at multiple scales
+set_seed(1)         # seed for shared rngs
+nc = 1              # # of channels in image
+nbatch = 200        # # of examples in batch
+npx = 28            # # of pixels width/height of images
+nz0 = 64            # # of dim for Z0
+nz1 = 64            # # of dim for Z1
+ngf = 512           # base # of filters for conv layers in generative stuff
+ngfc = 512          # number of filters in top-most fc layer
+nx = npx*npx*nc     # # of dimensions in X
+niter = 500         # # of iter at starting learning rate
+niter_decay = 1000  # # of iter to linearly decay learning rate to zero
+multi_rand = True   # whether to use stochastic variables at multiple scales
+act_func = 'relu'   # activation func to use where they can be selected
+iwae_samples = 1    # number of samples to use in MEN bound
+noise_std = 0.1     # amount of noise to inject in BU and IM modules
+derp_factor = 9001  # it's over 9000
+# params for ablation testing
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-use_td_cond = False # whether to use top-down conditioning in generator
-act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 1  # number of samples to use in MEN bound
-noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
-derp_factor = 9001 # it's over 9000
 train_dist_scale = False
 clip_sigmoid_inputs = True
 top_fc = True 
@@ -322,7 +319,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j2'
 )
@@ -335,7 +331,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j3'
 )
@@ -348,7 +343,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j4'
 )
@@ -361,7 +355,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j5'
 )
@@ -374,7 +367,6 @@ InfFCMergeModule(
     rand_chans=nz1,
     use_fc=True,
     apply_bn=use_bn,
-    use_td_cond=use_td_cond,
     act_func=act_func,
     mod_name='im_mod_j6'
 )
@@ -675,7 +667,7 @@ for epoch in range(1, niter+niter_decay+1):
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
     #################################
-    if (epoch % 10) == 0:
+    if (epoch < 20) or (((epoch - 1) % 20) == 0):
         # generate some samples from the model prior
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
