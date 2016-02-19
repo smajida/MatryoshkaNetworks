@@ -82,6 +82,8 @@ noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
 derp_factor = 9001 # it's over 9000
+train_dist_scale = False
+clip_sigmoid_inputs = False
 
 ntrain = Xtr.shape[0]
 
@@ -416,7 +418,10 @@ for jj in range(j-1):
     merge_info[imj_merge_info[jj][0]] = imj_merge_info[jj][1]
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
+if clip_sigmoid_inputs:
+    output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
+else:
+    output_transform = lambda x: sigmoid(x)ß
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -424,7 +429,8 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
-    use_bu_noise=use_bu_noise
+    use_bu_noise=use_bu_noise,
+    train_dist_scale=train_dist_scale
 )
 
 ###################
