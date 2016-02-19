@@ -35,9 +35,9 @@ from MatryoshkaNetworks import InfGenModel
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
-j = 1
+j = 3
 # setup paths for dumping diagnostic info
-desc = "test_sanity_check_ll_cool_j{}_no_noise_no_bn".format(j)
+desc = "test_sanity_check_ll_cool_j{}_no_noise_yes_bn".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -77,7 +77,7 @@ noise_std = 0.1     # amount of noise to inject in BU and IM modules
 derp_factor = 9001  # it's over 9000
 # params for ablation testing
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
 train_dist_scale = False
