@@ -1,7 +1,7 @@
 # MatryoshkaNetworks
 Experiments with deep convolutional generative models.
 
-This repo contains code implementing the models described in the ICLR workshop submission "Learning to take data apart, and put it back together". These were implemented using Python and Theano. The main model is implemented in "MatryoshkaNetworks.py" and the various modules around which the model is built are all implemented in "MatryoshkaModules.py".
+This repo contains code implementing the models described in the ICLR workshop submission "Learning to take data apart, and put it back together". These code is all Python and Theano. The main model is implemented in "MatryoshkaNetworks.py" and the various modules around which the model is built are all implemented in "MatryoshkaModules.py".
 
 To run the tests you'll need to make a subdirectory "./mnist/data" inside the repo root directory and put the \*.amat files for binarized MNIST into "./mnist/data/\*.amat". For training on dynamically-binarized data, you'll need to copy the standard UdM-style mnist.pkl.gz to "./mnist/data/mnist.pkl.gz".
 
@@ -12,7 +12,7 @@ http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mn
 http://www.cs.toronto.edu/~larocheh/public/datasets/binarized_mnist/binarized_mnist_test.amat
 http://deeplearning.net/data/mnist/mnist.pkl.gz
 
-Tests for the convolutional MatNet are implemented in "TestMNIST_conv.py". The main test options are towards the top of the file. Everything's reasonably well commented, but you'll have to read some code to do anything useful with these files. Sorry. For the convolutional model, you're best off with a K40 or TitanX due to high memory overhead. I'd recommend the TitanX, as The K40 is quite slow. You can probably get this going on a GTX 980ti or something like that if you reduce the batch size from 200 to 100 or whatever.
+Tests for the convolutional MatNet are implemented in "TestMNIST_conv.py". The main test options are towards the top of the file. Everything's reasonably well commented, but you'll have to read some code to do anything useful with these files. Sorry. For the convolutional model, you're best off with a K40 or TitanX due to high memory overhead. I'd recommend the TitanX, as the K40 is quite slow. You can probably get this going on a GTX 980ti or something like that if you reduce the batch size from 200 to 100 or whatever.
 
 The convolutional model surpasses the previous state of the art after 1-2 hours (20-30 epochs), but you'll have to wait a day or two for the scores to get crazy. You can evaluate the trained model using "EvalMNIST_conv.py", which you'll have to edit to match the various options you set when training the model.
 
