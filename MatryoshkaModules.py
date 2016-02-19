@@ -74,6 +74,9 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
     return x
 
 def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
+    """
+    Helper function for optionally applying secondary shift+scale in BN.
+    """
     if use_gb and (not (g is None) or (b is None)):
         bn_acts = batchnorm(acts, g=g, b=b, n=n)
     else:
@@ -86,8 +89,8 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
 
 class BasicFCResModule(object):
     """
-    Module with a direct pass-through connection that gets modulated by a pair
-    of hidden layers.
+    Module with a linear short-cut connection that gets combined with the
+    output of a linear->activation->linear module.
 
     Params:
         in_chans: number of channels in the inputs to module
@@ -131,7 +134,7 @@ class BasicFCResModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -159,7 +162,7 @@ class BasicFCResModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -174,7 +177,7 @@ class BasicFCResModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -196,7 +199,7 @@ class BasicFCResModule(object):
         # apply uniform and/or channel-wise dropout if desired
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
         if self.use_fc:
-            # apply first internal conv layer (might downsample)
+            # apply first internal linear layer and activation
             h1 = T.dot(input, self.w1)
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
@@ -205,16 +208,15 @@ class BasicFCResModule(object):
                 h1 = h1 + self.b1.dimshuffle('x',0)
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
-            # apply dropout at intermediate convolution layer
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            # apply second internal conv layer
+            # apply second internal linear layer
             h2 = T.dot(h1, self.w2)
-            # apply pass-through conv layer (might downsample)
+            # apply short-cut linear layer
             h3 = T.dot(input, self.w3)
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
-            # apply direct pass-through connection
+            # apply short-cut linear layer
             h4 = T.dot(input, self.w3)
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
@@ -244,11 +246,12 @@ class BasicFCModule(object):
         act_func: --
         unif_drop: drop rate for uniform dropout
         use_bn_params: whether to use params for BN
-        use_noise: whether to use the provided noise durnig apply()
+        use_noise: whether to use the provided noise during apply()
         mod_name: text name to identify this module in theano graph
     """
     def __init__(self, in_chans, out_chans,
-                 apply_bn=True, act_func='ident',
+                 apply_bn=True,
+                 act_func='ident',
                  unif_drop=0.0,
                  use_bn_params=True,
                  use_noise=True,
@@ -277,7 +280,7 @@ class BasicFCModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this discriminator module.
+        Initialize parameters for the layers in this module.
         """
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
@@ -291,7 +294,7 @@ class BasicFCModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -300,7 +303,7 @@ class BasicFCModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -316,6 +319,7 @@ class BasicFCModule(object):
         noise = noise if self.use_noise else None
         # apply uniform and/or channel-wise dropout if desired
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
+        # linaer transform followed by activations and stuff
         h1 = T.dot(input, self.w1)
         if self.apply_bn:
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
@@ -336,8 +340,8 @@ class BasicFCModule(object):
 
 class BasicConvResModule(object):
     """
-    Module with a direct pass-through connection that gets modulated by a pair
-    of hidden convolutional layers.
+    Module with a direct short-cut connection that gets with the output of a
+    conv->activation->conv transformation.
 
     Params:
         in_chans: number of channels in the inputs to module
@@ -390,7 +394,7 @@ class BasicConvResModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -410,16 +414,16 @@ class BasicConvResModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        self.w3 = weight_ifn((self.out_chans, self.in_chans, fd, fd),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
         return
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -427,14 +431,14 @@ class BasicConvResModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.g2.set_value(floatX(param_dict['g2']))
         self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         return
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -443,9 +447,9 @@ class BasicConvResModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['g2'] = self.g2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
@@ -475,8 +479,8 @@ class BasicConvResModule(object):
                                     share_mask=share_mask)
                 # apply second internal conv layer
                 h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-                # apply pass-through conv layer (might downsample)
-                h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                # apply short-cut conv layer (might downsample)
+                h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             else:
                 # apply first internal conv layer
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
@@ -492,21 +496,22 @@ class BasicConvResModule(object):
                                     share_mask=share_mask)
                 # apply second internal conv layer (might upsample)
                 h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
-                # apply pass-through conv layer (might upsample)
-                h3 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                # apply short-cut conv layer (might upsample)
+                h3 = deconv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
-            # apply direct pass-through conv layer
+            # apply direct short-cut conv layer
             if self.stride in ['double', 'single']:
-                h4 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                h4 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             else:
-                h4 = deconv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+                h4 = deconv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
+            # no comment
+            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
+            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
             h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
@@ -573,7 +578,7 @@ class BasicConvModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this discriminator module.
+        Initialize parameters for the layers in this module.
         """
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
@@ -587,7 +592,7 @@ class BasicConvModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -596,7 +601,7 @@ class BasicConvModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -658,7 +663,7 @@ class DiscFCModule(object):
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, fc_dim, in_dim, use_fc,
-                 apply_bn=True, init_func=None,
+                 apply_bn=True,
                  unif_drop=0.0,
                  act_func='lrelu',
                  use_bn_params=True,
@@ -687,7 +692,7 @@ class DiscFCModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this discriminator module.
+        Initialize parameters for the layers in this module.
         """
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
@@ -707,7 +712,7 @@ class DiscFCModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -718,7 +723,7 @@ class DiscFCModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -763,7 +768,7 @@ class DiscFCModule(object):
 class DiscConvResModule(object):
     """
     Module of one regular convolution layer followed by one "fractionally
-    strided convolution layer. Has a direct pass-through connection.
+    strided convolution layer. Includes a direct short-cut connection.
 
     Params:
         in_chans: number of channels in the inputs to module
@@ -818,7 +823,7 @@ class DiscConvResModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -838,11 +843,11 @@ class DiscConvResModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w_prj = weight_ifn((self.out_chans, self.in_chans, fd, fd),
-                                "{}_w_prj".format(self.mod_name))
-        self.g_prj = gain_ifn((self.out_chans), "{}_g_prj".format(self.mod_name))
-        self.b_prj = bias_ifn((self.out_chans), "{}_b_prj".format(self.mod_name))
-        self.params.extend([self.w_prj, self.g_prj, self.b_prj])
+        self.w3 = weight_ifn((self.out_chans, self.in_chans, fd, fd),
+                                "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.g3, self.b3])
         # initialize weights for the "discrimination" layer
         self.wd = weight_ifn((1, self.out_chans, 3, 3),
                              "{}_wd".format(self.mod_name))
@@ -850,7 +855,7 @@ class DiscConvResModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -858,15 +863,15 @@ class DiscConvResModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.g2.set_value(floatX(param_dict['g2']))
         self.b2.set_value(floatX(param_dict['b2']))
-        self.w_prj.set_value(floatX(param_dict['w_prj']))
-        self.g_prj.set_value(floatX(param_dict['g_prj']))
-        self.b_prj.set_value(floatX(param_dict['b_prj']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
+        self.b3.set_value(floatX(param_dict['b3']))
         self.wd.set_value(floatX(param_dict['wd']))
         return
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -875,15 +880,15 @@ class DiscConvResModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['g2'] = self.g2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w_prj'] = self.w_prj.get_value(borrow=False)
-        param_dict['g_prj'] = self.g_prj.get_value(borrow=False)
-        param_dict['b_prj'] = self.b_prj.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
         param_dict['wd'] = self.wd.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, noise=None, share_mask=False):
         """
-        Apply this generator module to some input.
+        Apply this convolutional discriminator module to some input.
         """
         batch_size = input.shape[0] # number of inputs in this batch
         ss = self.ds_stride         # stride for "learned downsampling"
@@ -900,33 +905,31 @@ class DiscConvResModule(object):
             else:
                 h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
                 h1 = add_noise(h1, noise=noise)
+            # apply activation and maybe dropout
             h1 = self.act_func(h1)
-            # apply dropout at intermediate convolution layer
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
-
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-            # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
-
+            # apply direct input->output short-cut layer
+            h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
             if self.apply_bn:
-                h4 = switchy_bn(h4, g=self.g_prj, b=self.b_prj, n=noise,
+                h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h4 = h4 + self.b_prj.dimshuffle('x',0,'x','x')
+                h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
                 h4 = add_noise(h4, noise=noise)
             output = self.act_func(h4)
         else:
-            # apply direct input->output "projection" layer
-            h3 = dnn_conv(input, self.w_prj, subsample=(ss, ss), border_mode=(bm, bm))
+            # apply direct input->output short-cut layer
+            h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             if self.apply_bn:
-                h3 = switchy_bn(h3, g=self.g_prj, b=self.b_prj, n=noise,
+                h3 = switchy_bn(h3, g=self.g3, b=self.b3, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h3 = h3 + self.b_prj.dimshuffle('x',0,'x','x')
+                h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
                 h3 = add_noise(h3, noise=noise)
             output = self.act_func(h3)
 
@@ -944,8 +947,8 @@ class DiscConvResModule(object):
 
 class GenTopModule(object):
     """
-    Module that transforms random values through a single fully connected
-    layer, and then a linear transform (with another relu, optionally).
+    Module that transforms random values through a single fully-connected
+    layer, and adds this to a linear transform.
     """
     def __init__(self,
                  rand_dim, fc_dim, out_shape,
@@ -985,7 +988,7 @@ class GenTopModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -1013,7 +1016,7 @@ class GenTopModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -1028,7 +1031,7 @@ class GenTopModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -1052,18 +1055,15 @@ class GenTopModule(object):
         assert ((batch_size is None) or (rand_vals is None)), \
                 "need either batch_size or rand_vals"
         if rand_vals is None:
+            # we need to generate some latent variables
             rand_shape = (batch_size, self.rand_dim)
             rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
                                       dtype=theano.config.floatX)
         else:
+            # get the shape of the incoming latent variables
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape
-
-        # drop from latent vars!
-        # rand_vals = fc_drop_func(rand_vals, self.unif_drop,
-        #                          share_mask=share_mask)
-
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
             if self.apply_bn:
@@ -1101,9 +1101,10 @@ class GenTopModule(object):
 
 class GenConvResModule(object):
     """
-    Module of one "fractionally strided" convolution layer followed by one
-    regular convolution layer. Inputs to the fractionally strided convolution
-    can optionally be augmented with some random values.
+    Module of one regular convolution layer followed by one "fractionally-
+    strided" convolution layer, which gets combined with the output of a
+    "fractionally-strided" short-cut layer. Inputs to this module will get
+    combined with some latent variables prior to processing.
 
     Params:
         in_chans: number of channels in the inputs to module
@@ -1113,7 +1114,7 @@ class GenConvResModule(object):
         filt_shape: size of filters (either (3, 3) or (5, 5))
         use_rand: flag for whether or not to augment inputs
         use_conv: flag for whether to use "internal" convolution layer
-        us_stride: upsampling ratio in the fractionally strided convolution
+        us_stride: upsampling ratio in the fractionally-strided convolution
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
@@ -1157,15 +1158,12 @@ class GenConvResModule(object):
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
         self.mod_type = mod_type
-        # use small dummy rand size if we won't use random vars
-        if not self.use_rand:
-            self.rand_chans = 4
         self._init_params() # initialize parameters
         return
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -1197,7 +1195,7 @@ class GenConvResModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -1213,7 +1211,7 @@ class GenConvResModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -1284,12 +1282,12 @@ class GenConvResModule(object):
                                 share_mask=share_mask)
             # apply second internal conv layer
             h2 = deconv(h1, self.w2, subsample=(ss, ss), border_mode=(bm, bm))
-            # apply direct input->output "projection" layer
+            # apply direct input->output short-cut layer
             h3 = deconv(full_input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
-            # apply direct input->output "projection" layer
+            # apply direct input->output short-cut layer
             h4 = deconv(full_input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
@@ -1298,7 +1296,6 @@ class GenConvResModule(object):
             h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
             h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
-
         if rand_shapes:
             result = [output, rand_shape]
         else:
@@ -1355,15 +1352,12 @@ class GenFCResModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        # use small dummy rand size if we won't use random vars
-        if not self.use_rand:
-            self.rand_chans = 4
         self._init_params() # initialize parameters
         return
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -1394,7 +1388,7 @@ class GenFCResModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -1410,7 +1404,7 @@ class GenFCResModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -1454,7 +1448,7 @@ class GenFCResModule(object):
         # apply dropout to input
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
-        # TEMP TEMP TEMP
+        # perturb top-down input with a simple function of latent variables
         input = self.act_func( input + T.dot(rand_vals, self.wx) )
 
         # stack random values on top of input
@@ -1473,12 +1467,12 @@ class GenFCResModule(object):
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal fc layer
             h2 = T.dot(h1, self.w2)
-            # apply direct input->output layer
+            # apply direct short-cut layer
             h3 = T.dot(full_input, self.w3)
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
         else:
-            # only apply direct input->output layer
+            # only apply direct short-cut layer
             h4 = T.dot(full_input, self.w3)
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
@@ -1544,7 +1538,7 @@ class InfConvMergeModule(object):
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
         self.apply_bn = apply_bn
-        self.use_bn_params = use_bn_params
+        self.use_bn_params = True
         self.mod_type = mod_type
         self.mod_name = mod_name
         self._init_params() # initialize parameters
@@ -1552,7 +1546,7 @@ class InfConvMergeModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -1577,9 +1571,11 @@ class InfConvMergeModule(object):
         self.params.extend([self.w2_im])
         # initialize convolutional projection layer parameters
         if self.mod_type == 0:
+            # module acts just on TD and BU input
             self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
                                     "{}_w3_im".format(self.mod_name))
         else:
+            # module acts on TD and BU input, and their difference
             self.w3_im = weight_ifn((2*self.rand_chans, (3*self.td_chans), 3, 3),
                                     "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
@@ -1588,7 +1584,7 @@ class InfConvMergeModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         # load info-merge parameters
         self.w1_im.set_value(floatX(param_dict['w1_im']))
@@ -1601,7 +1597,7 @@ class InfConvMergeModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         # dump info-merge conditioning parameters
@@ -1627,8 +1623,8 @@ class InfConvMergeModule(object):
                                  dtype=theano.config.floatX)
         out_logvar = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.001,
                                    dtype=theano.config.floatX)
-        # generating random numbers seems to be faster than allocating
-        # matrices of zeros, which is ridiculous.
+        # generating random numbers seems to be faster than allocating zeros,
+        # which is ridiculous. (i.e. faster than T.zeros_like(x))
         return out_mean, out_logvar
 
     def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
@@ -1657,12 +1653,12 @@ class InfConvMergeModule(object):
                                 share_mask=share_mask)
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-            # apply direct input->output conv layer
+            # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3 + self.b3_im.dimshuffle('x',0,'x','x')
         else:
-            # apply direct input->output conv layer
+            # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
 
@@ -1724,7 +1720,7 @@ class InfFCMergeModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this discriminator module.
+        Initialize parameters for the layers in this module.
         """
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
@@ -1748,7 +1744,7 @@ class InfFCMergeModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -1760,7 +1756,7 @@ class InfFCMergeModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -1809,13 +1805,13 @@ class InfFCMergeModule(object):
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            # feedforward to from fc layer to output
+            # feedforward from fc layer to output
             h2 = T.dot(h1, self.w2)
-            # feedforward directly from bu_input to output
+            # feedforward directly from BU/TD inputs to output
             h3 = T.dot(full_input, self.w3)
             h4 = h2 + h3 + self.b3.dimshuffle('x',0)
         else:
-            # feedforward directly from bu_input to output
+            # feedforward directly from BU input to output
             h3 = T.dot(full_input, self.w3)
             h4 = h3 + self.b3.dimshuffle('x',0)
         # split output into mean and log variance parts
@@ -1831,6 +1827,7 @@ class InfTopModule(object):
     """
     Module that feeds forward through a single fully connected hidden layer
     and then produces a conditional over some Gaussian latent variables.
+
     Params:
         bu_chans: dimension of the "bottom-up" inputs to the module
         fc_chans: dimension of the fully connected layer
@@ -1838,7 +1835,7 @@ class InfTopModule(object):
         use_fc: flag for whether to use the hidden fully connected layer
         act_func: ---
         unif_drop: drop rate for unifor dropout
-        apply_bn: whether to use batchnormalization
+        apply_bn: whether to use batch normalization
         use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
@@ -1872,7 +1869,7 @@ class InfTopModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this discriminator module.
+        Initialize parameters for the layers in this module.
         """
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
@@ -1896,7 +1893,7 @@ class InfTopModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -1908,7 +1905,7 @@ class InfTopModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -1940,13 +1937,13 @@ class InfTopModule(object):
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            # feedforward to from fc layer to output
+            # feedforward from fc layer to output
             h2 = T.dot(h1, self.w2)
-            # feedforward directly from bu_input to output
+            # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
             h4 = h2 + self.b3.dimshuffle('x',0) + h3
         else:
-            # feedforward directly from bu_input to output
+            # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
             h4 = h3 + self.b3.dimshuffle('x',0)
         # split output into mean and log variance parts
@@ -1992,7 +1989,7 @@ class MlpFCModule(object):
 
     def _init_params(self):
         """
-        Initialize parameters for the layers in this generator module.
+        Initialize parameters for the layers in this module.
         """
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
@@ -2008,7 +2005,7 @@ class MlpFCModule(object):
 
     def load_params(self, param_dict):
         """
-        Load model params directly from a dict of numpy arrays.
+        Load module params directly from a dict of numpy arrays.
         """
         self.w1.set_value(floatX(param_dict['w1']))
         self.g1.set_value(floatX(param_dict['g1']))
@@ -2017,7 +2014,7 @@ class MlpFCModule(object):
 
     def dump_params(self):
         """
-        Dump model params directly to a dict of numpy arrays.
+        Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
         param_dict['w1'] = self.w1.get_value(borrow=False)
@@ -2027,7 +2024,7 @@ class MlpFCModule(object):
 
     def apply(self, input, share_mask=False, noise=None):
         """
-        Apply this gfully connected module.
+        Apply this fully-connected module.
         """
         # flatten input to 1d per example
         h1 = T.flatten(hq, 2)
