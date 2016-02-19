@@ -1,7 +1,7 @@
 # MatryoshkaNetworks
 Experiments with deep convolutional generative models.
 
-This repo contains code implementing the models described in the ICLR workshop submission "Learning to take data apart, and put it back together". These code is all Python and Theano. The main model is implemented in "MatryoshkaNetworks.py" and the various modules around which the model is built are all implemented in "MatryoshkaModules.py".
+This repo contains code implementing the models described in the ICLR workshop submission "Learning to take data apart, and put it back together". The code is all Python and Theano. The main model is implemented in "MatryoshkaNetworks.py" and the various modules around which the model is built are all implemented in "MatryoshkaModules.py".
 
 To run the tests you'll need to make a subdirectory "./mnist/data" inside the repo root directory and put the \*.amat files for binarized MNIST into "./mnist/data/\*.amat". For training on dynamically-binarized data, you'll need to copy the standard UdM-style mnist.pkl.gz to "./mnist/data/mnist.pkl.gz".
 
