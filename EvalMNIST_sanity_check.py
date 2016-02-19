@@ -40,7 +40,7 @@ EXP_DIR = "./mnist"
 
 j = 1
 # setup paths for dumping diagnostic info
-desc = "test_fc_vae_sanity_check_ll_cool_j{}".format(j)
+desc = "test_fc_vae_sanity_check_ll_cool_j{}_no_bn".format(j)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -74,7 +74,7 @@ niter = 500       # # of iter at starting learning rate
 niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 use_td_cond = False # whether to use top-down conditioning in generator
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 20  # number of samples to use in MEN bound
@@ -83,7 +83,8 @@ use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
 derp_factor = 9001 # it's over 9000
 train_dist_scale = False
-clip_sigmoid_inputs = False
+clip_sigmoid_inputs = True 
+top_fc = False
 
 ntrain = Xtr.shape[0]
 
@@ -148,7 +149,7 @@ GenTopModule(
     rand_dim=nz0,
     out_shape=(ngf*1,),
     fc_dim=(ngf*1),
-    use_fc=True,
+    use_fc=top_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
@@ -256,7 +257,7 @@ InfTopModule(
     bu_chans=(ngf*1),
     fc_chans=(ngf*1),
     rand_chans=nz0,
-    use_fc=True,
+    use_fc=top_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
@@ -421,7 +422,7 @@ for jj in range(j-1):
 if clip_sigmoid_inputs:
     output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 else:
-    output_transform = lambda x: sigmoid(x)ß
+    output_transform = lambda x: sigmoid(x)
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
