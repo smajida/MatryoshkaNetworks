@@ -82,7 +82,7 @@ use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
 train_dist_scale = False
 clip_sigmoid_inputs = True
-top_fc = True 
+top_fc = True
 
 ntrain = Xtr.shape[0]
 
@@ -553,6 +553,7 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
+g_eval_func = theano.function([Xg], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -609,7 +610,7 @@ for epoch in range(1, niter+niter_decay+1):
         # evaluate vae on validation batch
         if v_batch_count < 25:
             noise.set_value(floatX([0.0]))
-            v_result = g_train_func(vmb_img)
+            v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 50) or (epoch == 100) or (epoch == 200) or (epoch == 300):
