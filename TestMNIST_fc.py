@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_bu_noise_01_dyn_bin_even_bigger'
+desc = 'test_fc_all_noise_010_dyn_bin'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,16 +62,9 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-if fixed_binarization:
-    nz0 = 64          # # of dim for Z0
-    nz1 = 64          # # of dim for Z1
-else:
-    nz0 = 64           # # of dim for Z0
-    nz1 = 128          # # of dim for Z1
-if fixed_binarization:
-    ngf = 64      # base # of filters for conv layers in generative stuff
-else:
-    ngf = 128     # base # of filters for conv layers in generative stuff
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
+ngf = 64      # base # of filters for conv layers in generative stuff
 ngfc = 128        # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
@@ -237,12 +230,8 @@ BasicFCModule(
 ) # output is (batch, nx)
 
 # modules must be listed in "evaluation order"
-if True: #fixed_binarization:
-    td_modules = [td_module_1, td_module_2, td_module_3,
-                  td_module_4, td_module_5, td_module_6, td_module_7]
-else:
-    td_modules = [td_module_1, td_module_1a, td_module_2, td_module_2a, td_module_3, td_module_3a,
-                  td_module_4, td_module_4a, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1, td_module_2, td_module_3,
+              td_module_4, td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -359,12 +348,8 @@ BasicFCModule(
 )
 
 # modules must be listed in "evaluation order"
-if True: #fixed_binarization:
-    bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-                  bu_module_3, bu_module_2, bu_module_1]
-else:
-    bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4a, bu_module_4,
-                  bu_module_3a, bu_module_3, bu_module_2a, bu_module_2, bu_module_1a, bu_module_1]
+bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -642,7 +627,7 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform( np.repeat(imb, 10, axis=0) )
+        imb_img = train_transform( imb ) # np.repeat(imb, 10, axis=0) )
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
