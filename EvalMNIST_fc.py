@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_vae_relu_bn_all_noise_01_fast_kld'
+desc = 'test_fc_all_noise_010_dyn_bin'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
