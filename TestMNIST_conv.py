@@ -37,13 +37,13 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_010_fix_bin_new_arch'
+desc = 'test_conv_all_noise_000_fix_bin_thin_arch_no_bn'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-fixed_binarization = False
+fixed_binarization = True
 # load MNIST dataset, either fixed or dynamic binarization
 data_path = "{}/data/".format(EXP_DIR)
 if fixed_binarization:
@@ -72,12 +72,12 @@ niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.1  # amount of noise to inject in BU and IM modules
-use_bu_noise = True
-use_td_noise = True
+noise_std = 0.0  # amount of noise to inject in BU and IM modules
+use_bu_noise = False
+use_td_noise = False
 mod_type = 0
 
 ntrain = Xtr.shape[0]
@@ -115,7 +115,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*2, 7, 7),
+    out_shape=(ngf*1, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -126,9 +126,9 @@ GenTopModule(
 # (7, 7) -> (7, 7)
 td_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -140,9 +140,9 @@ BasicConvResModule(
 # (7, 7) -> (14, 14)
 td_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -156,9 +156,9 @@ GenConvResModule(
 # (14, 14) -> (14, 14)
 td_module_4 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -170,9 +170,9 @@ BasicConvResModule(
 # (14, 14) -> (28, 28)
 td_module_5 = \
 GenConvResModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*1),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -220,7 +220,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*2*7*7),
+    bu_chans=(ngf*1*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -232,9 +232,9 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -246,9 +246,9 @@ BasicConvResModule(
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -260,9 +260,9 @@ BasicConvResModule(
 # (14, 14) -> (14, 14)
 bu_module_4 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -275,8 +275,8 @@ BasicConvResModule(
 bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -319,10 +319,10 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
@@ -332,10 +332,10 @@ InfConvMergeModule(
 
 im_module_5 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
