@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_new_arch_no_bn_nz1_8'
+desc = 'test_conv_all_noise_000_fix_bin_gen_mt_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 8          # # of dim for Z1
+nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -78,7 +78,8 @@ iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.0  # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
-mod_type = 0
+gen_mt = 1
+inf_mt = 0
 
 ntrain = Xtr.shape[0]
 
@@ -149,6 +150,7 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     act_func=act_func,
+    mod_type=gen_mt,
     us_stride=2,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
@@ -179,6 +181,7 @@ GenConvResModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     act_func=act_func,
+    mod_type=gen_mt,
     us_stride=2,
     mod_name='td_mod_5'
 ) # output is (batch, ngf*1, 28, 28)
@@ -325,7 +328,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    mod_type=mod_type,
+    mod_type=inf_mt,
     act_func=act_func,
     mod_name='im_mod_3'
 )
@@ -338,7 +341,7 @@ InfConvMergeModule(
     conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
-    mod_type=mod_type,
+    mod_type=inf_mt,
     act_func=act_func,
     mod_name='im_mod_5'
 )

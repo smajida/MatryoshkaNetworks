@@ -1189,8 +1189,10 @@ class GenConvResModule(object):
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # derp a derp parameterrrrr
-        self.wx = weight_ifn((self.in_chans, self.rand_chans, 1, 1),
+        self.wx = weight_ifn((self.in_chans, self.conv_chans, 1, 1),
                              "{}_wx".format(self.mod_name))
+        self.wy = weight_ifn((self.conv_chans, self.in_chans, 1, 1),
+                             "{}_wy".format(self.mod_name))
         return
 
     def load_params(self, param_dict):
@@ -1207,6 +1209,7 @@ class GenConvResModule(object):
         self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
         self.wx.set_value(floatX(param_dict['wx']))
+        self.wy.set_value(floatX(param_dict['wy']))
         return
 
     def dump_params(self):
@@ -1224,6 +1227,7 @@ class GenConvResModule(object):
         param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
         param_dict['wx'] = self.wx.get_value(borrow=False)
+        param_dict['wy'] = self.wy.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -1260,8 +1264,10 @@ class GenConvResModule(object):
 
         if self.mod_type == 1:
             # perturb top-down activations based on rand_vals
-            act_pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(0, 0))
-            input = self.act_func( input + act_pert )
+            pert_1 = dnn_conv(rand_vals, self.wx, subsample=(1,1), border_mode=(1,1))
+            pert_2 = self.act_func(pert_1)
+            pert_3 = dnn_conv(pert_2, self.wy, subsampl=(1,1), border_mode=(1,1))
+            input = self.act_func( input + pert_3 )
             # stack random values on top of input
             full_input = T.concatenate([0.0*rand_vals, input], axis=1)
         else:
