@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_thin_arch_no_bn'
+desc = 'test_conv_all_noise_000_fix_bin_new_arch_no_bn_nz1_8'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz1 = 8          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -115,7 +115,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*1, 7, 7),
+    out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -126,9 +126,9 @@ GenTopModule(
 # (7, 7) -> (7, 7)
 td_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -140,9 +140,9 @@ BasicConvResModule(
 # (7, 7) -> (14, 14)
 td_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -156,9 +156,9 @@ GenConvResModule(
 # (14, 14) -> (14, 14)
 td_module_4 = \
 BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -170,7 +170,7 @@ BasicConvResModule(
 # (14, 14) -> (28, 28)
 td_module_5 = \
 GenConvResModule(
-    in_chans=(ngf*1),
+    in_chans=(ngf*2),
     out_chans=(ngf*1),
     conv_chans=(ngf*1),
     rand_chans=nz1,
@@ -220,7 +220,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*1*7*7),
+    bu_chans=(ngf*2*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -232,9 +232,9 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -246,9 +246,9 @@ BasicConvResModule(
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -260,9 +260,9 @@ BasicConvResModule(
 # (14, 14) -> (14, 14)
 bu_module_4 = \
 BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -275,7 +275,7 @@ BasicConvResModule(
 bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*1),
-    out_chans=(ngf*1),
+    out_chans=(ngf*2),
     conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
@@ -319,10 +319,10 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*1),
-    bu_chans=(ngf*1),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
@@ -332,10 +332,10 @@ InfConvMergeModule(
 
 im_module_5 = \
 InfConvMergeModule(
-    td_chans=(ngf*1),
-    bu_chans=(ngf*1),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
