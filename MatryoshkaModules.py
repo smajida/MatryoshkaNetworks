@@ -1655,7 +1655,7 @@ class InfConvMergeModule(object):
                 h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
-            h2 = dnn_conv(h1, self.w2_td subsample=(1,1), border_mode=(1,1))
+            h2 = dnn_conv(h1, self.w2_td, subsample=(1,1), border_mode=(1,1))
             h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
             out_mean = h3[:,:self.rand_chans,:,:]
             out_logvar = h3[:,self.rand_chans:,:,:]
