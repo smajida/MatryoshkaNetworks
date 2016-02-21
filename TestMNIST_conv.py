@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_dyn_bin_new_arch_shallow'
+desc = 'test_conv_all_noise_010_fix_bin_new_arch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,7 +68,7 @@ nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
+niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
@@ -76,8 +76,8 @@ use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
-use_bu_noise = False
-use_td_noise = False
+use_bu_noise = True
+use_td_noise = True
 mod_type = 0
 
 ntrain = Xtr.shape[0]
@@ -188,17 +188,29 @@ td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='td_mod_6'
+) # output is (batch, ngf*1, 28, 28)
+
+# (28, 28) -> (28, 28)
+td_module_7 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
     use_noise=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_6'
+    mod_name='td_mod_7'
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
-              td_module_5, td_module_6]
+              td_module_5, td_module_6, td_module_7]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -277,16 +289,28 @@ BasicConvResModule(
 bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=nc,
+    in_chans=(ngf*1),
     out_chans=(ngf*1),
-    apply_bn=False,
+    apply_bn=use_bn,
     stride='single',
     act_func=act_func,
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
 
+# (28, 28) -> (28, 28)
+bu_module_7 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=nc,
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_7'
+) # output is (batch, c, 28, 28)
+
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4,
+bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
               bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
