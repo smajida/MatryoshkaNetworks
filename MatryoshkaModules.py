@@ -1189,9 +1189,9 @@ class GenConvResModule(object):
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # derp a derp parameterrrrr
-        self.wx = weight_ifn((self.in_chans, self.conv_chans, 1, 1),
+        self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
                              "{}_wx".format(self.mod_name))
-        self.wy = weight_ifn((self.conv_chans, self.in_chans, 1, 1),
+        self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
                              "{}_wy".format(self.mod_name))
         return
 
@@ -1266,7 +1266,7 @@ class GenConvResModule(object):
             # perturb top-down activations based on rand_vals
             pert_1 = dnn_conv(rand_vals, self.wx, subsample=(1,1), border_mode=(1,1))
             pert_2 = self.act_func(pert_1)
-            pert_3 = dnn_conv(pert_2, self.wy, subsampl=(1,1), border_mode=(1,1))
+            pert_3 = dnn_conv(pert_2, self.wy, subsample=(1,1), border_mode=(1,1))
             input = self.act_func( input + pert_3 )
             # stack random values on top of input
             full_input = T.concatenate([0.0*rand_vals, input], axis=1)
