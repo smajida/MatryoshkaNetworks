@@ -141,7 +141,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 7, 7),
+    out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -152,9 +152,9 @@ GenTopModule(
 # (7, 7) -> (7, 7)
 td_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -166,9 +166,9 @@ BasicConvResModule(
 # (7, 7) -> (14, 14)
 td_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -210,7 +210,7 @@ GenConvResModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
-td_module_6 = \
+td_module_6a = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -218,11 +218,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='td_mod_6'
+    mod_name='td_mod_6a'
 ) # output is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
-td_module_7 = \
+td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -231,12 +231,12 @@ BasicConvModule(
     use_noise=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_7'
+    mod_name='td_mod_6'
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
-              td_module_5, td_module_6, td_module_7]
+              td_module_5, td_module_6a, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -246,7 +246,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*4*7*7),
+    bu_chans=(ngf*2*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -258,9 +258,9 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -273,8 +273,8 @@ BasicConvResModule(
 bu_module_3 = \
 BasicConvResModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -312,7 +312,7 @@ BasicConvResModule(
 ) # output is (batch, ngf*2, 14, 14)
 
 # (28, 28) -> (28, 28)
-bu_module_6 = \
+bu_module_6a = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -320,11 +320,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_6'
+    mod_name='bu_mod_6a'
 ) # output is (batch, ngf*1, 28, 28)
 
 # (28, 28) -> (28, 28)
-bu_module_7 = \
+bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
@@ -332,11 +332,11 @@ BasicConvModule(
     apply_bn=False,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_7'
-) # output is (batch, ngf*1, 28, 28)
+    mod_name='bu_mod_6'
+) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
+bu_modules = [bu_module_6, bu_module_6a, bu_module_5, bu_module_4,
               bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
@@ -345,10 +345,10 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
@@ -368,7 +368,6 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_5'
 )
-
 
 im_modules = [im_module_3, im_module_5]
 
