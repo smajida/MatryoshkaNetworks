@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_010_fix_bin_ngf_32'
+desc = 'test_conv_all_noise_000_fix_bin_new_arch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,10 +62,10 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 500      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
+nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
-ngfc = 256        # # of filters in fully connected layers of generative stuff
+ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 300       # # of iter at starting learning rate
 niter_decay = 200 # # of iter to linearly decay learning rate to zero
