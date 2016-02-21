@@ -429,7 +429,7 @@ class InfGenModel(object):
         # make dist_scale parameter (add it to the inf net parameters)
         if train_dist_scale:
             # init to a somewhat arbitrary value -- not magic (probably)
-            self.dist_scale = sharedX( floatX([0.2]) ) 
+            self.dist_scale = sharedX( floatX([0.2]) )
             self.inf_params.append(self.dist_scale)
         else:
             self.dist_scale = sharedX( floatX([1.0]) )
@@ -526,17 +526,17 @@ class InfGenModel(object):
                 else:
                     # feedforward through an internal TD module
                     im_module = self.im_modules_dict[im_mod_name]
+                    cond_mean_td, cond_logvar_td = \
+                            im_module.apply_td(td_input=td_acts[-1],
+                                               noise=td_noise)
+                    cond_mean_td = self.dist_scale[0] * cond_mean_td
+                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
                     if rvs is None:
-                        # sample values to reparametrize
-                        td_shape = td_acts[-1].shape
-                        rand_chans = im_module.rand_chans
-                        if td_acts[-1].ndim == 2: 
-                            # this is a fully-connected module
-                            rvs_size = (td_shape[0], rand_chans)
-                        else:
-                            # this is a convolutional module
-                            rvs_size = (td_shape[0], rand_chans, td_shape[2], td_shape[3])
-                        rvs = cu_rng.normal(size=rvs_size, dtype=theano.config.floatX)
+                        rvs = reparametrize(cond_mean_td, cond_logvar_td,
+                                            rng=cu_rng)
+                    else:
+                        rvs = reparametrize(cond_mean_td, cond_logvar_td,
+                                            rvs=rvs)
                     # feedforward using the reparametrized latent variable
                     # samples and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -613,6 +613,8 @@ class InfGenModel(object):
                     cond_logvar_im = bu_res_dict[bu_mod_name][1]
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
+                    cond_mean_td = 0.0 * cond_mean_im
+                    cond_logvar_td = 0.0 * cond_logvar_im
                     # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                               rng=cu_rng)
@@ -631,6 +633,11 @@ class InfGenModel(object):
                                                noise=bu_noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
+                    cond_mean_td, cond_logvar_td = \
+                            im_module.apply_td(td_input=td_info,
+                                               noise=td_noise)
+                    cond_mean_td = self.dist_scale[0] * cond_mean_td
+                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
                     # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
@@ -644,8 +651,8 @@ class InfGenModel(object):
                 # both the proposal distribution q(z | x) and the prior p(z).
                 # -- these are used when computing the IWAE bound.
                 log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(0.0*cond_rvs, 2),
-                                            log_vars=T.flatten(0.0*cond_rvs, 2),
+                                            T.flatten(cond_mean_td, 2),
+                                            log_vars=T.flatten(cond_logvar_td, 2),
                                             do_sum=True)
                 log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
                                             T.flatten(cond_mean_im, 2),
@@ -655,7 +662,7 @@ class InfGenModel(object):
                 logz_dict['log_q_z'].append(log_q_z)
                 z_dict[td_mod_name] = cond_rvs
                 # record KLd info for the relevant conditional distribution
-                # 
+                #
                 # NOTE: Some people might not hesitate before describing our
                 #       approach to computing KL(q(z|x) || p(z)) as an
                 #       application of Rao-Blackwellization in pursuit of

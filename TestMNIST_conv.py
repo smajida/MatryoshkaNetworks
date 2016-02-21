@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_gen_mt_1'
+desc = 'test_conv_all_noise_000_fix_bin_gen_mt_1_tdc'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -80,6 +80,7 @@ use_bu_noise = False
 use_td_noise = False
 gen_mt = 1
 inf_mt = 0
+use_td_cond = True
 
 ntrain = Xtr.shape[0]
 
@@ -327,6 +328,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
@@ -340,6 +342,7 @@ InfConvMergeModule(
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
+    use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,

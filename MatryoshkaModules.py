@@ -1513,6 +1513,7 @@ class InfConvMergeModule(object):
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
         apply_bn: whether to apply batch normalization
+        use_td_cond: whether to condition on TD info
         use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
@@ -1521,6 +1522,7 @@ class InfConvMergeModule(object):
                  use_conv=True, act_func='relu',
                  unif_drop=0.0, chan_drop=0.0,
                  apply_bn=True,
+                 use_td_cond=False,
                  use_bn_params=True,
                  mod_type=0,
                  mod_name='gm_conv'):
@@ -1544,6 +1546,7 @@ class InfConvMergeModule(object):
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
         self.apply_bn = apply_bn
+        self.use_td_cond = use_td_cond
         self.use_bn_params = True
         self.mod_type = mod_type
         self.mod_name = mod_name
@@ -1586,6 +1589,18 @@ class InfConvMergeModule(object):
                                     "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
+                                    "{}_w1_td".format(self.mod_name))
+            self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
+            self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            # initialize second conv layer parameters
+            self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
+                                    "{}_w2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.params.extend([self.w2_td, self.b2_td])
         return
 
     def load_params(self, param_dict):
@@ -1599,6 +1614,12 @@ class InfConvMergeModule(object):
         self.w2_im.set_value(floatX(param_dict['w2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
+        if self.use_td_cond:
+            self.w1_td.set_value(floatX(param_dict['w1_td']))
+            self.g1_td.set_value(floatX(param_dict['g1_td']))
+            self.b1_td.set_value(floatX(param_dict['b1_td']))
+            self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.b2_td.set_value(floatX(param_dict['b2_td']))
         return
 
     def dump_params(self):
@@ -1613,24 +1634,40 @@ class InfConvMergeModule(object):
         param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        if self.use_td_cond:
+            param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
+            param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
+            param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
+            param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
         return param_dict
 
     def apply_td(self, td_input, noise=None):
         """
         Put distributions over stuff based on td_input.
         """
-        # if no top-down conditioning, return ZMUV Gaussian params
-        batch_size = td_input.shape[0]
-        rows = td_input.shape[2]
-        cols = td_input.shape[3]
-        rand_shape = (batch_size, self.rand_chans, rows, cols)
-        # NOTE: top-down conditioning path is not implemented yet
-        out_mean = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.001,
-                                 dtype=theano.config.floatX)
-        out_logvar = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.001,
-                                   dtype=theano.config.floatX)
-        # generating random numbers seems to be faster than allocating zeros,
-        # which is ridiculous. (i.e. faster than T.zeros_like(x))
+        if self.use_td_cond:
+            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
+            if self.apply_bn:
+                h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
+            h1 = self.act_func(h1)
+            h2 = dnn_conv(h1, self.w2_td subsample=(1,1), border_mode=(1,1))
+            h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
+            out_mean = h3[:,:self.rand_chans,:,:]
+            out_logvar = h3[:,self.rand_chans:,:,:]
+        else:
+            batch_size = td_input.shape[0]
+            rows = td_input.shape[2]
+            cols = td_input.shape[3]
+            rand_shape = (batch_size, self.rand_chans, rows, cols)
+            out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                     dtype=theano.config.floatX)
+            out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                       dtype=theano.config.floatX)
         return out_mean, out_logvar
 
     def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
@@ -1667,7 +1704,6 @@ class InfConvMergeModule(object):
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
-
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
         out_mean = h4[:,:self.rand_chans,:,:]
