@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_ngf_24'
+desc = 'test_conv_all_noise_000_fix_bin_new_arch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -63,20 +63,20 @@ set_seed(123)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
+nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 24          # base # of filters for conv layers in generative stuff
-ngfc = 256        # # of filters in fully connected layers of generative stuff
+ngf = 32          # base # of filters for conv layers in generative stuff
+ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 500       # # of iter at starting learning rate
-niter_decay = 1000 # # of iter to linearly decay learning rate to zero
+niter = 200       # # of iter at starting learning rate
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.1  # amount of noise to inject in BU and IM modules
-use_bu_noise = False 
+use_bu_noise = False
 use_td_noise = False
 mod_type = 0
 
@@ -115,7 +115,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*4, 7, 7),
+    out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -126,9 +126,9 @@ GenTopModule(
 # (7, 7) -> (7, 7)
 td_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     stride='single',
@@ -137,26 +137,12 @@ BasicConvResModule(
     mod_name='td_mod_2'
 ) # output is (batch, ngf*4, 7, 7)
 
-# (7, 7) -> (7, 7)
-td_module_2a = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='single',
-    act_func=act_func,
-    apply_bn=use_bn,
-    mod_name='td_mod_2a'
-) # output is (batch, ngf*4, 7, 7)
-
 # (7, 7) -> (14, 14)
 td_module_3 = \
 GenConvResModule(
-    in_chans=(ngf*4),
+    in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -179,20 +165,6 @@ BasicConvResModule(
     act_func=act_func,
     apply_bn=use_bn,
     mod_name='td_mod_4'
-) # output is (batch, ngf*2, 14, 14)
-
-# (14, 14) -> (14, 14)
-td_module_4a = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='single',
-    act_func=act_func,
-    apply_bn=use_bn,
-    mod_name='td_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
 # (14, 14) -> (28, 28)
@@ -237,8 +209,6 @@ BasicConvModule(
 ) # output is (batch, c, 28, 28)
 
 # modules must be listed in "evaluation order"
-#td_modules = [td_module_1, td_module_2, td_module_2a, td_module_3, td_module_4,
-#              td_module_4a, td_module_5, td_module_6, td_module_7]
 td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
               td_module_5, td_module_6, td_module_7]
 
@@ -250,7 +220,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*4*7*7),
+    bu_chans=(ngf*2*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -262,9 +232,9 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -273,26 +243,12 @@ BasicConvResModule(
     mod_name='bu_mod_2'
 ) # output is (batch, ngf*4, 7, 7)
 
-# (7, 7) -> (7, 7)
-bu_module_2a = \
-BasicConvResModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_2a'
-) # output is (batch, ngf*4, 7, 7)
-
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvResModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    conv_chans=(ngf*4),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -313,20 +269,6 @@ BasicConvResModule(
     stride='single',
     act_func=act_func,
     mod_name='bu_mod_4'
-) # output is (batch, ngf*2, 14, 14)
-
-# (14, 14) -> (14, 14)
-bu_module_4a = \
-BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_4a'
 ) # output is (batch, ngf*2, 14, 14)
 
 # (28, 28) -> (14, 14)
@@ -368,8 +310,6 @@ BasicConvModule(
 ) # output is (batch, ngf*1, 28, 28)
 
 # modules must be listed in "evaluation order"
-#bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4a, bu_module_4,
-#              bu_module_3, bu_module_2a, bu_module_2, bu_module_1]
 bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
               bu_module_3, bu_module_2, bu_module_1]
 
@@ -379,10 +319,10 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*4),
-    bu_chans=(ngf*4),
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*4),
+    conv_chans=(ngf*2),
     use_conv=True,
     apply_bn=use_bn,
     mod_type=mod_type,
@@ -402,7 +342,6 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_5'
 )
-
 
 im_modules = [im_module_3, im_module_5]
 
@@ -640,7 +579,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 25) or (epoch == 50) or (epoch == 100) or (epoch == 200):
+    if (epoch == 25) or (epoch == 50) or (epoch == 75) or (epoch == 150):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
