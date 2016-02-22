@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_ngf_24'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_deeper'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,7 +65,7 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 24          # base # of filters for conv layers in generative stuff
+ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
@@ -159,6 +159,23 @@ GenConvPertModule(
     mod_name='td_mod_3'
 )
 
+# (7, 7) -> (7, 7)
+td_module_3a = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_3a'
+)
+
 # (7, 7) -> (14, 14)
 td_module_4 = \
 BasicConvModule(
@@ -205,6 +222,23 @@ GenConvPertModule(
     mod_name='td_mod_6'
 )
 
+# (14, 14) -> (14, 14)
+td_module_6a = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_6a'
+)
+
 # (14, 14) -> (28, 28)
 td_module_7 = \
 BasicConvModule(
@@ -231,8 +265,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
-              td_module_5, td_module_6, td_module_7, td_module_8]
+td_modules = [td_module_1, td_module_2, td_module_3, td_module_3a, td_module_4,
+              td_module_5, td_module_6, td_module_6a, td_module_7, td_module_8]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -279,6 +313,20 @@ BasicConvResModule(
     mod_name='bu_mod_3'
 )
 
+# (7, 7) -> (7, 7)
+bu_module_3a = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_3a'
+)
+
 # (14, 14) -> (7, 7)
 bu_module_4 = \
 BasicConvModule(
@@ -319,6 +367,20 @@ BasicConvResModule(
     mod_name='bu_mod_6'
 )
 
+# (14, 14) -> (14, 14)
+bu_module_6a = \
+BasicConvResModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_6a'
+)
+
 # (28, 28) -> (14, 14)
 bu_module_7 = \
 BasicConvModule(
@@ -344,8 +406,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_8, bu_module_7, bu_module_6, bu_module_5,
-              bu_module_4, bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_8, bu_module_7, bu_module_6a, bu_module_6, bu_module_5,
+              bu_module_4, bu_module_3a, bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -379,6 +441,20 @@ InfConvMergeModule(
     mod_name='im_mod_3'
 )
 
+im_module_3a = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_3a'
+)
+
 im_module_5 = \
 InfConvMergeModule(
     td_chans=(ngf*2),
@@ -407,7 +483,21 @@ InfConvMergeModule(
     mod_name='im_mod_6'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_5, im_module_6]
+im_module_6a = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_6a'
+)
+
+im_modules = [im_module_2, im_module_3, im_module_3a, im_module_5, im_module_6, im_module_6a]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -421,9 +511,12 @@ im_modules = [im_module_2, im_module_3, im_module_5, im_module_6]
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
     'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'},
+    'td_mod_3': {'bu_module': 'bu_mod_3a', 'im_module': 'im_mod_3'},
+    'td_mod_3a': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3a'},
     'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
-    'td_mod_6': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6'}
+    'td_mod_6': {'bu_module': 'bu_mod_6a', 'im_module': 'im_mod_6'},
+    'td_mod_6a': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6a'}
+    
 }
 # merge_info = {
 #     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
