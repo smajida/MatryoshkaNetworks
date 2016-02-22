@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_norm_kld_ngf_48'
+desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_alt_arch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,7 +65,7 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 48          # base # of filters for conv layers in generative stuff
+ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 300       # # of iter at starting learning rate
@@ -123,23 +123,21 @@ GenTopModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
-) # output is (batch, ngf*4, 7, 7)
+)
 
 # (7, 7) -> (7, 7)
 td_module_2 = \
-BasicConvResModule(
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
+    apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    apply_bn=use_bn,
     mod_name='td_mod_2'
-) # output is (batch, ngf*4, 7, 7)
+)
 
-# (7, 7) -> (14, 14)
+# (7, 7) -> (7, 7)
 td_module_3 = \
 GenConvResModule(
     in_chans=(ngf*2),
@@ -152,30 +150,28 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_type=gen_mt,
-    us_stride=2,
+    us_stride=1,
     mod_name='td_mod_3'
 ) # output is (batch, ngf*2, 14, 14)
 
-# (14, 14) -> (14, 14)
+# (7, 7) -> (14, 14)
 td_module_4 = \
-BasicConvResModule(
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    stride='single',
-    act_func=act_func,
     apply_bn=use_bn,
+    stride='half',
+    act_func=act_func,
     mod_name='td_mod_4'
-) # output is (batch, ngf*2, 14, 14)
+)
 
-# (14, 14) -> (28, 28)
+# (14, 14) -> (14, 14)
 td_module_5 = \
 GenConvResModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    conv_chans=(ngf*1),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -183,21 +179,21 @@ GenConvResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_type=gen_mt,
-    us_stride=2,
+    us_stride=1,
     mod_name='td_mod_5'
-) # output is (batch, ngf*1, 28, 28)
+)
 
-# (28, 28) -> (28, 28)
+# (14, 14) -> (28, 28)
 td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=(ngf*2),
     out_chans=(ngf*1),
     apply_bn=use_bn,
-    stride='single',
+    stride='half',
     act_func=act_func,
     mod_name='td_mod_6'
-) # output is (batch, ngf*1, 28, 28)
+)
 
 # (28, 28) -> (28, 28)
 td_module_7 = \
@@ -210,7 +206,7 @@ BasicConvModule(
     stride='single',
     act_func='ident',
     mod_name='td_mod_7'
-) # output is (batch, c, 28, 28)
+)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
@@ -231,23 +227,21 @@ InfTopModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
-) # output is (batch, 2*nz0)
+)
 
 # (7, 7) -> (7, 7)
 bu_module_2 = \
-BasicConvResModule(
+BasicConvModule(
+    filt_shape=(3,3),
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
     mod_name='bu_mod_2'
-) # output is (batch, ngf*4, 7, 7)
+)
 
-# (14, 14) -> (7, 7)
+# (7, 7) -> (7, 7)
 bu_module_3 = \
 BasicConvResModule(
     in_chans=(ngf*2),
@@ -256,13 +250,25 @@ BasicConvResModule(
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
-    stride='double',
+    stride='single',
     act_func=act_func,
     mod_name='bu_mod_3'
-) # output is (batch, ngf*4, 7, 7)
+)
+
+# (14, 14) -> (7, 7)
+bu_module_4 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    apply_bn=use_bn,
+    stride='double',
+    act_func=act_func,
+    mod_name='bu_mod_4'
+)
 
 # (14, 14) -> (14, 14)
-bu_module_4 = \
+bu_module_5 = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -272,31 +278,17 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_4'
-) # output is (batch, ngf*2, 14, 14)
+    mod_name='bu_mod_5'
+)
 
 # (28, 28) -> (14, 14)
-bu_module_5 = \
-BasicConvResModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*1),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_5'
-) # output is (batch, ngf*2, 14, 14)
-
-# (28, 28) -> (28, 28)
 bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*1),
+    out_chans=(ngf*2),
     apply_bn=use_bn,
-    stride='single',
+    stride='double',
     act_func=act_func,
     mod_name='bu_mod_6'
 ) # output is (batch, ngf*1, 28, 28)
