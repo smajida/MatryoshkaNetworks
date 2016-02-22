@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_relu'
+desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_norm_kld_ngf_48'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,7 +65,7 @@ nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
+ngf = 48          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 300       # # of iter at starting learning rate
@@ -73,7 +73,7 @@ niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-act_func = 'relu' # activation func to use where they can be selected
+act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1 # number of samples to use in MEN bound
 noise_std = 0.0  # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -544,9 +544,9 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    #lam_kld.set_value(floatX([1.0]))
+    #if ((epoch-1) < len(kld_weights)):
+    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
