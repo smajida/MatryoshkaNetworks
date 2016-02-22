@@ -127,10 +127,12 @@ GenTopModule(
 
 # (7, 7) -> (7, 7)
 td_module_2 = \
-BasicConvModule(
-    filt_shape=(3,3),
+BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -156,10 +158,12 @@ GenConvResModule(
 
 # (7, 7) -> (14, 14)
 td_module_4 = \
-BasicConvModule(
-    filt_shape=(3,3),
+BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='half',
     act_func=act_func,
@@ -231,10 +235,12 @@ InfTopModule(
 
 # (7, 7) -> (7, 7)
 bu_module_2 = \
-BasicConvModule(
-    filt_shape=(3,3),
+BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -257,10 +263,12 @@ BasicConvResModule(
 
 # (14, 14) -> (7, 7)
 bu_module_4 = \
-BasicConvModule(
-    filt_shape=(3,3),
+BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
