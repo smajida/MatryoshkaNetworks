@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_old_cond'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -418,12 +418,19 @@ im_modules = [im_module_2, im_module_3, im_module_5, im_module_6]
 # directly by the bu_module's output, and no merging (via an im_module) is
 # required. This probably only happens at the "top" of the generator.
 #
+# merge_info = {
+#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#     'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
+#     'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'},
+#     'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
+#     'td_mod_6': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6'}
+# }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'},
-    'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
-    'td_mod_6': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6'}
+    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
+    'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
+    'td_mod_6': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_6'}
 }
 
 # construct the "wrapper" object for managing all our modules
