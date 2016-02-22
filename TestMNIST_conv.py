@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_old_cond'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_outer_bneck'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -117,7 +117,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*2, 7, 7),
+    out_shape=(ngf*1, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -128,8 +128,8 @@ GenTopModule(
 # (7, 7) -> (7, 7)
 td_module_2 = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
@@ -145,8 +145,8 @@ GenConvPertModule(
 # (7, 7) -> (7, 7)
 td_module_3 = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
@@ -162,8 +162,8 @@ GenConvPertModule(
 # (7, 7) -> (14, 14)
 td_module_4 = \
 BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
@@ -174,8 +174,8 @@ BasicConvModule(
 # (14, 14) -> (14, 14)
 td_module_5 = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
@@ -191,8 +191,8 @@ GenConvPertModule(
 # (14, 14) -> (14, 14)
 td_module_6 = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
@@ -209,7 +209,7 @@ GenConvPertModule(
 td_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
@@ -242,7 +242,7 @@ td_modules = [td_module_1, td_module_2, td_module_3, td_module_4,
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*2*7*7),
+    bu_chans=(ngf*1*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -254,8 +254,8 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
@@ -268,8 +268,8 @@ BasicConvResModule(
 # (7, 7) -> (7, 7)
 bu_module_3 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
@@ -282,8 +282,8 @@ BasicConvResModule(
 # (14, 14) -> (7, 7)
 bu_module_4 = \
 BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
@@ -294,8 +294,8 @@ BasicConvModule(
 # (14, 14) -> (14, 14)
 bu_module_5 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
@@ -308,8 +308,8 @@ BasicConvResModule(
 # (14, 14) -> (14, 14)
 bu_module_6 = \
 BasicConvResModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
@@ -324,7 +324,7 @@ bu_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
@@ -353,8 +353,8 @@ bu_modules = [bu_module_8, bu_module_7, bu_module_6, bu_module_5,
 
 im_module_2 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -367,8 +367,8 @@ InfConvMergeModule(
 
 im_module_3 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -381,8 +381,8 @@ InfConvMergeModule(
 
 im_module_5 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -395,8 +395,8 @@ InfConvMergeModule(
 
 im_module_6 = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -418,20 +418,20 @@ im_modules = [im_module_2, im_module_3, im_module_5, im_module_6]
 # directly by the bu_module's output, and no merging (via an im_module) is
 # required. This probably only happens at the "top" of the generator.
 #
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
-#     'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'},
-#     'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
-#     'td_mod_6': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6'}
-# }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
-    'td_mod_6': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_6'}
+    'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
+    'td_mod_3': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3'},
+    'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
+    'td_mod_6': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6'}
 }
+# merge_info = {
+#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#     'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
+#     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+#     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
+#     'td_mod_6': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_6'}
+# }
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
