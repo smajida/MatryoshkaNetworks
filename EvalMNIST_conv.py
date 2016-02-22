@@ -30,14 +30,15 @@ from load import load_binarized_mnist, load_udm
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
                               InfTopModule, BasicConvResModule, \
-                              DiscConvResModule, DiscFCModule
+                              DiscConvResModule, DiscFCModule, \
+                              GenConvPertModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_more_rand'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
