@@ -1368,7 +1368,7 @@ class GenConvPertModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
@@ -1380,7 +1380,7 @@ class GenConvPertModule(object):
         self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize third conv layer parameters
-        self.w3 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
+        self.w3 = weight_ifn((self.out_chans, self.conv_chans, 1, 1),
                                 "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
@@ -1456,7 +1456,7 @@ class GenConvPertModule(object):
 
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
-        h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        h1 = dnn_conv(pert_input, self.w1, subsample=(1,1), border_mode=(0,0))
         if self.apply_bn:
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
@@ -1465,7 +1465,7 @@ class GenConvPertModule(object):
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         # apply second internal conv layer
-        h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        h2 = dnn_conv(h1, self.w2, subsample=(1,1), border_mode=(bm,bm))
         if self.apply_bn:
             h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
                             use_gb=self.use_bn_params)
@@ -1474,8 +1474,7 @@ class GenConvPertModule(object):
             h2 = add_noise(h2, noise=noise)
         h2 = self.act_func(h2)
         # apply final conv layer
-        h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
-
+        h3 = dnn_conv(h2, self.w3, subsample=(1,1), border_mode=(0,0))
         # combine non-linear and linear transforms of input...
         h4 = input + h3
         if self.apply_bn:
