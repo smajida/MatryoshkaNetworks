@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_alt_arch'
+desc = 'test_conv_all_noise_000_fix_bin_inf_mt_1_lrelu_more_rand'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -127,15 +127,18 @@ GenTopModule(
 
 # (7, 7) -> (7, 7)
 td_module_2 = \
-BasicConvResModule(
+GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
+    rand_chans=nz1,
     filt_shape=(3,3),
+    use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    stride='single',
     act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
     mod_name='td_mod_2'
 )
 
@@ -154,19 +157,22 @@ GenConvResModule(
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_3'
-) # output is (batch, ngf*2, 14, 14)
+)
 
 # (7, 7) -> (14, 14)
 td_module_4 = \
-BasicConvResModule(
+GenConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
+    rand_chans=nz1,
     filt_shape=(3,3),
+    use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    stride='half',
     act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=2,
     mod_name='td_mod_4'
 )
 
@@ -321,6 +327,20 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 # Setup the information merging modules #
 #########################################
 
+im_module_2 = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_2'
+)
+
 im_module_3 = \
 InfConvMergeModule(
     td_chans=(ngf*2),
@@ -349,7 +369,7 @@ InfConvMergeModule(
     mod_name='im_mod_5'
 )
 
-im_modules = [im_module_3, im_module_5]
+im_modules = [im_module_2, im_module_3, im_module_5]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -362,7 +382,9 @@ im_modules = [im_module_3, im_module_5]
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
+    'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'}
 }
 
