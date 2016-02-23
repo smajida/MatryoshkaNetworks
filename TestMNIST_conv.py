@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_deeper_short_bu'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_short_pert_mods'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -126,7 +126,7 @@ GenTopModule(
 )
 
 # (7, 7) -> (7, 7)
-td_module_2 = \
+td_module_2a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -139,11 +139,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_2'
+    mod_name='td_mod_2a'
 )
 
 # (7, 7) -> (7, 7)
-td_module_3 = \
+td_module_2b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -156,11 +156,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_3'
+    mod_name='td_mod_2b'
 )
 
 # (7, 7) -> (7, 7)
-td_module_3a = \
+td_module_2c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -173,11 +173,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_3a'
+    mod_name='td_mod_2c'
 )
 
 # (7, 7) -> (14, 14)
-td_module_4 = \
+td_module_3 = \
 BasicConvModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -185,11 +185,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='half',
     act_func=act_func,
-    mod_name='td_mod_4'
+    mod_name='td_mod_3'
 )
 
 # (14, 14) -> (14, 14)
-td_module_5 = \
+td_module_4a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -202,11 +202,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_5'
+    mod_name='td_mod_4a'
 )
 
 # (14, 14) -> (14, 14)
-td_module_6 = \
+td_module_4b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -219,11 +219,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_6'
+    mod_name='td_mod_4b'
 )
 
 # (14, 14) -> (14, 14)
-td_module_6a = \
+td_module_4c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -236,11 +236,11 @@ GenConvPertModule(
     act_func=act_func,
     mod_type=gen_mt,
     us_stride=1,
-    mod_name='td_mod_6a'
+    mod_name='td_mod_4c'
 )
 
 # (14, 14) -> (28, 28)
-td_module_7 = \
+td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*2),
@@ -248,11 +248,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='half',
     act_func=act_func,
-    mod_name='td_mod_7'
+    mod_name='td_mod_5'
 )
 
 # (28, 28) -> (28, 28)
-td_module_8 = \
+td_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -261,12 +261,12 @@ BasicConvModule(
     use_noise=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_8'
+    mod_name='td_mod_6'
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3, td_module_3a, td_module_4,
-              td_module_5, td_module_6, td_module_6a, td_module_7, td_module_8]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
+              td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -286,7 +286,7 @@ InfTopModule(
 )
 
 # (7, 7) -> (7, 7)
-bu_module_2 = \
+bu_module_2a = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -296,11 +296,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_2'
+    mod_name='bu_mod_2a'
 )
 
 # (7, 7) -> (7, 7)
-bu_module_3 = \
+bu_module_2b = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -310,11 +310,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_3'
+    mod_name='bu_mod_2b'
 )
 
 # (7, 7) -> (7, 7)
-bu_module_3a = \
+bu_module_2c = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -324,11 +324,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_3a'
+    mod_name='bu_mod_2c'
 )
 
 # (14, 14) -> (7, 7)
-bu_module_4 = \
+bu_module_3 = \
 BasicConvModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -336,11 +336,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
-    mod_name='bu_mod_4'
+    mod_name='bu_mod_3'
 )
 
 # (14, 14) -> (14, 14)
-bu_module_5 = \
+bu_module_4a = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -350,11 +350,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_5'
+    mod_name='bu_mod_4a'
 )
 
 # (14, 14) -> (14, 14)
-bu_module_6 = \
+bu_module_4b = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -364,11 +364,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_6'
+    mod_name='bu_mod_4b'
 )
 
 # (14, 14) -> (14, 14)
-bu_module_6a = \
+bu_module_4c = \
 BasicConvResModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
@@ -378,11 +378,11 @@ BasicConvResModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_6a'
+    mod_name='bu_mod_4c'
 )
 
 # (28, 28) -> (14, 14)
-bu_module_7 = \
+bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -390,11 +390,11 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
-    mod_name='bu_mod_7'
+    mod_name='bu_mod_5'
 )
 
 # (28, 28) -> (28, 28)
-bu_module_8 = \
+bu_module_6 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
@@ -402,18 +402,18 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_8'
+    mod_name='bu_mod_6'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_8, bu_module_7, bu_module_6a, bu_module_6, bu_module_5,
-              bu_module_4, bu_module_3a, bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
 #########################################
 
-im_module_2 = \
+im_module_2a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -424,10 +424,10 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_2'
+    mod_name='im_mod_2a'
 )
 
-im_module_3 = \
+im_module_2b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -438,10 +438,10 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_3'
+    mod_name='im_mod_2b'
 )
 
-im_module_3a = \
+im_module_2c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -452,10 +452,10 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_3a'
+    mod_name='im_mod_2c'
 )
 
-im_module_5 = \
+im_module_4a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -466,10 +466,10 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_5'
+    mod_name='im_mod_4a'
 )
 
-im_module_6 = \
+im_module_4b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -480,10 +480,10 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_6'
+    mod_name='im_mod_4b'
 )
 
-im_module_6a = \
+im_module_4c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
@@ -494,10 +494,11 @@ InfConvMergeModule(
     apply_bn=use_bn,
     mod_type=inf_mt,
     act_func=act_func,
-    mod_name='im_mod_6a'
+    mod_name='im_mod_4c'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_3a, im_module_5, im_module_6, im_module_6a]
+im_modules = [im_module_2a, im_module_2b, im_module_2c,
+              im_module_4a, im_module_4b, im_module_4c]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -510,13 +511,13 @@ im_modules = [im_module_2, im_module_3, im_module_3a, im_module_5, im_module_6, 
 #
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_3a', 'im_module': 'im_mod_3'},
-    'td_mod_3a': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_3a'},
-    'td_mod_5': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_5'},
-    'td_mod_6': {'bu_module': 'bu_mod_6a', 'im_module': 'im_mod_6'},
-    'td_mod_6a': {'bu_module': 'bu_mod_7', 'im_module': 'im_mod_6a'}
-    
+    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+    'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
+    'td_mod_2c': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2c'},
+    'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
+    'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
+    'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
+
 }
 # merge_info = {
 #     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},

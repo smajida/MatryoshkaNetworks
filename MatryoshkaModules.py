@@ -1308,188 +1308,9 @@ class GenConvResModule(object):
             result = output
         return result
 
-
 #########################################
-# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
+# DOUBLE GENERATOR CONVOLUTIONAL MODULE #
 #########################################
-
-# class GenConvPertModule(object):
-#     """
-#     Test module.
-#     """
-#     def __init__(self,
-#                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
-#                  use_rand=True, use_conv=True, us_stride=2,
-#                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
-#                  use_bn_params=True, act_func='relu', mod_type=0,
-#                  mod_name='gm_conv'):
-#         assert ((us_stride == 1)), \
-#                 "us_stride must be 1."
-#         assert ((in_chans == out_chans)), \
-#                 "in_chans == out_chans is required."
-#         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-#                 "filt_shape must be (3,3) or (5,5)."
-#         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-#                 "invalid act_func {}.".format(act_func)
-#         self.in_chans = in_chans
-#         self.out_chans = out_chans
-#         self.conv_chans = conv_chans
-#         self.rand_chans = rand_chans
-#         self.filt_dim = filt_shape[0]
-#         self.use_rand = use_rand
-#         self.use_conv = use_conv
-#         self.us_stride = us_stride
-#         self.unif_drop = unif_drop
-#         self.chan_drop = chan_drop
-#         self.apply_bn = apply_bn
-#         self.use_bn_params = use_bn_params
-#         if act_func == 'ident':
-#             self.act_func = lambda x: x
-#         elif act_func == 'tanh':
-#             self.act_func = lambda x: tanh(x)
-#         elif act_func == 'elu':
-#             self.act_func = lambda x: elu(x)
-#         elif act_func == 'relu':
-#             self.act_func = lambda x: relu(x)
-#         else:
-#             self.act_func = lambda x: lrelu(x)
-#         self.mod_name = mod_name
-#         self.mod_type = mod_type
-#         self._init_params() # initialize parameters
-#         return
-
-#     def _init_params(self):
-#         """
-#         Initialize parameters for the layers in this module.
-#         """
-#         self.params = []
-#         weight_ifn = inits.Normal(loc=0., scale=0.02)
-#         gain_ifn = inits.Normal(loc=1., scale=0.02)
-#         bias_ifn = inits.Constant(c=0.)
-#         fd = self.filt_dim
-#         # initialize first conv layer parameters
-#         self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
-#                              "{}_w1".format(self.mod_name))
-#         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
-#         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
-#         self.params.extend([self.w1, self.g1, self.b1])
-#         # initialize second conv layer parameters
-#         self.w2 = weight_ifn((self.conv_chans, self.conv_chans, fd, fd),
-#                              "{}_w2".format(self.mod_name))
-#         self.g2 = gain_ifn((self.conv_chans), "{}_g2".format(self.mod_name))
-#         self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
-#         self.params.extend([self.w2, self.g2, self.b2])
-#         # initialize third conv layer parameters
-#         self.w3 = weight_ifn((self.out_chans, self.conv_chans, 1, 1),
-#                                 "{}_w3".format(self.mod_name))
-#         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
-#         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
-#         self.params.extend([self.w3, self.g3, self.b3])
-#         # derp a derp parameterrrrr
-#         self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
-#                              "{}_wx".format(self.mod_name))
-#         self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
-#                              "{}_wy".format(self.mod_name))
-#         return
-
-#     def load_params(self, param_dict):
-#         """
-#         Load module params directly from a dict of numpy arrays.
-#         """
-#         self.w1.set_value(floatX(param_dict['w1']))
-#         self.g1.set_value(floatX(param_dict['g1']))
-#         self.b1.set_value(floatX(param_dict['b1']))
-#         self.w2.set_value(floatX(param_dict['w2']))
-#         self.g2.set_value(floatX(param_dict['g2']))
-#         self.b2.set_value(floatX(param_dict['b2']))
-#         self.w3.set_value(floatX(param_dict['w3']))
-#         self.g3.set_value(floatX(param_dict['g3']))
-#         self.b3.set_value(floatX(param_dict['b3']))
-#         self.wx.set_value(floatX(param_dict['wx']))
-#         self.wy.set_value(floatX(param_dict['wy']))
-#         return
-
-#     def dump_params(self):
-#         """
-#         Dump module params directly to a dict of numpy arrays.
-#         """
-#         param_dict = {}
-#         param_dict['w1'] = self.w1.get_value(borrow=False)
-#         param_dict['g1'] = self.g1.get_value(borrow=False)
-#         param_dict['b1'] = self.b1.get_value(borrow=False)
-#         param_dict['w2'] = self.w2.get_value(borrow=False)
-#         param_dict['g2'] = self.g2.get_value(borrow=False)
-#         param_dict['b2'] = self.b2.get_value(borrow=False)
-#         param_dict['w3'] = self.w3.get_value(borrow=False)
-#         param_dict['g3'] = self.g3.get_value(borrow=False)
-#         param_dict['b3'] = self.b3.get_value(borrow=False)
-#         param_dict['wx'] = self.wx.get_value(borrow=False)
-#         param_dict['wy'] = self.wy.get_value(borrow=False)
-#         return param_dict
-
-#     def apply(self, input, rand_vals=None, rand_shapes=False,
-#               share_mask=False, noise=None):
-#         """
-#         Apply this generator module to some input.
-#         """
-#         batch_size = input.shape[0]    # number of inputs in this batch
-#         bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
-
-#         # get shape for random values that will augment input
-#         rand_shape = (batch_size, self.rand_chans, input.shape[2], input.shape[3])
-#         # augment input with random channels
-#         if rand_vals is None:
-#             if self.use_rand:
-#                 # generate random values to append to module input
-#                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
-#                                           dtype=theano.config.floatX)
-#             else:
-#                 # FASTER THAN ALLOCATING 0s, WTF?
-#                 rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
-#                                           dtype=theano.config.floatX)
-#         else:
-#             if not self.use_rand:
-#                 # mask out random values, so they won't get used
-#                 rand_vals = 0.0 * rand_vals
-#         rand_vals = rand_vals.reshape(rand_shape)
-#         rand_shape = rand_vals.shape # return vals must be theano vars
-
-#         pert_input = T.concatenate([rand_vals, input], axis=1)
-#         # apply first internal conv layer
-#         h1 = dnn_conv(pert_input, self.w1, subsample=(1,1), border_mode=(0,0))
-#         if self.apply_bn:
-#             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-#                             use_gb=self.use_bn_params)
-#         else:
-#             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-#             h1 = add_noise(h1, noise=noise)
-#         h1 = self.act_func(h1)
-#         # apply second internal conv layer
-#         h2 = dnn_conv(h1, self.w2, subsample=(1,1), border_mode=(bm,bm))
-#         if self.apply_bn:
-#             h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-#                             use_gb=self.use_bn_params)
-#         else:
-#             h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-#             h2 = add_noise(h2, noise=noise)
-#         h2 = self.act_func(h2)
-#         # apply final conv layer
-#         h3 = dnn_conv(h2, self.w3, subsample=(1,1), border_mode=(0,0))
-#         # combine non-linear and linear transforms of input...
-#         h4 = input + h3
-#         if self.apply_bn:
-#             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-#                             use_gb=self.use_bn_params)
-#         else:
-#             h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-#             h4 = add_noise(h4, noise=noise)
-
-#         output = self.act_func(h4)
-#         if rand_shapes:
-#             result = [output, rand_shape]
-#         else:
-#             result = output
-#         return result
 
 class GenConvPertModule(object):
     """
@@ -1642,17 +1463,18 @@ class GenConvPertModule(object):
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
-        # apply second internal conv layer
-        h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-        if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-            h2 = add_noise(h2, noise=noise)
-        h2 = self.act_func(h2)
-        # apply final conv layer
-        h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        # # apply second internal conv layer
+        # h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        # if self.apply_bn:
+        #     h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
+        #                     use_gb=self.use_bn_params)
+        # else:
+        #     h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
+        #     h2 = add_noise(h2, noise=noise)
+        # h2 = self.act_func(h2)
+        # # apply final conv layer
+        # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
         # combine non-linear and linear transforms of input...
         h4 = input + h3
