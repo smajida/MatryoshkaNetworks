@@ -223,7 +223,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_4b'
 )
-td_module_4b.share_parameters(td_module_4a)
+td_module_4b.share_params(td_module_4a)
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
@@ -241,7 +241,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_4c'
 )
-td_module_4c.share_parameters(td_module_4a)
+td_module_4c.share_params(td_module_4a)
 
 # (14, 14) -> (28, 28)
 td_module_5 = \
