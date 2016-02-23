@@ -1463,19 +1463,19 @@ class GenConvPertModule(object):
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
-        # apply second internal conv layer
-        h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-        if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-            h2 = add_noise(h2, noise=noise)
-        h2 = self.act_func(h2)
-        # apply final conv layer
-        h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        # # apply second internal conv layer
+        # h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        # if self.apply_bn:
+        #     h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
+        #                     use_gb=self.use_bn_params)
+        # else:
+        #     h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
+        #     h2 = add_noise(h2, noise=noise)
+        # h2 = self.act_func(h2)
+        # # apply final conv layer
+        # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
-        # h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
         # combine non-linear and linear transforms of input...
         h4 = input + h3
