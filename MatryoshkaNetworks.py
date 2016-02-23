@@ -426,6 +426,15 @@ class InfGenModel(object):
             self.inf_params.extend(module.params)
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
+        # filter redundant parameters, to allow parameter sharing
+        p_dict = {}
+        for p in self.gen_params:
+            p_dict[p.name] = p
+        self.gen_params = p_dict.values()
+        p_dict = {}
+        for p in self.inf_params:
+            p_dict[p.name] = p
+        self.inf_params = p_dict.values()
         # make dist_scale parameter (add it to the inf net parameters)
         if train_dist_scale:
             # init to a somewhat arbitrary value -- not magic (probably)

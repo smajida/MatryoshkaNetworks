@@ -158,6 +158,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_2b'
 )
+td_module_2b.share_params(td_module_2a)
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
@@ -175,6 +176,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_2c'
 )
+td_module_2c.share_params(td_module_2a)
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
@@ -221,6 +223,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_4b'
 )
+td_module_4b.share_parameters(td_module_4a)
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
@@ -238,6 +241,7 @@ GenConvPertModule(
     us_stride=1,
     mod_name='td_mod_4c'
 )
+td_module_4c.share_parameters(td_module_4a)
 
 # (14, 14) -> (28, 28)
 td_module_5 = \
@@ -312,6 +316,7 @@ BasicConvPertModule(
     act_func=act_func,
     mod_name='bu_mod_2b'
 )
+bu_module_2b.share_params(bu_module_2a)
 
 # (7, 7) -> (7, 7)
 bu_module_2c = \
@@ -326,6 +331,7 @@ BasicConvPertModule(
     act_func=act_func,
     mod_name='bu_mod_2c'
 )
+bu_module_2c.share_params(bu_module_2a)
 
 # (14, 14) -> (7, 7)
 bu_module_3 = \
@@ -366,6 +372,7 @@ BasicConvPertModule(
     act_func=act_func,
     mod_name='bu_mod_4b'
 )
+bu_module_4b.share_params(bu_module_4a)
 
 # (14, 14) -> (14, 14)
 bu_module_4c = \
@@ -380,6 +387,7 @@ BasicConvPertModule(
     act_func=act_func,
     mod_name='bu_mod_4c'
 )
+bu_module_4c.share_params(bu_module_4a)
 
 # (28, 28) -> (14, 14)
 bu_module_5 = \
@@ -440,6 +448,7 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_2b'
 )
+im_module_2b.share_params(im_module_2a)
 
 im_module_2c = \
 InfConvMergeModule(
@@ -454,6 +463,7 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_2c'
 )
+im_module_2c.share_params(im_module_2a)
 
 im_module_4a = \
 InfConvMergeModule(
@@ -482,6 +492,7 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_4b'
 )
+im_module_4b.share_params(im_module_4a)
 
 im_module_4c = \
 InfConvMergeModule(
@@ -496,6 +507,7 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_4c'
 )
+im_module_4c.share_params(im_module_4a)
 
 im_modules = [im_module_2a, im_module_2b, im_module_2c,
               im_module_4a, im_module_4b, im_module_4c]
@@ -519,13 +531,7 @@ merge_info = {
     'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
 
 }
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
-#     'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-#     'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
-#     'td_mod_6': {'bu_module': 'bu_mod_6', 'im_module': 'im_mod_6'}
-# }
+
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))

@@ -610,6 +610,28 @@ class BasicConvPertModule(object):
         self.params.extend([self.w3, self.g3, self.b3])
         return
 
+    def share_params(self, source_module):
+        """
+        Set this module to share parameters with source_module.
+        """
+        self.params = []
+        # initialize first conv layer parameters
+        self.w1 = source_module.w1
+        self.g1 = source_module.g1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = source_module.w2
+        self.g2 = source_module.g2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.g2, self.b2])
+        # initialize alternate conv layer parameters
+        self.w3 = source_module.w3
+        self.g3 = source_module.g3
+        self.b3 = source_module.b3
+        self.params.extend([self.w3, self.g3, self.b3])
+        return
+
     def load_params(self, param_dict):
         """
         Load module params directly from a dict of numpy arrays.
@@ -1366,6 +1388,7 @@ class GenConvResModule(object):
                              "{}_wx".format(self.mod_name))
         self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
                              "{}_wy".format(self.mod_name))
+        self.params.extend([self.wx, self.wy])
         return
 
     def load_params(self, param_dict):
@@ -1562,6 +1585,35 @@ class GenConvPertModule(object):
                              "{}_wx".format(self.mod_name))
         self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
                              "{}_wy".format(self.mod_name))
+        self.params.extend([self.wx, self.wy])
+        return
+
+    def share_params(self, source_module):
+        """
+        Set parameters in this module to be shared with source_module.
+        -- This just sets our parameter info to point to the shared variables
+           used by source_module.
+        """
+        self.params = []
+        # share first conv layer parameters
+        self.w1 = source_module.w1
+        self.g1 = source_module.g1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.g1, self.b1])
+        # share second conv layer parameters
+        self.w2 = source_module.w2
+        self.g2 = source_module.g2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.g2, self.b2])
+        # share third conv layer parameters
+        self.w3 = source_module.w3
+        self.g3 = source_module.g3
+        self.b3 = source_module.b3
+        self.params.extend([self.w3, self.g3, self.b3])
+        # derp a derp parameterrrrr
+        self.wx = source_module.wx
+        self.wy = source_module.wy
+        self.params.extend([self.wx, self.wy])
         return
 
     def load_params(self, param_dict):
@@ -1749,6 +1801,7 @@ class GenFCResModule(object):
         # derp a derp parameter
         self.wx = weight_ifn((self.rand_chans, self.in_chans),
                                 "{}_wx".format(self.mod_name))
+        self.params.extend([self.wx])
         return
 
     def load_params(self, param_dict):
@@ -1959,6 +2012,38 @@ class InfConvMergeModule(object):
             self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w2_td".format(self.mod_name))
             self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.params.extend([self.w2_td, self.b2_td])
+        return
+
+    def share_params(self, source_module):
+        """
+        Set this module to share parameters with source_module.
+        """
+        self.params = []
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize first conv layer parameters
+        self.w1_im = source_module.w1_im
+        self.g1_im = source_module.g1_im
+        self.b1_im = source_module.b1_im
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize second conv layer parameters
+        self.w2_im = source_module.w2_im
+        self.params.extend([self.w2_im])
+        # module acts just on TD and BU input
+        self.w3_im = source_module.w3_im
+        self.b3_im = source_module.b3_im
+        self.params.extend([self.w3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = source_module.w1_td
+            self.g1_td = source_module.g1_td
+            self.b1_td = source_module.b1_td
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            # initialize second conv layer parameters
+            self.w2_td = source_module.w2_td
+            self.b2_td = source_module.b2_td
             self.params.extend([self.w2_td, self.b2_td])
         return
 
