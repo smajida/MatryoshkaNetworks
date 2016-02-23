@@ -30,14 +30,14 @@ from load import load_binarized_mnist, load_udm
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
                               InfTopModule, BasicConvResModule, \
-                              GenConvPertModule
+                              GenConvPertModule, BasicConvPertModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_short_pert_mods'
+desc = 'test_conv_opt_bu_pert_mods'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -287,12 +287,12 @@ InfTopModule(
 
 # (7, 7) -> (7, 7)
 bu_module_2a = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -301,12 +301,12 @@ BasicConvResModule(
 
 # (7, 7) -> (7, 7)
 bu_module_2b = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -315,12 +315,12 @@ BasicConvResModule(
 
 # (7, 7) -> (7, 7)
 bu_module_2c = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -341,12 +341,12 @@ BasicConvModule(
 
 # (14, 14) -> (14, 14)
 bu_module_4a = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -355,12 +355,12 @@ BasicConvResModule(
 
 # (14, 14) -> (14, 14)
 bu_module_4b = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -369,12 +369,12 @@ BasicConvResModule(
 
 # (14, 14) -> (14, 14)
 bu_module_4c = \
-BasicConvResModule(
+BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
