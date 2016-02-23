@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_deeper'
+desc = 'test_conv_all_noise_000_fix_bin_lrelu_pert_mods_deeper_short_bu'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -292,7 +292,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -306,7 +306,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -320,7 +320,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -346,7 +346,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -360,7 +360,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -374,7 +374,7 @@ BasicConvResModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
