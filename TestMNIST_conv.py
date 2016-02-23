@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods'
+desc = 'test_conv_opt_bu_pert_mods_small_batch'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,7 +61,7 @@ else:
 
 set_seed(123)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -657,7 +657,8 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.001)
+#lrt = sharedX(0.001)
+lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
