@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_norm_mods_deeper'
+desc = 'test_conv_opt_bu_pert_mods_deeper_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -69,7 +69,7 @@ ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter_decay = 200 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
@@ -336,7 +336,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -350,7 +350,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -365,7 +365,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -380,7 +380,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -407,7 +407,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -421,7 +421,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -436,7 +436,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -451,7 +451,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=False,
+    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
