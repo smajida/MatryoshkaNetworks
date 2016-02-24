@@ -1575,10 +1575,10 @@ class GenConvPertModule(object):
         self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize third conv layer parameters
-        self.w3 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
+        self.w3 = weight_ifn((2*self.out_chans, self.conv_chans, fd, fd),
                                 "{}_w3".format(self.mod_name))
-        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
-        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.g3 = gain_ifn((2*self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((2*self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # derp a derp parameterrrrr
         self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
@@ -1701,9 +1701,12 @@ class GenConvPertModule(object):
         # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
         h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        
+        h3_pert = h3[:,:self.out_chans,:,:]
+        h3_gate = h3[:,self.out_chans:,:,:]
 
         # combine non-linear and linear transforms of input...
-        h4 = input + h3
+        h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
