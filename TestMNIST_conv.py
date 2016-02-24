@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_weird_model'
+desc = 'test_conv_opt_bu_pert_mods_rand_only'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -330,25 +330,13 @@ InfTopModule(
 )
 
 # (7, 7) -> (7, 7)
-bu_module_2 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_2'
-)
-
-# (7, 7) -> (7, 7)
 bu_module_2a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -362,7 +350,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -377,7 +365,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -392,7 +380,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -413,25 +401,13 @@ BasicConvModule(
 )
 
 # (14, 14) -> (14, 14)
-bu_module_4 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_4'
-)
-
-# (14, 14) -> (14, 14)
 bu_module_4a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -445,7 +421,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -460,7 +436,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -475,7 +451,7 @@ BasicConvPertModule(
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
+    use_conv=False,
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
@@ -510,12 +486,10 @@ BasicConvModule(
 # modules must be listed in "evaluation order"
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
-# bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
-#               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
-bu_modules = [bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -668,11 +642,11 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c,
 # }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
+    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+    'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
     'td_mod_2c': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2c'},
-    'td_mod_4a': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'},
+    'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
+    'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
     'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
 }
 # merge_info = {

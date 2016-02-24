@@ -1678,7 +1678,7 @@ class GenConvPertModule(object):
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 
-        pert_input = T.concatenate([rand_vals, input], axis=1)
+        pert_input = T.concatenate([rand_vals, 0.0*input], axis=1)
         # apply first internal conv layer
         h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
