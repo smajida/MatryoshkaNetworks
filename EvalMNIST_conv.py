@@ -72,7 +72,7 @@ niter = 300       # # of iter at starting learning rate
 niter_decay = 1   # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 10 # number of samples to use in MEN bound
 noise_std = 0.0  # amount of noise to inject in BU and IM modules
@@ -778,7 +778,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-Xva_blocks = np.split(Xva, 5, axis=0)
+Xva_blocks = np.split(Xva, 10, axis=0)
 for epoch in range(3):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
