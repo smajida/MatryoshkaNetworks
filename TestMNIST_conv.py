@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_inner_bneck'
+desc = 'test_conv_opt_bu_pert_mods_shorter_inner_bneck'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -305,10 +305,12 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
-              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
+# td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
+#               td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
 # td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
 #               td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
+              td_module_4a, td_module_4b, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -482,10 +484,12 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+# bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
+#               bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -608,10 +612,12 @@ InfConvMergeModule(
 )
 #im_module_4d.share_params(im_module_4a)
 
-im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
-              im_module_4a, im_module_4b, im_module_4c, im_module_4d]
+# im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
+#               im_module_4a, im_module_4b, im_module_4c, im_module_4d]
 # im_modules = [im_module_2a, im_module_2b, im_module_2c,
 #               im_module_4a, im_module_4b, im_module_4c]
+im_modules = [im_module_2a, im_module_2b,
+              im_module_4a, im_module_4b]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -622,16 +628,23 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
 # directly by the bu_module's output, and no merging (via an im_module) is
 # required. This probably only happens at the "top" of the generator.
 #
+# merge_info = {
+#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+#     'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
+#     'td_mod_2c': {'bu_module': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
+#     'td_mod_2d': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2d'},
+#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
+#     'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
+#     'td_mod_4c': {'bu_module': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
+#     'td_mod_4d': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4d'}
+# }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-    'td_mod_2c': {'bu_module': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
-    'td_mod_2d': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2d'},
+    'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-    'td_mod_4c': {'bu_module': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
-    'td_mod_4d': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4d'}
+    'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'}
 }
 
 
