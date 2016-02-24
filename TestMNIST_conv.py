@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_shorter_inner_bneck'
+desc = 'test_conv_opt_bu_pert_mods_weird_model'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -130,7 +130,7 @@ td_module_2a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -147,7 +147,7 @@ td_module_2b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -165,7 +165,7 @@ td_module_2c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -183,7 +183,7 @@ td_module_2d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -213,7 +213,7 @@ td_module_4a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -230,7 +230,7 @@ td_module_4b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -248,7 +248,7 @@ td_module_4c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -266,7 +266,7 @@ td_module_4d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -307,10 +307,10 @@ BasicConvModule(
 # modules must be listed in "evaluation order"
 # td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
 #               td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
-# td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
-#               td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
-td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
-              td_module_4a, td_module_4b, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
+              td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
+# td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
+#               td_module_4a, td_module_4b, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -330,11 +330,23 @@ InfTopModule(
 )
 
 # (7, 7) -> (7, 7)
+bu_module_2 = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_2'
+)
+
+# (7, 7) -> (7, 7)
 bu_module_2a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -348,7 +360,7 @@ bu_module_2b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -363,7 +375,7 @@ bu_module_2c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -378,7 +390,7 @@ bu_module_2d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -401,11 +413,23 @@ BasicConvModule(
 )
 
 # (14, 14) -> (14, 14)
+bu_module_4 = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_4'
+)
+
+# (14, 14) -> (14, 14)
 bu_module_4a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -419,7 +443,7 @@ bu_module_4b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -434,7 +458,7 @@ bu_module_4c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -449,7 +473,7 @@ bu_module_4d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -488,8 +512,11 @@ BasicConvModule(
 #               bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
-bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
+# bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
+#               bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
+
 
 #########################################
 # Setup the information merging modules #
@@ -500,7 +527,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -514,7 +541,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -529,7 +556,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -544,7 +571,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -558,7 +585,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -572,7 +599,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -587,7 +614,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -602,7 +629,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -614,10 +641,10 @@ InfConvMergeModule(
 
 # im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
 #               im_module_4a, im_module_4b, im_module_4c, im_module_4d]
-# im_modules = [im_module_2a, im_module_2b, im_module_2c,
-#               im_module_4a, im_module_4b, im_module_4c]
-im_modules = [im_module_2a, im_module_2b,
-              im_module_4a, im_module_4b]
+im_modules = [im_module_2a, im_module_2b, im_module_2c,
+              im_module_4a, im_module_4b, im_module_4c]
+# im_modules = [im_module_2a, im_module_2b,
+#               im_module_4a, im_module_4b]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -641,11 +668,20 @@ im_modules = [im_module_2a, im_module_2b,
 # }
 merge_info = {
     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+    'td_mod_2a': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2a'},
     'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
-    'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'}
+    'td_mod_2c': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2c'},
+    'td_mod_4a': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4a'},
+    'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'},
+    'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
 }
+# merge_info = {
+#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+#     'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
+#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
+#     'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'}
+# }
 
 
 # construct the "wrapper" object for managing all our modules
