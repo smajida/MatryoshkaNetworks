@@ -61,7 +61,7 @@ else:
 
 set_seed(123)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 1000      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 16          # # of dim for Z1
@@ -74,7 +74,7 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
-iwae_samples = 1 # number of samples to use in MEN bound
+iwae_samples = 10 # number of samples to use in MEN bound
 noise_std = 0.0  # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
@@ -793,7 +793,7 @@ for epoch in range(3):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 5000,
+            iwae_bounds = iwae_multi_eval(imb_img, 500,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
