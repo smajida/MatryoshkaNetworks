@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_gated'
+desc = 'test_conv_opt_bu_pert_mods_deeper_short_base'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -282,12 +282,12 @@ GenConvPertModule(
 # (14, 14) -> (28, 28)
 td_module_5 = \
 BasicConvModule(
-    filt_shape=(3,3),
+    filt_shape=(5,5),
     in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
+    out_chans=nc, #(ngf*1),
+    apply_bn=False,
     stride='half',
-    act_func=act_func,
+    act_func='ident',
     mod_name='td_mod_5'
 )
 
@@ -305,12 +305,14 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
-              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
+# td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
+#               td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
 # td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
 #               td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
 # td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
 #               td_module_4a, td_module_4b, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
+              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -462,8 +464,8 @@ BasicConvPertModule(
 # (28, 28) -> (14, 14)
 bu_module_5 = \
 BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
+    filt_shape=(5,5),
+    in_chans=nc,
     out_chans=(ngf*2),
     apply_bn=use_bn,
     stride='double',
@@ -484,12 +486,14 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+# bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
+#               bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 
 #########################################
