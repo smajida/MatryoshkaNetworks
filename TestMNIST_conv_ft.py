@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_2'
+desc = 'test_conv_opt_bu_pert_mods_deeper_inner_bneck'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 inf_gen_param_file_ft = "{}/inf_gen_params_ft.pkl".format(result_dir)
@@ -131,7 +131,7 @@ td_module_2a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -148,7 +148,7 @@ td_module_2b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -166,7 +166,7 @@ td_module_2c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -184,7 +184,7 @@ td_module_2d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -214,7 +214,7 @@ td_module_4a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -231,7 +231,7 @@ td_module_4b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -249,7 +249,7 @@ td_module_4c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -267,7 +267,7 @@ td_module_4d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -335,7 +335,7 @@ bu_module_2a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -349,7 +349,7 @@ bu_module_2b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -364,7 +364,7 @@ bu_module_2c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -379,7 +379,7 @@ bu_module_2d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -406,7 +406,7 @@ bu_module_4a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -420,7 +420,7 @@ bu_module_4b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -435,7 +435,7 @@ bu_module_4c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -450,7 +450,7 @@ bu_module_4d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -502,7 +502,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -516,7 +516,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -531,7 +531,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -546,7 +546,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -560,7 +560,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -574,7 +574,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -589,7 +589,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -604,7 +604,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*2),
+    conv_chans=(ngf*1),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -831,7 +831,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.0]))
-lr_init = np.linspace(0.0,0.0001,1000)
+lr_init = np.linspace(0.0,0.0003,1000)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
