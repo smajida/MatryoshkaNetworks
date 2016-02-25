@@ -314,7 +314,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
-    act_func='ident',
+    act_func=act_func,
     mod_name='td_mod_5'
 )
 
