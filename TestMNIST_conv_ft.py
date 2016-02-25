@@ -831,7 +831,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.0]))
-lr_init = np.linspace(0.0,0.0003,1000)
+lr_init = np.linspace(0.0,0.0001,1000)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)

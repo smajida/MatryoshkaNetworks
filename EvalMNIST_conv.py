@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_inner_bneck'
+desc = 'test_conv_opt_bu_pert_mods_deeper_gated'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -157,7 +157,7 @@ td_module_2a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -174,7 +174,7 @@ td_module_2b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -192,7 +192,7 @@ td_module_2c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -210,7 +210,7 @@ td_module_2d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -240,7 +240,7 @@ td_module_4a = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -257,7 +257,7 @@ td_module_4b = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -275,7 +275,7 @@ td_module_4c = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -293,7 +293,7 @@ td_module_4d = \
 GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -359,7 +359,7 @@ bu_module_2a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -373,7 +373,7 @@ bu_module_2b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -388,7 +388,7 @@ bu_module_2c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -403,7 +403,7 @@ bu_module_2d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -430,7 +430,7 @@ bu_module_4a = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -444,7 +444,7 @@ bu_module_4b = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -459,7 +459,7 @@ bu_module_4c = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -474,7 +474,7 @@ bu_module_4d = \
 BasicConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -523,7 +523,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -537,7 +537,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -552,7 +552,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -567,7 +567,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -582,7 +582,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -596,7 +596,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -611,7 +611,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -626,7 +626,7 @@ InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     rand_chans=nz1,
-    conv_chans=(ngf*1),
+    conv_chans=(ngf*2),
     use_conv=True,
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
@@ -794,7 +794,7 @@ for epoch in range(3):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 500,
+            iwae_bounds = iwae_multi_eval(imb_img, 10,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
