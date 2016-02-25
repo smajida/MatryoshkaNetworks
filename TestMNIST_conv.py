@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_gated_nz1_16'
+desc = 'test_conv_opt_bu_pert_mods_deeper_gated_narrow'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -59,12 +59,12 @@ else:
     Xva = Xte
 
 
-set_seed(123)       # seed for shared rngs
+set_seed(12)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 16          # # of dim for Z1
+nz1 = 8           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -200,7 +200,7 @@ GenConvPertModule(
 td_module_3 = \
 BasicConvModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
@@ -211,9 +211,9 @@ BasicConvModule(
 # (14, 14) -> (14, 14)
 td_module_4a = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -228,9 +228,9 @@ GenConvPertModule(
 # (14, 14) -> (14, 14)
 td_module_4b = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -246,9 +246,9 @@ GenConvPertModule(
 # (14, 14) -> (14, 14)
 td_module_4c = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -264,9 +264,9 @@ GenConvPertModule(
 # (14, 14) -> (14, 14)
 td_module_4d = \
 GenConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     rand_chans=nz1,
     filt_shape=(3,3),
     use_rand=multi_rand,
@@ -283,7 +283,7 @@ GenConvPertModule(
 td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
@@ -391,7 +391,7 @@ BasicConvPertModule(
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
@@ -403,9 +403,9 @@ BasicConvModule(
 # (14, 14) -> (14, 14)
 bu_module_4a = \
 BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -417,9 +417,9 @@ BasicConvPertModule(
 # (14, 14) -> (14, 14)
 bu_module_4b = \
 BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -432,9 +432,9 @@ BasicConvPertModule(
 # (14, 14) -> (14, 14)
 bu_module_4c = \
 BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -447,9 +447,9 @@ BasicConvPertModule(
 # (14, 14) -> (14, 14)
 bu_module_4d = \
 BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
+    in_chans=(ngf*1),
+    out_chans=(ngf*1),
+    conv_chans=(ngf*1),
     filt_shape=(3,3),
     use_conv=use_conv,
     apply_bn=use_bn,
@@ -464,7 +464,7 @@ bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
@@ -556,8 +556,8 @@ InfConvMergeModule(
 
 im_module_4a = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -570,8 +570,8 @@ InfConvMergeModule(
 
 im_module_4b = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -585,8 +585,8 @@ InfConvMergeModule(
 
 im_module_4c = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -600,8 +600,8 @@ InfConvMergeModule(
 
 im_module_4d = \
 InfConvMergeModule(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
+    td_chans=(ngf*1),
+    bu_chans=(ngf*1),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
