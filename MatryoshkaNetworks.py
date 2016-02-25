@@ -439,7 +439,7 @@ class InfGenModel(object):
         if train_dist_scale:
             # init to a somewhat arbitrary value -- not magic (probably)
             self.dist_scale = sharedX( floatX([0.2]) )
-            self.inf_params.append(self.dist_scale)
+            self.gen_params.append(self.dist_scale)
         else:
             self.dist_scale = sharedX( floatX([1.0]) )
         # gather a list of all parameters in this network
