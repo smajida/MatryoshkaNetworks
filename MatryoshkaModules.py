@@ -1701,7 +1701,7 @@ class GenConvPertModule(object):
         # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
         h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
-        
+
         #h3_pert = h3[:,:self.out_chans,:,:]
         #h3_gate = h3[:,self.out_chans:,:,:]
 

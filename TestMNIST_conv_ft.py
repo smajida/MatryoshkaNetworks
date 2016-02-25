@@ -40,6 +40,7 @@ EXP_DIR = "./mnist"
 desc = 'test_conv_opt_bu_pert_mods_deeper_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+inf_gen_param_file_ft = "{}/inf_gen_params_ft.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
@@ -61,20 +62,20 @@ else:
 
 set_seed(123)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
+nbatch = 10      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 8           # # of dim for Z1
+nz1 = 16           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter = 25       # # of iter at starting learning rate
+niter_decay = 25 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
-iwae_samples = 1 # number of samples to use in MEN bound
+iwae_samples = 25 # number of samples to use in MEN bound
 noise_std = 0.0  # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
@@ -668,7 +669,7 @@ inf_gen_model = InfGenModel(
     output_transform=output_transform
 )
 
-#inf_gen_model.load_params(inf_gen_param_file)
+inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
@@ -788,9 +789,8 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.001)
-#lrt = sharedX(0.0005)
-b1t = sharedX(0.8)
+lrt = sharedX(0.0001)
+b1t = sharedX(0.9)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
@@ -822,7 +822,7 @@ g_eval_func = theano.function([Xg], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
-log_name = "{}/RESULTS.txt".format(result_dir)
+log_name = "{}/RESULTS_FT.txt".format(result_dir)
 out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
@@ -830,15 +830,13 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(0.0,1.0,10)
+lam_vae.set_value(floatX([0.0]))
+lr_init = np.linspace(0.0,0.0001,1000)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
-    # mess with the KLd cost
-    #if ((epoch-1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #
     lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
@@ -851,8 +849,13 @@ for epoch in range(1, niter+niter_decay+1):
     g_batch_count = 0.
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+        # scale learning rate up during initial updates
+        if n_updates < lr_init.shape[0]:
+            lr = lrt.get_value(borrow=False)
+            lr = 0.0*lr + lr_init[n_updates]
+            lrt.set_value(floatX(lr))
         # grab a validation batch, if required
-        if v_batch_count < 50:
+        if v_batch_count < 100:
             start_idx = int(v_batch_count)*nbatch
             vmb = Xva[start_idx:(start_idx+nbatch),:]
         else:
@@ -872,23 +875,13 @@ for epoch in range(1, niter+niter_decay+1):
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
+        n_updates += 1
         # evaluate vae on validation batch
-        if v_batch_count < 25:
+        if v_batch_count < 100:
             noise.set_value(floatX([0.0]))
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 20) or (epoch == 40) or (epoch == 75) or (epoch == 125) or (epoch == 175):
-        # cut learning rate in half
-        lr = lrt.get_value(borrow=False)
-        lr = lr / 2.0
-        lrt.set_value(floatX(lr))
-        b1 = b1t.get_value(borrow=False)
-        b1 = b1 + ((0.95 - b1) / 2.0)
-        b1t.set_value(floatX(b1))
-        lv = lam_vae.get_value(borrow=False)
-        lv = lv / 2.0
-        lam_vae.set_value(floatX(lv))
     if epoch > niter:
         # linearly decay learning rate
         lr = lrt.get_value(borrow=False)
@@ -897,7 +890,7 @@ for epoch in range(1, niter+niter_decay+1):
     ###################
     # SAVE PARAMETERS #
     ###################
-    inf_gen_model.dump_params(inf_gen_param_file)
+    inf_gen_model.dump_params(inf_gen_param_file_ft)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -930,35 +923,6 @@ for epoch in range(1, niter+niter_decay+1):
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
-        for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-        # draw images...
-        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
 
 
 
