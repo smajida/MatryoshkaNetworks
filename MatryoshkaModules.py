@@ -1702,12 +1702,12 @@ class GenConvPertModule(object):
 
         h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
-        h3_pert = h3[:,:self.out_chans,:,:]
-        h3_gate = h3[:,self.out_chans:,:,:]
+        # h3_pert = h3[:,:self.out_chans,:,:]
+        # h3_gate = h3[:,self.out_chans:,:,:]
 
         # combine non-linear and linear transforms of input...
-        #h4 = input + h3
-        h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
+        h4 = input + h3
+        # h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
