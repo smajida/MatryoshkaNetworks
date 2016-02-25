@@ -848,7 +848,8 @@ for epoch in range(1, niter+niter_decay+1):
     vae_klds = []
     g_batch_count = 0.
     v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+    Xtr_mini = Xtr[0:10000,:]
+    for imb in tqdm(iter_data(Xtr_mini, size=nbatch), total=10000/nbatch):
         # scale learning rate up during initial updates
         if n_updates < lr_init.shape[0]:
             lr = lrt.get_value(borrow=False)
