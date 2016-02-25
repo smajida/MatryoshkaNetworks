@@ -68,8 +68,8 @@ nz1 = 8           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 200       # # of iter at starting learning rate
-niter_decay = 200 # # of iter to linearly decay learning rate to zero
+niter = 100       # # of iter at starting learning rate
+niter_decay = 100 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
@@ -878,7 +878,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 20) or (epoch == 40) or (epoch == 75) or (epoch == 125) or (epoch == 175):
+    if (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
