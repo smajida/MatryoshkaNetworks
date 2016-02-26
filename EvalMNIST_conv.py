@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_2'
+desc = 'test_conv_opt_bu_pert_mods_deeper_gated_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -839,7 +839,7 @@ for epoch in range(3):
         grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}.png".format(result_dir, epoch, block_num))
     epoch_vae_cost = epoch_vae_cost / len(Xva_blocks)
     epoch_iwae_cost = epoch_iwae_cost / len(Xva_blocks)
-    str1 = "EPOCH {0:d} -- vae: {1:.2f}, iwae: {2:.2f}".format(epoch, epoch_vae_cost, epoch_iwae_cost) 
+    str1 = "EPOCH {0:d} -- vae: {1:.2f}, iwae: {2:.2f}".format(epoch, epoch_vae_cost, epoch_iwae_cost)
     print(str1)
     out_file.write(str1+"\n")
     out_file.flush()
