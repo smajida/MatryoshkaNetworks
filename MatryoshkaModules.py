@@ -2347,13 +2347,13 @@ class InfConvMergeModule(object):
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
 
-class InfConvRecModule(object):
+class InfConvRnnModule(object):
     """
     Module for merging bottom-up and top-down information in a deep generative
     convolutional network with multiple layers of latent variables.
 
     This module takes input from bottom-up, top-down, and info-merge sources.
-    The info-merge input can be used to use recurrence during inference.
+    The info-merge input permits recurrence during inference.
 
     Params:
         td_chans: number of channels in the "top-down" inputs to module
