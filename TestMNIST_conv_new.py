@@ -61,7 +61,7 @@ else:
 
 set_seed(12)      # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 8           # # of dim for Z1
@@ -985,7 +985,7 @@ for epoch in range(1, niter+niter_decay+1):
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
