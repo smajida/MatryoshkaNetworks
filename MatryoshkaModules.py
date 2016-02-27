@@ -1269,7 +1269,7 @@ class GenTopModule(object):
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
+            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
@@ -2332,7 +2332,7 @@ class InfConvMergeModule(object):
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
-            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') + h3
+            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
         else:
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
@@ -2868,7 +2868,7 @@ class InfTopModule(object):
             h2 = T.dot(h1, self.w2)
             # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
-            h4 = h2 + self.b3.dimshuffle('x',0) + h3
+            h4 = h2 + self.b3.dimshuffle('x',0) #+ h3
         else:
             # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
