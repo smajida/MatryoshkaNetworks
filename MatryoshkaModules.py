@@ -2332,7 +2332,7 @@ class InfConvMergeModule(object):
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
-            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
+            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') + h3
         else:
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
