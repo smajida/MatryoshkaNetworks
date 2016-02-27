@@ -37,7 +37,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_gated_new_nz1_4'
+desc = 'test_conv_opt_bu_pert_mods_deepest_gated_new'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ nc = 1            # # of channels in image
 nbatch = 200      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 4           # # of dim for Z1
+nz1 = 8           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -196,6 +196,24 @@ GenConvPertModule(
 )
 #td_module_2d.share_params(td_module_2a)
 
+# (7, 7) -> (7, 7)
+td_module_2e = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_2e'
+)
+#td_module_2e.share_params(td_module_2a)
+
 # (7, 7) -> (14, 14)
 td_module_3 = \
 BasicConvModule(
@@ -279,6 +297,24 @@ GenConvPertModule(
 )
 #td_module_4d.share_params(td_module_4a)
 
+# (14, 14) -> (14, 14)
+td_module_4e = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_4e'
+)
+#td_module_4e.share_params(td_module_4a)
+
 # (14, 14) -> (28, 28)
 td_module_5 = \
 BasicConvModule(
@@ -305,8 +341,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
-              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_2e, td_module_3,
+              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_4e, td_module_5, td_module_6]
 # td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
 #               td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
 # td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
@@ -388,6 +424,21 @@ BasicConvPertModule(
 )
 #bu_module_2d.share_params(bu_module_2a)
 
+# (7, 7) -> (7, 7)
+bu_module_2e = \
+BasicConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_2e'
+)
+#bu_module_2e.share_params(bu_module_2a)
+
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvModule(
@@ -459,6 +510,21 @@ BasicConvPertModule(
 )
 #bu_module_4d.share_params(bu_module_4a)
 
+# (14, 14) -> (14, 14)
+bu_module_4e = \
+BasicConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_4e'
+)
+#bu_module_4e.share_params(bu_module_4a)
+
 # (28, 28) -> (14, 14)
 bu_module_5 = \
 BasicConvModule(
@@ -484,8 +550,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4e, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2e, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
 #               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 # bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
@@ -553,6 +619,22 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_2d'
 )
+#im_module_2d.share_params(im_module_2a)
+
+im_module_2e = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_2e'
+)
+#im_module_2e.share_params(im_module_2a)
 
 im_module_4a = \
 InfConvMergeModule(
@@ -613,8 +695,23 @@ InfConvMergeModule(
 )
 #im_module_4d.share_params(im_module_4a)
 
-im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
-              im_module_4a, im_module_4b, im_module_4c, im_module_4d]
+im_module_4e = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_4e'
+)
+#im_module_4e.share_params(im_module_4a)
+
+im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e,
+              im_module_4a, im_module_4b, im_module_4c, im_module_4d, im_module_4e]
 # im_modules = [im_module_2a, im_module_2b, im_module_2c,
 #               im_module_4a, im_module_4b, im_module_4c]
 # im_modules = [im_module_2a, im_module_2b,
@@ -634,11 +731,13 @@ merge_info = {
     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
     'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
     'td_mod_2c': {'bu_module': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
-    'td_mod_2d': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2d'},
+    'td_mod_2d': {'bu_module': 'bu_mod_2e', 'im_module': 'im_mod_2d'},
+    'td_mod_2e': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2e'},
     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
     'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
     'td_mod_4c': {'bu_module': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
-    'td_mod_4d': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4d'}
+    'td_mod_4d': {'bu_module': 'bu_mod_4e', 'im_module': 'im_mod_4d'},
+    'td_mod_4e': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4e'}
 }
 # merge_info = {
 #     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
