@@ -754,34 +754,18 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_
 # required. This probably only happens at the "top" of the generator.
 #
 merge_info = {
-    'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-    'td_mod_2c': {'bu_module': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
-    'td_mod_2d': {'bu_module': 'bu_mod_2e', 'im_module': 'im_mod_2d'},
-    'td_mod_2e': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2e'},
-    'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-    'td_mod_4c': {'bu_module': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
-    'td_mod_4d': {'bu_module': 'bu_mod_4e', 'im_module': 'im_mod_4d'},
-    'td_mod_4e': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4e'}
+    'td_mod_1': {'bu_source': 'bu_mod_1', 'im_module': None},
+    'td_mod_2a': {'bu_source': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
+    'td_mod_2b': {'bu_source': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
+    'td_mod_2c': {'bu_source': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
+    'td_mod_2d': {'bu_source': 'bu_mod_2e', 'im_module': 'im_mod_2d'},
+    'td_mod_2e': {'bu_source': 'bu_mod_3', 'im_module': 'im_mod_2e'},
+    'td_mod_4a': {'bu_source': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
+    'td_mod_4b': {'bu_source': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
+    'td_mod_4c': {'bu_source': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
+    'td_mod_4d': {'bu_source': 'bu_mod_4e', 'im_module': 'im_mod_4d'},
+    'td_mod_4e': {'bu_source': 'bu_mod_5', 'im_module': 'im_mod_4e'}
 }
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-#     'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-#     'td_mod_2c': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2c'},
-#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-#     'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-#     'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
-# }
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-#     'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
-#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-#     'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'}
-# }
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))

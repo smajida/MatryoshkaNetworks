@@ -30,15 +30,14 @@ from load import load_binarized_mnist, load_udm
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
                               InfTopModule, BasicConvResModule, \
-                              GenConvPertModule, BasicConvPertModule, \
-                              GenConvGRUModule
+                              GenConvPertModule, BasicConvPertModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deeper_gated_no_im_shortcut'
+desc = 'test_conv_new_matnet'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -60,23 +59,23 @@ else:
     Xva = Xte
 
 
-set_seed(12)       # seed for shared rngs
+set_seed(12)      # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 200      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 8           # # of dim for Z1
+nz1 = 4           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 100       # # of iter at starting learning rate
-niter_decay = 100 # # of iter to linearly decay learning rate to zero
+niter = 150       # # of iter at starting learning rate
+niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
-iwae_samples = 1 # number of samples to use in MEN bound
-noise_std = 0.0  # amount of noise to inject in BU and IM modules
+iwae_samples = 1  # number of samples to use in MEN bound
+noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 gen_mt = 0
@@ -197,6 +196,24 @@ GenConvPertModule(
 )
 #td_module_2d.share_params(td_module_2a)
 
+# (7, 7) -> (7, 7)
+td_module_2e = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_2e'
+)
+#td_module_2e.share_params(td_module_2a)
+
 # (7, 7) -> (14, 14)
 td_module_3 = \
 BasicConvModule(
@@ -280,6 +297,24 @@ GenConvPertModule(
 )
 #td_module_4d.share_params(td_module_4a)
 
+# (14, 14) -> (14, 14)
+td_module_4e = \
+GenConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    rand_chans=nz1,
+    filt_shape=(3,3),
+    use_rand=multi_rand,
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_type=gen_mt,
+    us_stride=1,
+    mod_name='td_mod_4e'
+)
+#td_module_4e.share_params(td_module_4a)
+
 # (14, 14) -> (28, 28)
 td_module_5 = \
 BasicConvModule(
@@ -306,12 +341,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_3,
-              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_5, td_module_6]
-# td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_3,
-#               td_module_4a, td_module_4b, td_module_4c, td_module_5, td_module_6]
-# td_modules = [td_module_1, td_module_2a, td_module_2b td_module_3,
-#               td_module_4a, td_module_4b, td_module_5, td_module_6]
+td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_2e, td_module_3,
+              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_4e, td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -389,6 +420,21 @@ BasicConvPertModule(
 )
 #bu_module_2d.share_params(bu_module_2a)
 
+# (7, 7) -> (7, 7)
+bu_module_2e = \
+BasicConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_2e'
+)
+#bu_module_2e.share_params(bu_module_2a)
+
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvModule(
@@ -460,6 +506,21 @@ BasicConvPertModule(
 )
 #bu_module_4d.share_params(bu_module_4a)
 
+# (14, 14) -> (14, 14)
+bu_module_4e = \
+BasicConvPertModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    conv_chans=(ngf*2),
+    filt_shape=(3,3),
+    use_conv=use_conv,
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_4e'
+)
+#bu_module_4e.share_params(bu_module_4a)
+
 # (28, 28) -> (14, 14)
 bu_module_5 = \
 BasicConvModule(
@@ -485,12 +546,8 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
-# bu_modules = [bu_module_6, bu_module_5, bu_module_4c, bu_module_4b, bu_module_4a,
-#               bu_module_3, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
-# bu_modules = [bu_module_6, bu_module_5, bu_module_4b, bu_module_4a,
-#               bu_module_3, bu_module_2b, bu_module_2a, bu_module_1]
+bu_modules = [bu_module_6, bu_module_5, bu_module_4e, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
+              bu_module_3, bu_module_2e, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
 
 
 #########################################
@@ -554,6 +611,22 @@ InfConvMergeModule(
     act_func=act_func,
     mod_name='im_mod_2d'
 )
+#im_module_2d.share_params(im_module_2a)
+
+im_module_2e = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_2e'
+)
+#im_module_2e.share_params(im_module_2a)
 
 im_module_4a = \
 InfConvMergeModule(
@@ -614,12 +687,23 @@ InfConvMergeModule(
 )
 #im_module_4d.share_params(im_module_4a)
 
-im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
-              im_module_4a, im_module_4b, im_module_4c, im_module_4d]
-# im_modules = [im_module_2a, im_module_2b, im_module_2c,
-#               im_module_4a, im_module_4b, im_module_4c]
-# im_modules = [im_module_2a, im_module_2b,
-#               im_module_4a, im_module_4b]
+im_module_4e = \
+InfConvMergeModule(
+    td_chans=(ngf*2),
+    bu_chans=(ngf*2),
+    rand_chans=nz1,
+    conv_chans=(ngf*2),
+    use_conv=True,
+    use_td_cond=use_td_cond,
+    apply_bn=use_bn,
+    mod_type=inf_mt,
+    act_func=act_func,
+    mod_name='im_mod_4e'
+)
+#im_module_4e.share_params(im_module_4a)
+
+im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e,
+              im_module_4a, im_module_4b, im_module_4c, im_module_4d, im_module_4e]
 
 #
 # Setup a description for where to get conditional distributions from. When
@@ -631,33 +715,39 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d,
 # required. This probably only happens at the "top" of the generator.
 #
 merge_info = {
-    'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-    'td_mod_2c': {'bu_module': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
-    'td_mod_2d': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2d'},
-    'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-    'td_mod_4c': {'bu_module': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
-    'td_mod_4d': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4d'}
-}
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-#     'td_mod_2b': {'bu_module': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-#     'td_mod_2c': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2c'},
-#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-#     'td_mod_4b': {'bu_module': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-#     'td_mod_4c': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4c'}
-# }
-# merge_info = {
-#     'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-#     'td_mod_2a': {'bu_module': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-#     'td_mod_2b': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_2b'},
-#     'td_mod_4a': {'bu_module': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-#     'td_mod_4b': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_4b'}
-# }
+    'td_mod_1': {'td_type': 'top', 'im_module': None,
+                 'bu_source': 'bu_mod_1', 'im_source': None},
 
+    'td_mod_2a': {'td_type': 'cond', 'im_module': 'im_mod_2a',
+                  'bu_source': 'bu_mod_2b', 'im_source': None},
+    'td_mod_2b': {'td_type': 'cond', 'im_module': 'im_mod_2b',
+                  'bu_source': 'bu_mod_2c', 'im_source': None},
+    'td_mod_2c': {'td_type': 'cond', 'im_module': 'im_mod_2c',
+                  'bu_source': 'bu_mod_2d', 'im_source': None},
+    'td_mod_2d': {'td_type': 'cond', 'im_module': 'im_mod_2d',
+                  'bu_source': 'bu_mod_2e', 'im_source': None},
+    'td_mod_2e': {'td_type': 'cond', 'im_module': 'im_mod_2e',
+                  'bu_source': 'bu_mod_3', 'im_source': None},
+
+    'td_mod_3': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+
+    'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
+                  'bu_source': 'bu_mod_4b', 'im_source': None},
+    'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
+                  'bu_source': 'bu_mod_4c', 'im_source': None},
+    'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
+                  'bu_source': 'bu_mod_4d', 'im_source': None},
+    'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
+                  'bu_source': 'bu_mod_4e', 'im_source': None},
+    'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
+                  'bu_source': 'bu_mod_5', 'im_source': None},
+                  
+    'td_mod_5': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None}
+}
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
@@ -818,8 +908,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
-g_eval_func = theano.function([Xg], g_cost_outputs)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -844,12 +935,14 @@ for epoch in range(1, niter+niter_decay+1):
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
+    i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
+    i_batch_count = 0.
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
@@ -863,7 +956,7 @@ for epoch in range(1, niter+niter_decay+1):
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(imb_img.astype(theano.config.floatX))
+        g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -873,13 +966,18 @@ for epoch in range(1, niter+niter_decay+1):
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
+        # train inference model on samples from the generator
+        smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        i_result = i_train_func(smb_img)
+        i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
             noise.set_value(floatX([0.0]))
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -905,12 +1003,16 @@ for epoch in range(1, niter+niter_decay+1):
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
+    i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+    str2i = " ".join(i_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
@@ -927,7 +1029,7 @@ for epoch in range(1, niter+niter_decay+1):
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
             v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()

@@ -416,11 +416,11 @@ im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
 # required. This probably only happens at the "top" of the generator.
 #
 merge_info = {
-    'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
-    'td_mod_2': {'bu_module': 'bu_mod_2', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_module': 'bu_mod_3', 'im_module': 'im_mod_3'},
-    'td_mod_4': {'bu_module': 'bu_mod_4', 'im_module': 'im_mod_4'},
-    'td_mod_5': {'bu_module': 'bu_mod_5', 'im_module': 'im_mod_5'},
+    'td_mod_1': {'bu_source': 'bu_mod_1', 'im_module': None},
+    'td_mod_2': {'bu_source': 'bu_mod_2', 'im_module': 'im_mod_2'},
+    'td_mod_3': {'bu_source': 'bu_mod_3', 'im_module': 'im_mod_3'},
+    'td_mod_4': {'bu_source': 'bu_mod_4', 'im_module': 'im_mod_4'},
+    'td_mod_5': {'bu_source': 'bu_mod_5', 'im_module': 'im_mod_5'},
 }
 
 # construct the "wrapper" object for managing all our modules

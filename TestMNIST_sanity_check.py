@@ -373,15 +373,15 @@ InfFCMergeModule(
 
 # initialize the merge info dict for a network of depth 1
 merge_info = {
-    'td_mod_1': {'bu_module': 'bu_mod_1', 'im_module': None},
+    'td_mod_1': {'bu_source': 'bu_mod_1', 'im_module': None},
 }
 
 # ugly code for configuring info-merging in variable depth network
 im_modules = [im_module_j2, im_module_j3, im_module_j4, im_module_j5, im_module_j6]
 im_modules = [imj_mod for imj_mod in im_modules[:(j-1)]]
-imj_merge_info = [("td_mod_j{}".format(jj+2), \
-                  {"bu_module": "bu_mod_j{}".format(jj+2), \
-                   "im_module": "im_mod_j{}".format(jj+2)}) for jj in range(len(im_modules))]
+imj_merge_info = [('td_mod_j{}'.format(jj+2), \
+                  {'bu_source': 'bu_mod_j{}'.format(jj+2), \
+                   'im_module': 'im_mod_j{}'.format(jj+2)}) for jj in range(len(im_modules))]
 for jj in range(j-1):
     merge_info[imj_merge_info[jj][0]] = imj_merge_info[jj][1]
 
