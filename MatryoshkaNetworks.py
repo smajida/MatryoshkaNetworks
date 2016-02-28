@@ -858,7 +858,7 @@ class InfGenModel(object):
             if td_mod_type in ['top', 'cond']:
                 # handle computation for a TD module that requires
                 # sampling some stochastic latent variables.
-                if td_mode_type == 'top':
+                if td_mod_type == 'top':
                     # feedforward through the top-most generator module.
                     # this module has a fixed ZMUV Gaussian prior.
                     td_act_i = td_module.apply(rand_vals=rvs,
