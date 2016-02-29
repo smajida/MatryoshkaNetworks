@@ -964,15 +964,21 @@ class InfGenModel(object):
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
+                    # compute initial state for IM pass, maybe...
+                    im_act_i = None
+                    if not (im_module is None):
+                        im_act_i = im_module.apply(rand_vals=cond_rvs,
+                                                   noise=bu_noise)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]              # info from TD pass
                     bu_info = bu_res_dict[bu_src_name] # info from BU pass
                     im_info = im_res_dict[im_src_name] # info from IM pass
                     # get the conditional distribution SSs (Sufficient Stat s)
-                    cond_mean_im, cond_logvar_im = \
+                    cond_mean_im, cond_logvar_im, im_act_i = \
                             im_module.apply_im(td_input=td_info,
                                                bu_input=bu_info,
+                                               im_input=im_info,
                                                noise=bu_noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
@@ -988,8 +994,9 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
                                                noise=td_noise)
-                # record top-down activations produced by the TD module
+                # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
+                im_res_dict[im_mod_name] = im_act_i
                 # record KLd info for the conditional distribution
                 kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
                                      T.flatten(cond_logvar_im, 2),
@@ -1016,6 +1023,12 @@ class InfGenModel(object):
                 td_act_i = td_module.apply(input=td_info, rand_vals=None,
                                            noise=td_noise)
                 td_acts.append(td_act_i)
+                if not (im_module is None):
+                    # perform an update of the IM state
+                    im_info = im_res_dict[im_src_name]
+                    im_act_i = im_module.apply(input=im_info, rand_vals=None,
+                                               noise=bu_noise)
+                    im_res_dict[im_mod_name] = im_act_i
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply output transform (into observation space, presumably), to get
