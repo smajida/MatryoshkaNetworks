@@ -1786,21 +1786,11 @@ class GenConvGRUModule(object):
         self.b1 = bias_ifn((2*self.in_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize first new state layer parameters
-        self.w2 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w2 = weight_ifn((self.in_chans, (self.in_chans+self.rand_chans), fd, fd),
                              "{}_w2".format(self.mod_name))
-        self.g2 = gain_ifn((self.conv_chans), "{}_g2".format(self.mod_name))
-        self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
+        self.g2 = gain_ifn((self.in_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.in_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
-        # initialize second new state layer parameters
-        self.w3 = weight_ifn((self.in_chans, self.conv_chans, fd, fd),
-                             "{}_w3".format(self.mod_name))
-        self.g3 = gain_ifn((self.in_chans), "{}_g3".format(self.mod_name))
-        self.b3 = bias_ifn((self.in_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.g3, self.b3])
-        # initialize magic rescaling parameters
-        self.gx = bias_ifn((self.in_chans+self.rand_chans), "{}_gx".format(self.mod_name))
-        self.gy = bias_ifn((self.in_chans+self.rand_chans), "{}_gy".format(self.mod_name))
-        self.params.extend([self.gx, self.gy])
         return
 
     def share_params(self, source_module):
@@ -1820,15 +1810,6 @@ class GenConvGRUModule(object):
         self.g2 = source_module.g2
         self.b2 = source_module.b2
         self.params.extend([self.w2, self.g2, self.b2])
-        # share third conv layer parameters
-        self.w3 = source_module.w3
-        self.g3 = source_module.g3
-        self.b3 = source_module.b3
-        self.params.extend([self.w3, self.g3, self.b3])
-        # share magic rescaling parameters
-        self.gx = source_module.gx
-        self.gy = source_module.gy
-        self.params.extend([self.gx, self.gy])
         return
 
     def load_params(self, param_dict):
@@ -1841,11 +1822,6 @@ class GenConvGRUModule(object):
         self.w2.set_value(floatX(param_dict['w2']))
         self.g2.set_value(floatX(param_dict['g2']))
         self.b2.set_value(floatX(param_dict['b2']))
-        self.w3.set_value(floatX(param_dict['w3']))
-        self.g3.set_value(floatX(param_dict['g3']))
-        self.b3.set_value(floatX(param_dict['b3']))
-        self.gx.set_value(floatX(param_dict['gx']))
-        self.gy.set_value(floatX(param_dict['gy']))
         return
 
     def dump_params(self):
@@ -1859,11 +1835,6 @@ class GenConvGRUModule(object):
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['g2'] = self.g2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
-        param_dict['w3'] = self.w3.get_value(borrow=False)
-        param_dict['g3'] = self.g3.get_value(borrow=False)
-        param_dict['b3'] = self.b3.get_value(borrow=False)
-        param_dict['gx'] = self.gx.get_value(borrow=False)
-        param_dict['gy'] = self.gy.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -1893,9 +1864,8 @@ class GenConvGRUModule(object):
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 
-        gate_input = T.concatenate([rand_vals, input], axis=1)
-        #gate_input = gate_input * T.exp(self.gx).dimshuffle('x',0,'x','x')
         # compute update gate and remember gate
+        gate_input = T.concatenate([rand_vals, input], axis=1)
         h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         h = h + self.b1.dimshuffle('x',0,'x','x')
         h = add_noise(h, noise=noise)
@@ -1904,13 +1874,8 @@ class GenConvGRUModule(object):
         r = h[:,self.in_chans:,:,:]
         # compute new state proposal -- include hidden layer
         state_input = T.concatenate([rand_vals, r*input], axis=1)
-        #state_input = state_input * T.exp(self.gy).dimshuffle('x',0,'x','x')
         s = dnn_conv(state_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
         s = s + self.b2.dimshuffle('x',0,'x','x')
-        s = add_noise(s, noise=noise)
-        s = self.act_func(s)
-        s = dnn_conv(s, self.w3, subsample=(1, 1), border_mode=(bm, bm))
-        s = s + self.b3.dimshuffle('x',0,'x','x')
         s = add_noise(s, noise=noise)
         s = self.act_func(s)
         # combine initial state and proposed new state based on u
@@ -2364,7 +2329,8 @@ class InfConvMergeModuleIMS(object):
         # Gaussian reparametrization.
         out_mean = h4[:,:self.rand_chans,:,:]
         out_logvar = h4[:,self.rand_chans:2*self.rand_chans,:,:]
-        out_im = self.act_func(h4[:,2*self.rand_chans:,:,:])
+        # residual-type update for IM state propagation
+        out_im = self.act_func(h4[:,2*self.rand_chans:,:,:] + im_input)
         return out_mean, out_logvar, out_im
 
 #########################################
