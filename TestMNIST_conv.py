@@ -30,14 +30,15 @@ from load import load_binarized_mnist, load_udm
 from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
                               InfTopModule, BasicConvResModule, \
-                              GenConvPertModule, BasicConvPertModule
+                              GenConvPertModule, BasicConvPertModule, \
+                              GenConvGRUModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_td_cond'
+desc = 'test_conv_new_matnet_grulu'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -80,7 +81,7 @@ use_bu_noise = False
 use_td_noise = False
 gen_mt = 0
 inf_mt = 1
-use_td_cond = True
+use_td_cond = False
 
 ntrain = Xtr.shape[0]
 
@@ -127,7 +128,7 @@ GenTopModule(
 
 # (7, 7) -> (7, 7)
 td_module_2a = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -144,7 +145,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2b = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -162,7 +163,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -180,7 +181,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2d = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -198,7 +199,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2e = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -228,7 +229,7 @@ BasicConvModule(
 
 # (14, 14) -> (14, 14)
 td_module_4a = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -245,7 +246,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4b = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -263,7 +264,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -281,7 +282,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4d = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -299,7 +300,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4e = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
