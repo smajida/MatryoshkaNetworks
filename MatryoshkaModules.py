@@ -2298,8 +2298,8 @@ class InfConvGRUModuleIMS(object):
         h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
         h1 = add_noise(h1, noise=noise)
         h1 = sigmoid(h1 + 1.)
-        u = h[:,:self.im_chans,:,:]
-        r = h[:,self.im_chans:,:,:]
+        u = h1[:,:self.im_chans,:,:]
+        r = h1[:,self.im_chans:,:,:]
 
         # prepare input for computing new state
         if self.mod_type == 0:
