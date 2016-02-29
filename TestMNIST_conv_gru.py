@@ -567,7 +567,7 @@ GenTopModule(
 )
 
 im_module_2a = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -582,7 +582,7 @@ InfConvGRUModule(
 )
 
 im_module_2b = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -598,7 +598,7 @@ InfConvGRUModule(
 #im_module_2b.share_params(im_module_2a)
 
 im_module_2c = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -614,7 +614,7 @@ InfConvGRUModule(
 #im_module_2c.share_params(im_module_2a)
 
 im_module_2d = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -630,7 +630,7 @@ InfConvGRUModule(
 #im_module_2d.share_params(im_module_2a)
 
 im_module_2e = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -658,7 +658,7 @@ BasicConvModule(
 )
 
 im_module_4a = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -673,7 +673,7 @@ InfConvGRUModule(
 )
 
 im_module_4b = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -689,7 +689,7 @@ InfConvGRUModule(
 #im_module_4b.share_params(im_module_4a)
 
 im_module_4c = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -705,7 +705,7 @@ InfConvGRUModule(
 #im_module_4c.share_params(im_module_4a)
 
 im_module_4d = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -721,7 +721,7 @@ InfConvGRUModule(
 #im_module_4d.share_params(im_module_4a)
 
 im_module_4e = \
-InfConvGRUModule(
+InfConvGRUModuleIMS(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
