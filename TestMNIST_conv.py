@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_grulu'
+desc = 'test_conv_new_matnet_1x1_first'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -128,7 +128,7 @@ GenTopModule(
 
 # (7, 7) -> (7, 7)
 td_module_2a = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -145,7 +145,7 @@ GenConvGRUModule(
 
 # (7, 7) -> (7, 7)
 td_module_2b = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -163,7 +163,7 @@ GenConvGRUModule(
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -181,7 +181,7 @@ GenConvGRUModule(
 
 # (7, 7) -> (7, 7)
 td_module_2d = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -199,7 +199,7 @@ GenConvGRUModule(
 
 # (7, 7) -> (7, 7)
 td_module_2e = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -229,7 +229,7 @@ BasicConvModule(
 
 # (14, 14) -> (14, 14)
 td_module_4a = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -246,7 +246,7 @@ GenConvGRUModule(
 
 # (14, 14) -> (14, 14)
 td_module_4b = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -264,7 +264,7 @@ GenConvGRUModule(
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -282,7 +282,7 @@ GenConvGRUModule(
 
 # (14, 14) -> (14, 14)
 td_module_4d = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -300,7 +300,7 @@ GenConvGRUModule(
 
 # (14, 14) -> (14, 14)
 td_module_4e = \
-GenConvGRUModule(
+GenConvPertModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -559,6 +559,7 @@ im_module_2a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -573,6 +574,7 @@ im_module_2b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -588,6 +590,7 @@ im_module_2c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -603,6 +606,7 @@ im_module_2d = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -618,6 +622,7 @@ im_module_2e = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -633,6 +638,7 @@ im_module_4a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -647,6 +653,7 @@ im_module_4b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -662,6 +669,7 @@ im_module_4c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -677,6 +685,7 @@ im_module_4d = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -692,6 +701,7 @@ im_module_4e = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,

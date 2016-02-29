@@ -743,13 +743,7 @@ im_modules = [im_module_1,
               im_module_4a, im_module_4b, im_module_4c, im_module_4d, im_module_4e]
 
 #
-# Setup a description for where to get conditional distributions from. When
-# there's no info here for a particular top-down module, we won't pass any
-# random variables explicitly into the module, which will cause the module to
-# generate its own random variables (unconditionally). When a "bu_module" is
-# provided and an "im_module" is not, the conditional distribution is specified
-# directly by the bu_module's output, and no merging (via an im_module) is
-# required. This probably only happens at the "top" of the generator.
+# Setup a description for where to get conditional distributions from.
 #
 merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',

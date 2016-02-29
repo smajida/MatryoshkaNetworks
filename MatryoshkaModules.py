@@ -591,7 +591,7 @@ class BasicConvPertModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, self.in_chans, fd, fd),
+        self.w1 = weight_ifn((self.conv_chans, self.in_chans, 1, 1),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
@@ -678,7 +678,7 @@ class BasicConvPertModule(object):
 
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(1,1), border_mode=(bm, bm))
+            h1 = dnn_conv(input, self.w1, subsample=(1,1), border_mode=(0, 0))
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
@@ -1563,7 +1563,7 @@ class GenConvPertModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), 1, 1),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
@@ -1680,7 +1680,7 @@ class GenConvPertModule(object):
 
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
-        h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(0, 0))
         if self.apply_bn:
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
@@ -2441,10 +2441,10 @@ class InfConvMergeModule(object):
         ############################################
         # initialize first conv layer parameters
         if self.mod_type == 0:
-            self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 3, 3),
+            self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans), 1, 1),
                                     "{}_w1_im".format(self.mod_name))
         else:
-            self.w1_im = weight_ifn((self.conv_chans, (3*self.td_chans), 3, 3),
+            self.w1_im = weight_ifn((self.conv_chans, (3*self.td_chans), 1, 1),
                                     "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
@@ -2456,17 +2456,17 @@ class InfConvMergeModule(object):
         # initialize convolutional projection layer parameters
         if self.mod_type == 0:
             # module acts just on TD and BU input
-            self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 3, 3),
+            self.w3_im = weight_ifn((2*self.rand_chans, (self.td_chans+self.bu_chans), 1, 1),
                                     "{}_w3_im".format(self.mod_name))
         else:
             # module acts on TD and BU input, and their difference
-            self.w3_im = weight_ifn((2*self.rand_chans, (3*self.td_chans), 3, 3),
+            self.w3_im = weight_ifn((2*self.rand_chans, (3*self.td_chans), 1, 1),
                                     "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
-            self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
+            self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 1, 1),
                                     "{}_w1_td".format(self.mod_name))
             self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
             self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
@@ -2554,7 +2554,7 @@ class InfConvMergeModule(object):
         Put distributions over stuff based on td_input.
         """
         if self.use_td_cond:
-            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
+            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(0,0))
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
                                 use_gb=self.use_bn_params)
@@ -2591,7 +2591,7 @@ class InfConvMergeModule(object):
                                     share_mask=share_mask)
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
+            h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(0, 0))
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
@@ -2604,12 +2604,12 @@ class InfConvMergeModule(object):
             # apply second internal conv layer
             h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
             # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(0, 0))
             # combine non-linear and linear transforms of input...
             h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
         else:
             # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(0, 0))
             h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
