@@ -2079,6 +2079,254 @@ class GenFCResModule(object):
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
 
+class InfConvGRUModuleIMS(object):
+    """
+    Module for merging bottom-up and top-down information in a deep generative
+    convolutional network with multiple layers of latent variables.
+
+    Params:
+        td_chans: number of channels in the "top-down" inputs to module
+        bu_chans: number of channels in the "bottom-up" inputs to module
+        im_chans: number of channels in the "info-merge" inputs to module
+        rand_chans: number of latent channels that we want conditionals for
+        conv_chans: number of channels in the "internal" convolution layer
+        use_conv: flag for whether to use "internal" convolution layer
+        act_func: ---
+        unif_drop: drop rate for uniform dropout
+        chan_drop: drop rate for channel-wise dropout
+        apply_bn: whether to apply batch normalization
+        use_td_cond: whether to condition on TD info
+        use_bn_params: whether to use BN params
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 td_chans, bu_chans, im_chans, rand_chans, conv_chans,
+                 use_conv=True, act_func='relu',
+                 unif_drop=0.0, chan_drop=0.0,
+                 apply_bn=True,
+                 use_td_cond=False,
+                 use_bn_params=True,
+                 mod_type=0,
+                 mod_name='gm_conv'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.td_chans = td_chans
+        self.bu_chans = bu_chans
+        self.im_chans = im_chans
+        self.rand_chans = rand_chans
+        self.conv_chans = conv_chans
+        self.use_conv = use_conv
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
+        self.apply_bn = apply_bn
+        self.use_td_cond = use_td_cond
+        self.use_bn_params = True
+        self.mod_type = mod_type
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize GRU gating parameters
+        if self.mod_type == 0:
+            self.w1_im = weight_ifn((2*self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
+                                    "{}_w1_im".format(self.mod_name))
+        else:
+            self.w1_im = weight_ifn((2*self.im_chans, (3*self.td_chans+self.im_chans), 3, 3),
+                                    "{}_w1_im".format(self.mod_name))
+        self.g1_im = gain_ifn((2*self.im_chans), "{}_g1_im".format(self.mod_name))
+        self.b1_im = bias_ifn((2*self.im_chans), "{}_b1_im".format(self.mod_name))
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize GRU state update parameters
+        if self.mod_type == 0:
+            self.w2_im = weight_ifn((self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
+                                    "{}_w2_im".format(self.mod_name))
+        else:
+            self.w2_im = weight_ifn((self.im_chans, (3*self.td_chans+self.im_chans), 3, 3),
+                                    "{}_w2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((self.im_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning parameters
+        self.w3_im = weight_ifn((2*self.rand_chans, self.im_chans, 3, 3),
+                                "{}_w3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = weight_ifn((2*self.rand_chans, self.td_chans, 3, 3),
+                                    "{}_w1_td".format(self.mod_name))
+            self.g1_td = gain_ifn((2*self.rand_chans), "{}_g1_td".format(self.mod_name))
+            self.b1_td = bias_ifn((2*self.rand_chans), "{}_b1_td".format(self.mod_name))
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+        return
+
+    def share_params(self, source_module):
+        """
+        Set this module to share parameters with source_module.
+        """
+        self.params = []
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize GRU gating parameters
+        self.w1_im = source_module.w1_im
+        self.g1_im = source_module.g1_im
+        self.b1_im = source_module.b1_im
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize GRU state update parameters
+        self.w2_im = source_module.w2_im
+        self.g2_im = source_module.g2_im
+        self.b2_im = source_module.b2_im
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning parameters
+        self.w3_im = source_module.w3_im
+        self.g3_im = source_module.g3_im
+        self.b3_im = source_module.b3_im
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = source_module.w1_td
+            self.g1_td = source_module.g1_td
+            self.b1_td = source_module.b1_td
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load module params directly from a dict of numpy arrays.
+        """
+        # load info-merge parameters
+        self.w1_im.set_value(floatX(param_dict['w1_im']))
+        self.g1_im.set_value(floatX(param_dict['g1_im']))
+        self.b1_im.set_value(floatX(param_dict['b1_im']))
+        self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
+        self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
+        self.b3_im.set_value(floatX(param_dict['b3_im']))
+        if self.use_td_cond:
+            self.w1_td.set_value(floatX(param_dict['w1_td']))
+            self.g1_td.set_value(floatX(param_dict['g1_td']))
+            self.b1_td.set_value(floatX(param_dict['b1_td']))
+        return
+
+    def dump_params(self):
+        """
+        Dump module params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        # dump info-merge conditioning parameters
+        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
+        param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
+        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
+        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
+        param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
+        param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        if self.use_td_cond:
+            param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
+            param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
+            param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
+        return param_dict
+
+    def apply_td(self, td_input, noise=None):
+        """
+        Put distributions over stuff based on td_input.
+        """
+        if self.use_td_cond:
+            # simple linear conditioning on top-down state
+            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
+            h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
+            out_mean = h1[:,:self.rand_chans,:,:]
+            out_logvar = h1[:,self.rand_chans:,:,:]
+        else:
+            batch_size = td_input.shape[0]
+            rows = td_input.shape[2]
+            cols = td_input.shape[3]
+            rand_shape = (batch_size, self.rand_chans, rows, cols)
+            out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                     dtype=theano.config.floatX)
+            out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                       dtype=theano.config.floatX)
+        return out_mean, out_logvar
+
+    def apply_im(self, td_input, bu_input, im_input=None, share_mask=False, noise=None):
+        """
+        Combine td_input, bu_input, and im_input to compute stuff.
+        """
+        # allocate a dummy im_input if None was provided
+        if im_input is None:
+            b_size = td_input.shape[0]
+            rows = td_input.shape[2]
+            cols = td_input.shape[3]
+            T.alloc(0.0, b_size, self.im_chans, rows, cols)
+        
+        # prepare input to gating functions
+        if self.mod_type == 0:
+            gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
+        else:
+            gate_input = T.concatenate([td_input, bu_input, td_input-bu_input, im_input], axis=1)
+        gate_input = conv_drop_func(gate_input, self.unif_drop, self.chan_drop,
+                                    share_mask=share_mask)
+        # compute gating information for GRU state update
+        h1 = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
+        h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+        h1 = add_noise(h1, noise=noise)
+        h1 = sigmoid(h1 + 1.)
+        u = h[:,:self.im_chans,:,:]
+        r = h[:,self.im_chans:,:,:]
+
+        # prepare input for computing new state
+        if self.mod_type == 0:
+            state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
+        else:
+            state_input = T.concatenate([td_input, bu_input, td_input-bu_input, r*im_input], axis=1)
+        state_input = conv_drop_func(state_input, self.unif_drop, self.chan_drop,
+                                     share_mask=share_mask)
+        # compute new state for GRU state update
+        h2 = dnn_conv(state_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
+        h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
+        h2 = h2 + add_noise(h2, noise=noise)
+        # perform GRU-style state update (for IM state)
+        out_im = (u * im_input) + ((1. - u) * self.act_func(h2))
+
+        # compute conditioning parameters
+        h3 = dnn_conv(out_im, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+        h3 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+        h3 = h3 + add_noise(h3, noise=noise)
+        out_mean = h3[:,:self.rand_chans,:,:]
+        out_logvar = h3[:,self.rand_chans:,:,:]
+        return out_mean, out_logvar, out_im
+
+#########################################
+# GENERATOR DOUBLE CONVOLUTIONAL MODULE #
+#########################################
+
 class InfConvMergeModuleIMS(object):
     """
     Module for merging bottom-up and top-down information in a deep generative

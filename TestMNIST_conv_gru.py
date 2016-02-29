@@ -31,14 +31,14 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenTopModule, InfConvMergeModule, \
                               InfTopModule, BasicConvResModule, \
                               GenConvPertModule, BasicConvPertModule, \
-                              GenConvGRUModule
+                              GenConvGRUModule, InfConvGRUModuleIMS
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_1x1_first'
+desc = 'test_conv_new_matnet_gru_im_and_td'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -74,13 +74,12 @@ niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 gen_mt = 0
-inf_mt = 1
+inf_mt = 0
 use_td_cond = False
 
 ntrain = Xtr.shape[0]
@@ -122,13 +121,13 @@ GenTopModule(
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='td_mod_1'
 )
 
 # (7, 7) -> (7, 7)
 td_module_2a = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -137,7 +136,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_2a'
@@ -145,7 +144,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2b = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -154,7 +153,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_2b'
@@ -163,7 +162,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -172,7 +171,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_2c'
@@ -181,7 +180,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2d = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -190,7 +189,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_2d'
@@ -199,7 +198,7 @@ GenConvPertModule(
 
 # (7, 7) -> (7, 7)
 td_module_2e = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -208,7 +207,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_2e'
@@ -223,13 +222,13 @@ BasicConvModule(
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
-    act_func=act_func,
+    act_func='tanh',
     mod_name='td_mod_3'
 )
 
 # (14, 14) -> (14, 14)
 td_module_4a = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -238,7 +237,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_4a'
@@ -246,7 +245,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4b = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -255,7 +254,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_4b'
@@ -264,7 +263,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -273,7 +272,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_4c'
@@ -282,7 +281,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4d = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -291,7 +290,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_4d'
@@ -300,7 +299,7 @@ GenConvPertModule(
 
 # (14, 14) -> (14, 14)
 td_module_4e = \
-GenConvPertModule(
+GenConvGRUModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
     conv_chans=(ngf*2),
@@ -309,7 +308,7 @@ GenConvPertModule(
     use_rand=multi_rand,
     use_conv=use_conv,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='tanh',
     mod_type=gen_mt,
     us_stride=1,
     mod_name='td_mod_4e'
@@ -324,7 +323,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='td_mod_5'
 )
 
@@ -358,7 +357,7 @@ InfTopModule(
     rand_chans=nz0,
     use_fc=True,
     apply_bn=use_bn,
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_1'
 )
 
@@ -372,7 +371,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_2a'
 )
 
@@ -386,7 +385,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_2b'
 )
 #bu_module_2b.share_params(bu_module_2a)
@@ -401,7 +400,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_2c'
 )
 #bu_module_2c.share_params(bu_module_2a)
@@ -416,7 +415,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_2d'
 )
 #bu_module_2d.share_params(bu_module_2a)
@@ -431,7 +430,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_2e'
 )
 #bu_module_2e.share_params(bu_module_2a)
@@ -444,7 +443,7 @@ BasicConvModule(
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_3'
 )
 
@@ -458,7 +457,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_4a'
 )
 
@@ -472,7 +471,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_4b'
 )
 #bu_module_4b.share_params(bu_module_4a)
@@ -487,7 +486,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_4c'
 )
 #bu_module_4c.share_params(bu_module_4a)
@@ -502,7 +501,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_4d'
 )
 #bu_module_4d.share_params(bu_module_4a)
@@ -517,7 +516,7 @@ BasicConvPertModule(
     use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_4e'
 )
 #bu_module_4e.share_params(bu_module_4a)
@@ -530,7 +529,7 @@ BasicConvModule(
     out_chans=(ngf*2),
     apply_bn=use_bn,
     stride='double',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_5'
 )
 
@@ -542,7 +541,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='single',
-    act_func=act_func,
+    act_func='lrelu',
     mod_name='bu_mod_6'
 )
 
@@ -555,8 +554,20 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4e, bu_module_4d, bu_module_4c
 # Setup the information merging modules #
 #########################################
 
+# FC -> (7, 7)
+im_module_1 = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*2, 7, 7),
+    fc_dim=ngfc,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func='tanh',
+    mod_name='im_mod_1'
+)
+
 im_module_2a = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -566,12 +577,12 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_2a'
 )
 
 im_module_2b = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -581,13 +592,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_2b'
 )
 #im_module_2b.share_params(im_module_2a)
 
 im_module_2c = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -597,13 +608,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_2c'
 )
 #im_module_2c.share_params(im_module_2a)
 
 im_module_2d = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -613,13 +624,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_2d'
 )
 #im_module_2d.share_params(im_module_2a)
 
 im_module_2e = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -629,13 +640,25 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_2e'
 )
 #im_module_2e.share_params(im_module_2a)
 
+# (7, 7) -> (14, 14)
+im_module_3 = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='half',
+    act_func='tanh',
+    mod_name='im_mod_3'
+)
+
 im_module_4a = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -645,12 +668,12 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_4a'
 )
 
 im_module_4b = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -660,13 +683,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_4b'
 )
 #im_module_4b.share_params(im_module_4a)
 
 im_module_4c = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -676,13 +699,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_4c'
 )
 #im_module_4c.share_params(im_module_4a)
 
 im_module_4d = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -692,13 +715,13 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_4d'
 )
 #im_module_4d.share_params(im_module_4a)
 
 im_module_4e = \
-InfConvMergeModule(
+InfConvGRUModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
     im_chans=(ngf*2),
@@ -708,51 +731,47 @@ InfConvMergeModule(
     use_td_cond=use_td_cond,
     apply_bn=use_bn,
     mod_type=inf_mt,
-    act_func=act_func,
+    act_func='tanh',
     mod_name='im_mod_4e'
 )
 #im_module_4e.share_params(im_module_4a)
 
-im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e,
+im_modules = [im_module_1,
+              im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e,
+              im_module_3,
               im_module_4a, im_module_4b, im_module_4c, im_module_4d, im_module_4e]
 
 #
-# Setup a description for where to get conditional distributions from. When
-# there's no info here for a particular top-down module, we won't pass any
-# random variables explicitly into the module, which will cause the module to
-# generate its own random variables (unconditionally). When a "bu_module" is
-# provided and an "im_module" is not, the conditional distribution is specified
-# directly by the bu_module's output, and no merging (via an im_module) is
-# required. This probably only happens at the "top" of the generator.
+# Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': None,
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_2a': {'td_type': 'cond', 'im_module': 'im_mod_2a',
-                  'bu_source': 'bu_mod_2b', 'im_source': None},
+                  'bu_source': 'bu_mod_2b', 'im_source': 'im_mod_1'},
     'td_mod_2b': {'td_type': 'cond', 'im_module': 'im_mod_2b',
-                  'bu_source': 'bu_mod_2c', 'im_source': None},
+                  'bu_source': 'bu_mod_2c', 'im_source': 'im_mod_2a'},
     'td_mod_2c': {'td_type': 'cond', 'im_module': 'im_mod_2c',
-                  'bu_source': 'bu_mod_2d', 'im_source': None},
+                  'bu_source': 'bu_mod_2d', 'im_source': 'im_mod_2b'},
     'td_mod_2d': {'td_type': 'cond', 'im_module': 'im_mod_2d',
-                  'bu_source': 'bu_mod_2e', 'im_source': None},
+                  'bu_source': 'bu_mod_2e', 'im_source': 'im_mod_2c'},
     'td_mod_2e': {'td_type': 'cond', 'im_module': 'im_mod_2e',
-                  'bu_source': 'bu_mod_3', 'im_source': None},
+                  'bu_source': 'bu_mod_3', 'im_source': 'im_mod_2d'},
 
-    'td_mod_3': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None},
+    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
+                 'bu_source': None, 'im_source': 'im_mod_2e'},
 
     'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
-                  'bu_source': 'bu_mod_4b', 'im_source': None},
+                  'bu_source': 'bu_mod_4b', 'im_source': 'im_mod_3'},
     'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
-                  'bu_source': 'bu_mod_4c', 'im_source': None},
+                  'bu_source': 'bu_mod_4c', 'im_source': 'im_mod_4a'},
     'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
-                  'bu_source': 'bu_mod_4d', 'im_source': None},
+                  'bu_source': 'bu_mod_4d', 'im_source': 'im_mod_4b'},
     'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
-                  'bu_source': 'bu_mod_4e', 'im_source': None},
+                  'bu_source': 'bu_mod_4e', 'im_source': 'im_mod_4c'},
     'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
-                  'bu_source': 'bu_mod_5', 'im_source': None},
+                  'bu_source': 'bu_mod_5', 'im_source': 'im_mod_4d'},
 
     'td_mod_5': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
