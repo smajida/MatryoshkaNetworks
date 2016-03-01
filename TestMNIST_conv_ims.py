@@ -34,6 +34,10 @@ from MatryoshkaModules import BasicConvModule, GenConvResModule, \
                               GenConvGRUModule, InfConvMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
+#
+# Whoa!, What's happening?
+#
+
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
