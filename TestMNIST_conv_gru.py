@@ -158,7 +158,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_2b'
 )
-#td_module_2b.share_params(td_module_2a)
+td_module_2b.share_params(td_module_2a)
 
 # (7, 7) -> (7, 7)
 td_module_2c = \
@@ -176,7 +176,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_2c'
 )
-#td_module_2c.share_params(td_module_2a)
+td_module_2c.share_params(td_module_2a)
 
 # (7, 7) -> (7, 7)
 td_module_2d = \
@@ -194,7 +194,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_2d'
 )
-#td_module_2d.share_params(td_module_2a)
+td_module_2d.share_params(td_module_2a)
 
 # (7, 7) -> (7, 7)
 td_module_2e = \
@@ -212,7 +212,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_2e'
 )
-#td_module_2e.share_params(td_module_2a)
+td_module_2e.share_params(td_module_2a)
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
@@ -259,7 +259,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_4b'
 )
-#td_module_4b.share_params(td_module_4a)
+td_module_4b.share_params(td_module_4a)
 
 # (14, 14) -> (14, 14)
 td_module_4c = \
@@ -277,7 +277,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_4c'
 )
-#td_module_4c.share_params(td_module_4a)
+td_module_4c.share_params(td_module_4a)
 
 # (14, 14) -> (14, 14)
 td_module_4d = \
@@ -295,7 +295,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_4d'
 )
-#td_module_4d.share_params(td_module_4a)
+td_module_4d.share_params(td_module_4a)
 
 # (14, 14) -> (14, 14)
 td_module_4e = \
@@ -313,7 +313,7 @@ GenConvGRUModule(
     us_stride=1,
     mod_name='td_mod_4e'
 )
-#td_module_4e.share_params(td_module_4a)
+td_module_4e.share_params(td_module_4a)
 
 # (14, 14) -> (28, 28)
 td_module_5 = \
@@ -595,7 +595,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_2b'
 )
-#im_module_2b.share_params(im_module_2a)
+im_module_2b.share_params(im_module_2a)
 
 im_module_2c = \
 InfConvGRUModuleIMS(
@@ -611,7 +611,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_2c'
 )
-#im_module_2c.share_params(im_module_2a)
+im_module_2c.share_params(im_module_2a)
 
 im_module_2d = \
 InfConvGRUModuleIMS(
@@ -627,7 +627,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_2d'
 )
-#im_module_2d.share_params(im_module_2a)
+im_module_2d.share_params(im_module_2a)
 
 im_module_2e = \
 InfConvGRUModuleIMS(
@@ -643,7 +643,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_2e'
 )
-#im_module_2e.share_params(im_module_2a)
+im_module_2e.share_params(im_module_2a)
 
 # (7, 7) -> (14, 14)
 im_module_3 = \
@@ -686,7 +686,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_4b'
 )
-#im_module_4b.share_params(im_module_4a)
+im_module_4b.share_params(im_module_4a)
 
 im_module_4c = \
 InfConvGRUModuleIMS(
@@ -702,7 +702,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_4c'
 )
-#im_module_4c.share_params(im_module_4a)
+im_module_4c.share_params(im_module_4a)
 
 im_module_4d = \
 InfConvGRUModuleIMS(
@@ -718,7 +718,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_4d'
 )
-#im_module_4d.share_params(im_module_4a)
+im_module_4d.share_params(im_module_4a)
 
 im_module_4e = \
 InfConvGRUModuleIMS(
@@ -734,7 +734,7 @@ InfConvGRUModuleIMS(
     act_func='tanh',
     mod_name='im_mod_4e'
 )
-#im_module_4e.share_params(im_module_4a)
+im_module_4e.share_params(im_module_4a)
 
 im_modules = [im_module_1,
               im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e,
