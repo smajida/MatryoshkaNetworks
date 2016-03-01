@@ -83,6 +83,82 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
         bn_acts = batchnorm(acts, n=n)
     return bn_acts
 
+def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
+    # set each output channel to have unit norm afferent weights
+    # conv weight shape: (out_chans, in_chans, rows, cols)
+    
+    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
+    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
+
+    w_n = w
+
+    # compute convolution
+    if stride == 'single':
+        # no resizing
+        h_pre = dnn_conv(input, w_n, subsample=(1, 1), border_mode=(bm, bm))
+    elif stride == 'double':
+        # downsampling, 2x2 stride
+        h_pre = dnn_conv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
+    else:
+        # upsampling, 0.5x0.5 stride
+        h_pre = deconv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
+    # compute channel-wise stats before rescale and shift
+    # conv result shape: (batch, out_chans, rows, cols)
+    pre_mean = T.mean(T.mean(T.mean(h_pre, axis=0), axis=2), axis=1)
+    pre_res = (h_pre - pre_mean.dimshuffle('x',0,'x','x'))
+    pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
+
+    # rescale and shift
+    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
+    h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
+
+    # compute channel-wise stats after rescale and shift
+    post_mean = T.mean(T.mean(T.mean(h_post, axis=0), axis=2), axis=1)
+    post_res = (h_post - post_mean.dimshuffle('x',0,'x','x'))
+    post_std = T.sqrt(T.mean(T.mean(T.mean(post_res**2.0, axis=0), axis=2), axis=1))
+
+    # add noise
+    h_post = add_noise(h_post, noise=noise)
+
+    # return important quantities in a dict
+    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
+                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
+    return res_dict
+
+def wn_fc_op(input, w, g, b, noise=None):
+    # set each output channel to have unit norm afferent weights
+    # fc weight shape: (in_chans, out_chans)
+    
+    #w_norms = T.sqrt(T.sum(w**2.0, axis=0))
+    #w_n = w / w_norms.dimshuffle('x',0)
+
+    w_n = w
+
+    # compute initial linear transform
+    h_pre = T.dot(input, w_n)
+    # compute channel-wise stats before rescale and shift
+    # conv result shape: (batch, out_chans, rows, cols)
+    pre_mean = T.mean(h_pre, axis=0)
+    pre_res = (h_pre - pre_mean.dimshuffle('x',0))
+    pre_std = T.sqrt(T.mean(pre_res**2.0, axis=0))
+
+    # rescale and shift
+    h_post = h_pre * g.dimshuffle('x',0)  # channel-wise rescale
+    h_post = h_post + b.dimshuffle('x',0) # channel-wise shift
+
+    # compute channel-wise stats after rescale and shift
+    post_mean = T.mean(h_post, axis=0)
+    post_res = (h_post - post_mean.dimshuffle('x',0))
+    post_std = T.sqrt(T.mean(post_res**2.0, axis=0))
+
+    # add noise
+    h_post = add_noise(h_post, noise=noise)
+
+    # return important quantities in a dict
+    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
+                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
+    return res_dict
+
 #######################################
 # BASIC DOUBLE FULLY-CONNECTED MODULE #
 #######################################
@@ -201,12 +277,8 @@ class BasicFCResModule(object):
         if self.use_fc:
             # apply first internal linear layer and activation
             h1 = T.dot(input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal linear layer
@@ -218,12 +290,8 @@ class BasicFCResModule(object):
         else:
             # apply short-cut linear layer
             h4 = T.dot(input, self.w3)
-        if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h4 = h4 + self.b3.dimshuffle('x',0)
-            h4 = add_noise(h4, noise=noise)
+        h4 = h4 + self.b3.dimshuffle('x',0)
+        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, input.shape]
@@ -321,12 +389,8 @@ class BasicFCModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
         # linaer transform followed by activations and stuff
         h1 = T.dot(input, self.w1)
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1.dimshuffle('x',0)
-            h1 = add_noise(h1, noise=noise)
+        h1 = h1 + self.b1.dimshuffle('x',0)
+        h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
             result = [h1, input.shape]
@@ -467,12 +531,8 @@ class BasicConvResModule(object):
             if self.stride in ['double', 'single']:
                 # apply first internal conv layer (might downsample)
                 h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
-                if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                    use_gb=self.use_bn_params)
-                else:
-                    h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-                    h1 = add_noise(h1, noise=noise)
+                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -484,12 +544,8 @@ class BasicConvResModule(object):
             else:
                 # apply first internal conv layer
                 h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-                if self.apply_bn:
-                    h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                    use_gb=self.use_bn_params)
-                else:
-                    h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-                    h1 = add_noise(h1, noise=noise)
+                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = add_noise(h1, noise=noise)
                 h1 = self.act_func(h1)
                 # apply dropout at intermediate convolution layer
                 h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -506,13 +562,8 @@ class BasicConvResModule(object):
                 h4 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             else:
                 h4 = deconv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
-        if self.apply_bn:
-            # no comment
-            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-            h4 = add_noise(h4, noise=noise)
+        h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, input.shape]
@@ -578,6 +629,12 @@ class BasicConvPertModule(object):
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
+
+        # stuff for initializing and applying weight normalization
+        self.wn_params = None
+        self.batch_mean = None
+        self.batch_std = None
+
         self._init_params() # initialize parameters
         return
 
@@ -608,6 +665,9 @@ class BasicConvPertModule(object):
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
+        # gain and bias parameters are involved in weight normalization
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def share_params(self, source_module):
@@ -630,6 +690,9 @@ class BasicConvPertModule(object):
         self.g3 = source_module.g3
         self.b3 = source_module.b3
         self.params.extend([self.w3, self.g3, self.b3])
+        # gain and bias parameters are involved in weight normalization
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def load_params(self, param_dict):
@@ -674,45 +737,30 @@ class BasicConvPertModule(object):
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
 
-        # apply_conv(x, w, g, b, noise, use_gb, apply_bn, stride, border_mode)
+        # apply first internal conv layer
+        h1_dict = wn_conv_op(input, w=self.w1, g=self.g1, b=self.b1,
+                             stride='single', noise=noise, bm=bm)
+        h1 = self.act_func(h1_dict['h_post'])
+        h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
+                            share_mask=share_mask)
 
-        if self.use_conv:
-            # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(1,1), border_mode=(bm, bm))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
-            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
-                                share_mask=share_mask)
-            # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(1,1), border_mode=(bm, bm))
-            if self.apply_bn:
-                h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-                h2 = add_noise(h2, noise=noise)
-            # combine non-linear and linear transforms of input...
-            h3 = input + h2
-        else:
-            # apply standard conv layer
-            h3 = dnn_conv(input, self.w3, subsample=(1,1), border_mode=(bm, bm))
+        # apply second internal conv layer
+        h2_dict = wn_conv_op(h1, w=self.w2, g=self.g2, b=self.b2,
+                             stride='single', noise=noise, bm=bm)
+        h2 = h2_dict['h_post']
+
+        # combine non-linear func with original input...
+        h3 = input + h2
+
         # post-process the perturbed input
-        if self.apply_bn:
-            h3 = switchy_bn(h3, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
-            h3 = add_noise(h3, noise=noise)
-        output = self.act_func(h3)
+        h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
+        h3 = add_noise(h3, noise=noise)
+        h3 = self.act_func(h3)
+
         if rand_shapes:
-            result = [output, input.shape]
+            result = [h3, input.shape]
         else:
-            result = output
+            result = h3
         return result
 
 #############################
@@ -814,23 +862,11 @@ class BasicConvModule(object):
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
-        # apply first conv layer
-        if self.stride == 'single':
-            # normal, 1x1 stride
-            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        elif self.stride == 'double':
-            # downsampling, 2x2 stride
-            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
-        else:
-            # upsampling, 0.5x0.5 stride
-            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
-        h1 = self.act_func(h1)
+
+        h1_dict = wn_conv_op(input, w=self.w1, g=self.g1, b=self.b1,
+                             stride=self.stride, noise=noise, bm=bm)
+        h1 = self.act_func(h1_dict['h_post'])
+
         if rand_shapes:
             result = [h1, input.shape]
         else:
@@ -939,12 +975,8 @@ class DiscFCModule(object):
         if self.use_fc:
             # feedforward to fully connected layer
             h1 = T.dot(input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x', 0)
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x', 0)
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # compute discriminator output from fc layer and input
@@ -1094,12 +1126,8 @@ class DiscConvResModule(object):
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(input, self.w1, subsample=(ss, ss), border_mode=(bm, bm))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
             # apply activation and maybe dropout
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -1110,22 +1138,14 @@ class DiscConvResModule(object):
             h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
             # combine non-linear and linear transforms of input...
             h4 = h2 + h3
-            if self.apply_bn:
-                h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-                h4 = add_noise(h4, noise=noise)
+            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+            h4 = add_noise(h4, noise=noise)
             output = self.act_func(h4)
         else:
             # apply direct input->output short-cut layer
             h3 = dnn_conv(input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
-            if self.apply_bn:
-                h3 = switchy_bn(h3, g=self.g3, b=self.b3, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
-                h3 = add_noise(h3, noise=noise)
+            h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
+            h3 = add_noise(h3, noise=noise)
             output = self.act_func(h3)
 
         # apply discriminator layer
@@ -1261,23 +1281,15 @@ class GenTopModule(object):
         rand_shape = rand_vals.shape
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
         else:
             h2 = T.dot(rand_vals, self.w3)
-        if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h2 = h2 + self.b3.dimshuffle('x',0)
-            h2 = add_noise(h2, noise=noise)
+        h2 = h2 + self.b3.dimshuffle('x',0)
+        h2 = add_noise(h2, noise=noise)
         h2 = self.act_func(h2)
         if len(self.out_shape) > 1:
             # reshape vector outputs for use as conv layer inputs
@@ -1458,27 +1470,14 @@ class GenConvResModule(object):
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
 
-        if self.mod_type == 1:
-            # perturb top-down activations based on rand_vals
-            pert_1 = dnn_conv(rand_vals, self.wx, subsample=(1,1), border_mode=(1,1))
-            pert_2 = self.act_func(pert_1)
-            pert_3 = dnn_conv(pert_2, self.wy, subsample=(1,1), border_mode=(1,1))
-            input = self.act_func( input + pert_3 )
-            # stack random values on top of input
-            full_input = T.concatenate([0.0*rand_vals, input], axis=1)
-        else:
-            # stack random values on top of input
-            full_input = T.concatenate([rand_vals, input], axis=1)
+        # stack random values on top of input
+        full_input = T.concatenate([rand_vals, input], axis=1)
 
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -1491,12 +1490,8 @@ class GenConvResModule(object):
         else:
             # apply direct input->output short-cut layer
             h4 = deconv(full_input, self.w3, subsample=(ss, ss), border_mode=(bm, bm))
-        if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-            h4 = add_noise(h4, noise=noise)
+        h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, rand_shape]
@@ -1681,21 +1676,13 @@ class GenConvPertModule(object):
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
         h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
+        h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+        h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         # # apply second internal conv layer
         # h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-        # if self.apply_bn:
-        #     h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-        #                     use_gb=self.use_bn_params)
-        # else:
-        #     h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-        #     h2 = add_noise(h2, noise=noise)
+        # h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
+        # h2 = add_noise(h2, noise=noise)
         # h2 = self.act_func(h2)
         # # apply final conv layer
         # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
@@ -1708,12 +1695,8 @@ class GenConvPertModule(object):
         # combine non-linear and linear transforms of input...
         # h4 = input + h3
         h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
-        if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-            h4 = add_noise(h4, noise=noise)
+        h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, rand_shape]
@@ -2044,12 +2027,8 @@ class GenFCResModule(object):
         if self.use_fc:
             # apply first internal fc layer
             h1 = T.dot(full_input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal fc layer
@@ -2061,12 +2040,8 @@ class GenFCResModule(object):
         else:
             # only apply direct short-cut layer
             h4 = T.dot(full_input, self.w3)
-        if self.apply_bn:
-            h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h4 = h4 + self.b3.dimshuffle('x',0)
-            h4 = add_noise(h4, noise=noise)
+        h4 = h4 + self.b3.dimshuffle('x',0)
+        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
 
         if rand_shapes:
@@ -2517,12 +2492,8 @@ class InfConvMergeModuleIMS(object):
         """
         if self.use_td_cond:
             h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h2 = dnn_conv(h1, self.w2_td, subsample=(1,1), border_mode=(1,1))
             h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
@@ -2560,23 +2531,15 @@ class InfConvMergeModuleIMS(object):
 
         # apply first internal conv layer
         h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
+        h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+        h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                             share_mask=share_mask)
         # apply second internal conv layer
         h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-        if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g2_im, b=self.b2_im, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
-            h2 = add_noise(h2, noise=noise)
+        h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
+        h2 = add_noise(h2, noise=noise)
 
         # apply perturbation to IM input, then apply non-linearity
         out_im = self.act_func(im_input + h2)
@@ -2776,12 +2739,8 @@ class InfConvMergeModule(object):
         """
         if self.use_td_cond:
             h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h2 = dnn_conv(h1, self.w2_td, subsample=(1,1), border_mode=(1,1))
             h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
@@ -2813,12 +2772,8 @@ class InfConvMergeModule(object):
         if self.use_conv:
             # apply first internal conv layer
             h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
@@ -2967,12 +2922,8 @@ class InfFCMergeModule(object):
         if self.use_fc:
             # feedforward to fc layer
             h1 = T.dot(full_input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
-                h1 = add_noise(h1, noise=noise)
+            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward from fc layer to output
@@ -3053,12 +3004,18 @@ class InfTopModule(object):
         # initialize weights for transform out of fc layer
         self.w2 = weight_ifn((self.fc_chans, 2*self.rand_chans),
                              "{}_w2".format(self.mod_name))
-        self.params.extend([self.w2])
+        self.g2 = gain_ifn((2*self.rand_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((2*self.rand_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
         # initialize weights for transform straight from input to output
         self.w3 = weight_ifn((self.bu_chans, 2*self.rand_chans),
                                 "{}_w3".format(self.mod_name))
+        self.g3 = gain_ifn((2*self.rand_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((2*self.rand_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.b3])
+        self.params.extend([self.w3, self.g3, self.b3])
+        # gain and bias parameters are involved in weight normalization
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def load_params(self, param_dict):
@@ -3069,7 +3026,10 @@ class InfTopModule(object):
         self.g1.set_value(floatX(param_dict['g1']))
         self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
         self.w3.set_value(floatX(param_dict['w3']))
+        self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
         return
 
@@ -3082,7 +3042,10 @@ class InfTopModule(object):
         param_dict['g1'] = self.g1.get_value(borrow=False)
         param_dict['b1'] = self.b1.get_value(borrow=False)
         param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['g2'] = self.g2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
         param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
         return param_dict
 
@@ -3097,28 +3060,24 @@ class InfTopModule(object):
         bu_input = fc_drop_func(bu_input, self.unif_drop,
                                 share_mask=share_mask)
         if self.use_fc:
-            # feedforward to fc layer
-            h1 = T.dot(bu_input, self.w1)
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
-                h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
+            # apply first internal fc layer
+            h1_dict = wn_fc_op(bu_input, w=self.w1, g=self.g1, b=self.b1,
+                               noise=noise)
+            h1 = self.act_func(h1_dict['h_post'])
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+
             # feedforward from fc layer to output
-            h2 = T.dot(h1, self.w2)
-            # feedforward directly from BU input to output
-            h3 = T.dot(bu_input, self.w3)
-            h4 = h2 + self.b3.dimshuffle('x',0) #+ h3
+            h2_dict = wn_fc_op(h1, w=self.w2, g=self.g2, b=self.b2,
+                               noise=None)
+            h2 = h2_dict['h_post']
         else:
-            # feedforward directly from BU input to output
-            h3 = T.dot(bu_input, self.w3)
-            h4 = h3 + self.b3.dimshuffle('x',0)
+            # feedforward directly from bu_input
+            h2_dict = wn_fc_op(bu_input, w=self.w3, g=self.g3, b=self.b3,
+                               noise=None)
+            h2 = h2_dict['h_post']
         # split output into mean and log variance parts
-        out_mean = h4[:,:self.rand_chans]
-        out_logvar = h4[:,self.rand_chans:]
+        out_mean = h2[:,:self.rand_chans]
+        out_logvar = h2[:,self.rand_chans:]
         return out_mean, out_logvar
 
 #####################################
@@ -3202,12 +3161,8 @@ class MlpFCModule(object):
         h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
         # feed-forward through layer
         h2 = T.dot(h1, self.w1)
-        if self.apply_bn:
-            h3 = switchy_bn(h2, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h3 = h2 + self.b1.dimshuffle('x',0)
-            h3 = add_noise(h3, noise=noise)
+        h3 = h2 + self.b1.dimshuffle('x',0)
+        h3 = add_noise(h3, noise=noise)
         h4 = self.act_func(h3)
         return h4
 
