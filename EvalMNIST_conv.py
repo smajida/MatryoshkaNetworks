@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_opt_bu_pert_mods_deepest_gated_new'
+desc = 'test_conv_opt_bu_pert_mods_deepest_gated_new_no_shortcuts_nz1_4'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ nc = 1            # # of channels in image
 nbatch = 50      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
-nz1 = 8          # # of dim for Z1
+nz1 = 4          # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
@@ -593,6 +593,7 @@ im_module_2a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -607,6 +608,7 @@ im_module_2b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -622,6 +624,7 @@ im_module_2c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -637,6 +640,7 @@ im_module_2d = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -652,6 +656,7 @@ im_module_2e = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -667,6 +672,7 @@ im_module_4a = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -681,6 +687,7 @@ im_module_4b = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -696,6 +703,7 @@ im_module_4c = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -711,6 +719,7 @@ im_module_4d = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -726,6 +735,7 @@ im_module_4e = \
 InfConvMergeModule(
     td_chans=(ngf*2),
     bu_chans=(ngf*2),
+    im_chans=(ngf*2),
     rand_chans=nz1,
     conv_chans=(ngf*2),
     use_conv=True,
@@ -887,7 +897,7 @@ for epoch in range(3):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 25,
+            iwae_bounds = iwae_multi_eval(imb_img, 10,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
