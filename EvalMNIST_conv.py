@@ -755,26 +755,41 @@ im_modules = [im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_
 #               im_module_4a, im_module_4b]
 
 #
-# Setup a description for where to get conditional distributions from. When
-# there's no info here for a particular top-down module, we won't pass any
-# random variables explicitly into the module, which will cause the module to
-# generate its own random variables (unconditionally). When a "bu_module" is
-# provided and an "im_module" is not, the conditional distribution is specified
-# directly by the bu_module's output, and no merging (via an im_module) is
-# required. This probably only happens at the "top" of the generator.
+# Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'bu_source': 'bu_mod_1', 'im_module': None},
-    'td_mod_2a': {'bu_source': 'bu_mod_2b', 'im_module': 'im_mod_2a'},
-    'td_mod_2b': {'bu_source': 'bu_mod_2c', 'im_module': 'im_mod_2b'},
-    'td_mod_2c': {'bu_source': 'bu_mod_2d', 'im_module': 'im_mod_2c'},
-    'td_mod_2d': {'bu_source': 'bu_mod_2e', 'im_module': 'im_mod_2d'},
-    'td_mod_2e': {'bu_source': 'bu_mod_3', 'im_module': 'im_mod_2e'},
-    'td_mod_4a': {'bu_source': 'bu_mod_4b', 'im_module': 'im_mod_4a'},
-    'td_mod_4b': {'bu_source': 'bu_mod_4c', 'im_module': 'im_mod_4b'},
-    'td_mod_4c': {'bu_source': 'bu_mod_4d', 'im_module': 'im_mod_4c'},
-    'td_mod_4d': {'bu_source': 'bu_mod_4e', 'im_module': 'im_mod_4d'},
-    'td_mod_4e': {'bu_source': 'bu_mod_5', 'im_module': 'im_mod_4e'}
+    'td_mod_1': {'td_type': 'top', 'im_module': None,
+                 'bu_source': 'bu_mod_1', 'im_source': None},
+
+    'td_mod_2a': {'td_type': 'cond', 'im_module': 'im_mod_2a',
+                  'bu_source': 'bu_mod_2b', 'im_source': None},
+    'td_mod_2b': {'td_type': 'cond', 'im_module': 'im_mod_2b',
+                  'bu_source': 'bu_mod_2c', 'im_source': None},
+    'td_mod_2c': {'td_type': 'cond', 'im_module': 'im_mod_2c',
+                  'bu_source': 'bu_mod_2d', 'im_source': None},
+    'td_mod_2d': {'td_type': 'cond', 'im_module': 'im_mod_2d',
+                  'bu_source': 'bu_mod_2e', 'im_source': None},
+    'td_mod_2e': {'td_type': 'cond', 'im_module': 'im_mod_2e',
+                  'bu_source': 'bu_mod_3', 'im_source': None},
+
+    'td_mod_3': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+
+    'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
+                  'bu_source': 'bu_mod_4b', 'im_source': None},
+    'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
+                  'bu_source': 'bu_mod_4c', 'im_source': None},
+    'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
+                  'bu_source': 'bu_mod_4d', 'im_source': None},
+    'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
+                  'bu_source': 'bu_mod_4e', 'im_source': None},
+    'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
+                  'bu_source': 'bu_mod_5', 'im_source': None},
+
+    'td_mod_5': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None}
 }
 
 # construct the "wrapper" object for managing all our modules
