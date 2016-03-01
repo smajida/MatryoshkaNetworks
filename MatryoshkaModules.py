@@ -2395,7 +2395,7 @@ class InfConvMergeModuleIMS(object):
         ############################################
         # Initialize "inference" model parameters. #
         ############################################
-        # initialize first conv layer parameters
+        # initialize first conv layer parameters (from input -> hidden layer)
         if self.mod_type == 0:
             self.w1_im = weight_ifn((self.conv_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
                                     "{}_w1_im".format(self.mod_name))
@@ -2405,21 +2405,18 @@ class InfConvMergeModuleIMS(object):
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
-        # initialize second conv layer parameters
-        self.w2_im = weight_ifn((2*self.rand_chans+self.im_chans, self.conv_chans, 3, 3),
+        # initialize second conv layer parameters (from hidden layer -> IM state perturbation)
+        self.w2_im = weight_ifn((self.im_chans, self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
-        self.params.extend([self.w2_im])
+        self.g2_im = gain_ifn((self.im_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize convolutional projection layer parameters
-        if self.mod_type == 0:
-            # module acts just on TD and BU input
-            self.w3_im = weight_ifn((2*self.rand_chans+self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
-                                    "{}_w3_im".format(self.mod_name))
-        else:
-            # module acts on TD and BU input, and their difference
-            self.w3_im = weight_ifn((2*self.rand_chans+self.im_chans, (3*self.td_chans+self.im_chans), 3, 3),
-                                    "{}_w3_im".format(self.mod_name))
-        self.b3_im = bias_ifn((2*self.rand_chans+self.im_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.b3_im])
+        self.w3_im = weight_ifn((2*self.rand_chans, self.im_chans, 3, 3),
+                                "{}_w3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
@@ -2449,11 +2446,14 @@ class InfConvMergeModuleIMS(object):
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second conv layer parameters
         self.w2_im = source_module.w2_im
-        self.params.extend([self.w2_im])
-        # module acts just on TD and BU input
+        self.g2_im = source_module.g2_im
+        self.b2_im = source_module.b2_im
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
         self.w3_im = source_module.w3_im
+        self.g3_im = source_module.g3_im
         self.b3_im = source_module.b3_im
-        self.params.extend([self.w3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = source_module.w1_td
@@ -2475,7 +2475,10 @@ class InfConvMergeModuleIMS(object):
         self.g1_im.set_value(floatX(param_dict['g1_im']))
         self.b1_im.set_value(floatX(param_dict['b1_im']))
         self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
@@ -2495,7 +2498,10 @@ class InfConvMergeModuleIMS(object):
         param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
         param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
         param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
@@ -2551,34 +2557,35 @@ class InfConvMergeModuleIMS(object):
         # do dropout
         full_input = conv_drop_func(full_input, self.unif_drop, self.chan_drop,
                                     share_mask=share_mask)
-        if self.use_conv:
-            # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-            if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
-                                use_gb=self.use_bn_params)
-            else:
-                h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-                h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
-            h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
-                                share_mask=share_mask)
-            # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-            # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            # combine non-linear and linear transforms of input...
-            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
+
+        # apply first internal conv layer
+        h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
+        if self.apply_bn:
+            h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
+                            use_gb=self.use_bn_params)
         else:
-            # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
-        # split output into "mean" and "log variance" components, for using in
-        # Gaussian reparametrization.
-        out_mean = h4[:,:self.rand_chans,:,:]
-        out_logvar = h4[:,self.rand_chans:2*self.rand_chans,:,:]
-        # residual-type update for IM state propagation
-        out_im = self.act_func(h4[:,2*self.rand_chans:,:,:] + im_input)
+            h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+            h1 = add_noise(h1, noise=noise)
+        h1 = self.act_func(h1)
+        h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
+                            share_mask=share_mask)
+        # apply second internal conv layer
+        h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
+        if self.apply_bn:
+            h2 = switchy_bn(h2, g=self.g2_im, b=self.b2_im, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
+            h2 = add_noise(h2, noise=noise)
+
+        # apply perturbation to IM input, then apply non-linearity
+        out_im = self.act_func(im_input + h2)
+
+        # compute conditional parameters from the updated IM state
+        h3 = dnn_conv(out_im, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+        h3 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+        out_mean = h3[:,:self.rand_chans,:,:]
+        out_logvar = h3[:,self.rand_chans:,:,:]
         return out_mean, out_logvar, out_im
 
 #########################################
