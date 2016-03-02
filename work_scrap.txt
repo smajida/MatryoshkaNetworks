@@ -1,0 +1,21 @@
+Modules required by TestMNIST_conv.py
+
+Converted to use weight normalization (phase 1, using modular op):
+------------------------------------------------------------------
+InfConvMergeModule    -- DONE
+InfConvMergeModuleIMS -- DONE
+BasicConvModule       -- DONE
+BasicConvPertModule   -- DONE
+InfTopModule          -- DONE
+GenConvPertModule     -- DONE
+GenTopModule          --
+
+Converted to use weight normalization (phase 2, tracking batch stats):
+----------------------------------------------------------------------
+InfConvMergeModule    -- 
+InfConvMergeModuleIMS -- 
+BasicConvModule       --
+BasicConvPertModule   --
+InfTopModule          --
+GenConvPertModule     --
+GenTopModule          --
