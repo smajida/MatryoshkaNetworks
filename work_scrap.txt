@@ -12,10 +12,19 @@ GenTopModule          -- DONE
 
 Converted to use weight normalization (phase 2, tracking batch stats):
 ----------------------------------------------------------------------
-InfConvMergeModule    --
-InfConvMergeModuleIMS --
-BasicConvModule       --
-BasicConvPertModule   --
-InfTopModule          --
-GenConvPertModule     --
-GenTopModule          --
+InfConvMergeModule    -- DONE
+InfConvMergeModuleIMS -- DONE
+BasicConvModule       -- DONE
+BasicConvPertModule   -- DONE
+InfTopModule          -- DONE
+GenConvPertModule     -- DONE
+GenTopModule          -- DONE
+
+Next steps:
+-----------
+1. Add weight normalization "optimization-based init" cost to the set of
+   values returned by InfGenModel.apply_im().
+   -- DONE
+2. Make Theano function and mini pre-training loop for initializing the shift
+   and scale parameters for weight normalization.
+   --

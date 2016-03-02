@@ -445,6 +445,7 @@ lam_kld = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
+wn_params = inf_gen_model.wn_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -467,6 +468,7 @@ if iwae_samples == 1:
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
+    wn_init_cost = im_res_dict['wn_mean_cost'] + im_res_dict['wn_std_cost']
 
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg,2), T.flatten(Xg_recon,2),
@@ -506,6 +508,7 @@ else:
     kld_dict = im_res_dict['kld_dict']
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
+    wn_init_cost = im_res_dict['wn_mean_cost'] + im_res_dict['wn_std_cost']
 
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
@@ -546,6 +549,7 @@ else:
     im_rd = inf_gen_model.apply_im(Xg, noise=noise)
     Xg_recon = im_rd['td_output']
 
+
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
@@ -560,12 +564,14 @@ lrt = sharedX(0.001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+wn_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
 gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
 inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
+wn_updates, wn_grads = wn_updater(wn_params, wn_init_cost, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
@@ -587,6 +593,8 @@ g_cost_outputs = g_basic_costs
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
 i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
 g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
+wn_train_func = theano.function([Xg], wn_init_cost, updates=wn_updates)   # train to init WN params
+
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -595,6 +603,28 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
+
+# pre-train for a few "mini epochs" on the weight normalization init costs
+for epoch in range(1, 10):
+    Xtr = shuffle(Xtr)
+    Xtr_mini = Xtr[0:10000,:]
+    g_epoch_cost = 0.
+    g_batch_count = 0.
+    for imb in tqdm(iter_data(Xtr_mini, size=nbatch), total=(Xtr_mini.shape[0]/nbatch)):
+        imb_img = train_transform(imb)
+        g_epoch_cost += 1. * wn_train_func(floatX(imb_img))
+        g_batch_count += 1.
+    g_epoch_cost = g_epoch_cost / g_batch_count
+    str1 = "Pre-Epoch {}: ({})".format(epoch, desc.upper())
+    str2 = "    -- wn_init_cost: {0:.4f}".format(g_epoch_cost)
+    joint_str = "\n".join([str1, str2])
+    print(joint_str)
+    out_file.write(joint_str+"\n")
+    out_file.flush()
+
+############################################
+# ACTUAL MODEL TRAINING, FOR REAL PURPOSES #
+############################################
 n_check = 0
 n_updates = 0
 t = time()

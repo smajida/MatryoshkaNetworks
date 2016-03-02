@@ -84,8 +84,6 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
     return bn_acts
 
 
-
-
 def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
     # set each output channel to have unit norm afferent weights
     # conv weight shape: (out_chans, in_chans, rows, cols)
@@ -161,6 +159,18 @@ def wn_fc_op(input, w, g, b, noise=None):
     res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
                 'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
     return res_dict
+
+def wn_costs(res_dict):
+    """
+    Compute mean and standard deviation "normalization costs", to be used
+    for optimization-based initialization with weight normalization.
+    """
+    post_mean = res_dict['post_mean']
+    post_std = res_dict['post_std']
+    # make costs to encourage zero mean and unit standard deviation
+    mean_cost = T.mean(post_mean**2.0)
+    std_cost = T.mean((post_std - 1.0)**2.0)
+    return mean_cost, std_cost
 
 #######################################
 # BASIC DOUBLE FULLY-CONNECTED MODULE #
@@ -754,6 +764,12 @@ class BasicConvPertModule(object):
         h3 = add_noise(h3, noise=noise)
         h3 = self.act_func(h3)
 
+        # compute costs for optimization-based initialization
+        h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+        h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+        self.wn_mean_cost = h1_mean_cost + h2_mean_cost
+        self.wn_std_cost = h1_std_cost + h2_std_cost
+
         if rand_shapes:
             result = [h3, input.shape]
         else:
@@ -865,6 +881,11 @@ class BasicConvModule(object):
         h1_dict = wn_conv_op(input, w=self.w1, g=self.g1, b=self.b1,
                              stride=self.stride, noise=noise, bm=bm)
         h1 = self.act_func(h1_dict['h_post'])
+
+        # compute costs for optimization-based initialization
+        h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+        self.wn_mean_cost = h1_mean_cost
+        self.wn_std_cost = h1_std_cost
 
         if rand_shapes:
             result = [h1, input.shape]
@@ -1293,11 +1314,23 @@ class GenTopModule(object):
             h2_dict = wn_fc_op(h1, w=self.w2, g=self.g2, b=self.b2,
                                noise=noise)
             h2 = self.act_func(h2_dict['h_post'])
+
+            # compute costs for optimization-based initialization
+            h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h1_mean_cost + h2_mean_cost
+            self.wn_std_cost = h1_std_cost + h2_std_cost
+
         else:
             # feedforward directly from rand_vals
             h2_dict = wn_fc_op(rand_vals, w=self.w3, g=self.g3, b=self.b3,
                                noise=noise)
             h2 = self.act_func(h2_dict['h_post'])
+
+            # compute costs for optimization-based initialization
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h2_mean_cost
+            self.wn_std_cost = h2_std_cost
 
         if len(self.out_shape) > 1:
             # reshape vector outputs for use as conv layer inputs
@@ -1686,15 +1719,22 @@ class GenConvPertModule(object):
 
         # compute perturbation and gating values
         h3_dict = wn_conv_op(h1, w=self.w3, g=self.g3, b=self.b3,
-                               stride='single', noise=noise, bm=bm)
+                             stride='single', noise=noise, bm=bm)
         h3 = h3_dict['h_post']
-
         h3_pert = h3[:,:self.out_chans,:,:]
         h3_gate = h3[:,self.out_chans:,:,:]
 
         # combine non-linear and linear transforms of input...
         h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
         output = self.act_func(h4)
+
+        # compute costs for optimization-based initialization
+        h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+        #h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+        h3_mean_cost, h3_std_cost = wn_costs(h3_dict)
+        self.wn_mean_cost = h1_mean_cost + h3_mean_cost #+ h2_mean_cost
+        self.wn_std_cost = h1_std_cost + h3_std_dict #+ h2_std_cost
+
         if rand_shapes:
             result = [output, rand_shape]
         else:
@@ -2295,6 +2335,7 @@ class InfConvGRUModuleIMS(object):
         out_logvar = h3[:,self.rand_chans:,:,:]
         return out_mean, out_logvar, out_im
 
+
 #########################################
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
 #########################################
@@ -2562,9 +2603,15 @@ class InfConvMergeModuleIMS(object):
         h3_dict = wn_conv_op(out_im, w=self.w3_im, g=self.g3_im, b=self.b3_im,
                              stride='single', noise=noise, bm=1)
         h3 = h3_dict['h_post']
-
         out_mean = h3[:,:self.rand_chans,:,:]
         out_logvar = h3[:,self.rand_chans:,:,:]
+
+        # compute costs for optimization-based initialization
+        h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+        h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+        h3_mean_cost, h3_std_cost = wn_costs(h3_dict)
+        self.wn_mean_cost = h1_mean_cost + h2_mean_cost + h3_mean_cost
+        self.wn_std_cost = h1_std_cost + h2_std_cost + h3_std_cost
         return out_mean, out_logvar, out_im
 
 #########################################
@@ -2822,16 +2869,26 @@ class InfConvMergeModule(object):
             h1 = self.act_func(h1_dict['h_post'])
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
-
             # apply second internal conv layer
             h2_dict = wn_conv_op(h1, w=self.w2_im, g=self.g2_im, b=self.b2_im,
                                  stride='single', noise=noise, bm=1)
             h2 = h2_dict['h_post']
+
+            # compute costs for optimization-based initialization
+            h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h1_mean_cost + h2_mean_cost
+            self.wn_std_cost = h1_std_cost + h2_std_cost
         else:
             # apply direct short-cut conv layer
             h2_dict = wn_conv_op(full_input, w=self.w3_im, g=self.g3_im, b=self.b3_im,
                                  stride='single', noise=noise, bm=1)
             h2 = h2_dict['h_post']
+            # compute wn init costs
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h2_mean_cost
+            self.wn_std_cost = h2_std_cost
+
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
         out_mean = h2[:,:self.rand_chans,:,:]
@@ -3115,11 +3172,24 @@ class InfTopModule(object):
             h2_dict = wn_fc_op(h1, w=self.w2, g=self.g2, b=self.b2,
                                noise=None)
             h2 = h2_dict['h_post']
+
+            # compute costs for optimization-based initialization
+            h1_mean_cost, h1_std_cost = wn_costs(h1_dict)
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h1_mean_cost + h2_mean_cost
+            self.wn_std_cost = h1_std_cost + h2_std_cost
+
         else:
             # feedforward directly from bu_input
             h2_dict = wn_fc_op(bu_input, w=self.w3, g=self.g3, b=self.b3,
                                noise=None)
             h2 = h2_dict['h_post']
+
+            # compute costs for optimization-based initialization
+            h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
+            self.wn_mean_cost = h2_mean_cost
+            self.wn_std_cost = h2_std_cost
+
         # split output into mean and log variance parts
         out_mean = h2[:,:self.rand_chans]
         out_logvar = h2[:,self.rand_chans:]

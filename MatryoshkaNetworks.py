@@ -748,14 +748,18 @@ class InfGenModel(object):
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
-        self.gen_params = []
-        self.inf_params = []
+        self.gen_params = [] # parameters in the generative model
+        self.inf_params = [] # parameters in the inference model
+        self.wn_params = []  # parameters to modify during init phase
         for module in self.td_modules: # top-down is the generator
             self.gen_params.extend(module.params)
+            self.wn_params.extend(module.wn_params)
         for module in self.bu_modules: # bottom-up is part of inference
             self.inf_params.extend(module.params)
+            self.wn_params.extend(module.wn_params)
         for module in self.im_modules: # info merge is part of inference
             self.inf_params.extend(module.params)
+            self.wn_params.extend(module.wn_params)
         # filter redundant parameters, to allow parameter sharing
         p_dict = {}
         for p in self.gen_params:
@@ -765,6 +769,10 @@ class InfGenModel(object):
         for p in self.inf_params:
             p_dict[p.name] = p
         self.inf_params = p_dict.values()
+        p_dict = {}
+        for p in self.wn_params:
+            p_dict[p.name] = p
+        self.wn_params = p_dict.values()
         # make dist_scale parameter (add it to the inf net parameters)
         if train_dist_scale:
             # init to a somewhat arbitrary value -- not magic (probably)
@@ -938,6 +946,9 @@ class InfGenModel(object):
         bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
         # dict for storing IM state information
         im_res_dict = {None: None}
+        # lists for storing weight normalization init costs
+        wn_mean_costs = []
+        wn_std_costs = []
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -964,11 +975,15 @@ class InfGenModel(object):
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
+                    wn_mean_costs.append(td_module.wn_mean_cost)
+                    wn_std_costs.append(td_module.wn_std_cost)
                     # compute initial state for IM pass, maybe...
                     im_act_i = None
                     if not (im_module is None):
                         im_act_i = im_module.apply(rand_vals=cond_rvs,
                                                    noise=bu_noise)
+                        wn_mean_costs.append(im_module.wn_mean_cost)
+                        wn_std_costs.append(im_module.wn_std_cost)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]              # info from TD pass
@@ -980,8 +995,12 @@ class InfGenModel(object):
                                                bu_input=bu_info,
                                                im_input=im_info,
                                                noise=bu_noise)
+                    wn_mean_costs.append(im_module.wn_mean_cost)
+                    wn_std_costs.append(im_module.wn_std_cost)
+
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
+
                     cond_mean_td, cond_logvar_td = \
                             im_module.apply_td(td_input=td_info,
                                                noise=td_noise)
@@ -994,6 +1013,9 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
                                                noise=td_noise)
+                    wn_mean_costs.append(td_module.wn_mean_cost)
+                    wn_std_costs.append(td_module.wn_std_cost)
+
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
@@ -1022,6 +1044,8 @@ class InfGenModel(object):
                 td_info = td_acts[-1] # incoming info from TD pass
                 td_act_i = td_module.apply(input=td_info, rand_vals=None,
                                            noise=td_noise)
+                wn_mean_costs.append(td_module.wn_mean_cost)
+                wn_std_costs.append(td_module.wn_std_cost)
                 td_acts.append(td_act_i)
                 if not (im_module is None):
                     # perform an update of the IM state
@@ -1029,6 +1053,8 @@ class InfGenModel(object):
                     im_act_i = im_module.apply(input=im_info, rand_vals=None,
                                                noise=bu_noise)
                     im_res_dict[im_mod_name] = im_act_i
+                    wn_mean_costs.append(im_module.wn_mean_cost)
+                    wn_std_costs.append(im_module.wn_std_cost)
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply output transform (into observation space, presumably), to get
@@ -1043,6 +1069,8 @@ class InfGenModel(object):
         im_res_dict['z_dict'] = z_dict
         im_res_dict['log_p_z'] = logz_dict['log_p_z']
         im_res_dict['log_q_z'] = logz_dict['log_q_z']
+        im_res_dict['wn_mean_cost'] = sum(wn_mean_costs)
+        im_res_dict['wn_std_cost'] = sum(wn_std_costs)
         return im_res_dict
 
     def _construct_generate_samples(self):
