@@ -630,11 +630,6 @@ class BasicConvPertModule(object):
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
 
-        # stuff for initializing and applying weight normalization
-        self.wn_params = None
-        self.batch_mean = None
-        self.batch_std = None
-
         self._init_params() # initialize parameters
         return
 
@@ -749,10 +744,9 @@ class BasicConvPertModule(object):
                              stride='single', noise=noise, bm=bm)
         h2 = h2_dict['h_post']
 
-        # combine non-linear func with original input...
+        # apply perturbation and non-linearity to input
         h3 = input + h2
-
-        # post-process the perturbed input
+        h3 = h3 * self.g3.dimshuffle('x',0,'x','x')
         h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
         h3 = add_noise(h3, noise=noise)
         h3 = self.act_func(h3)
@@ -831,6 +825,8 @@ class BasicConvModule(object):
         self.g1 = gain_ifn((self.out_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
         self.params = [self.w1, self.g1, self.b1]
+        # bunch up the weight normalization parameters
+        self.wn_params = [self.g1, self.b1]
         return
 
     def load_params(self, param_dict):
@@ -1575,12 +1571,9 @@ class GenConvPertModule(object):
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
-        # derp a derp parameterrrrr
-        self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
-                             "{}_wx".format(self.mod_name))
-        self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
-                             "{}_wy".format(self.mod_name))
-        self.params.extend([self.wx, self.wy])
+        # record weight normalization parameters
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
         return
 
     def share_params(self, source_module):
@@ -1605,10 +1598,9 @@ class GenConvPertModule(object):
         self.g3 = source_module.g3
         self.b3 = source_module.b3
         self.params.extend([self.w3, self.g3, self.b3])
-        # derp a derp parameterrrrr
-        self.wx = source_module.wx
-        self.wy = source_module.wy
-        self.params.extend([self.wx, self.wy])
+        # record weight normalization parameters
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
         return
 
     def load_params(self, param_dict):
@@ -1624,8 +1616,6 @@ class GenConvPertModule(object):
         self.w3.set_value(floatX(param_dict['w3']))
         self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
-        self.wx.set_value(floatX(param_dict['wx']))
-        self.wy.set_value(floatX(param_dict['wy']))
         return
 
     def dump_params(self):
@@ -1642,8 +1632,6 @@ class GenConvPertModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
-        param_dict['wx'] = self.wx.get_value(borrow=False)
-        param_dict['wy'] = self.wy.get_value(borrow=False)
         return param_dict
 
     def apply(self, input, rand_vals=None, rand_shapes=False,
@@ -1675,28 +1663,24 @@ class GenConvPertModule(object):
 
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
-        h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
-        h1 = add_noise(h1, noise=noise)
-        h1 = self.act_func(h1)
-        # # apply second internal conv layer
-        # h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-        # h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
-        # h2 = add_noise(h2, noise=noise)
-        # h2 = self.act_func(h2)
-        # # apply final conv layer
-        # h3 = dnn_conv(h2, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        h1_dict = wn_conv_op(pert_input, w=self.w1, g=self.g1, b=self.b1,
+                             stride='single', noise=noise, bm=bm)
+        h1 = self.act_func(h1_dict['h_post'])
 
-        h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
+        # # apply second internal conv layer
+        # h2_dict = wn_conv_op(h1, w=self.w2, g=self.g2, b=self.b2,
+        #                      stride='single', noise=noise, bm=bm)
+        # h2 = self.act_func(h2_dict['h_post'])
+
+        h3_dict = wn_conv_op(h1, w=self.w3, g=self.g3, b=self.b3,
+                             stride='single', noise=noise, bm=bm)
+        h3 = h3_dict['h_post']
 
         h3_pert = h3[:,:self.out_chans,:,:]
         h3_gate = h3[:,self.out_chans:,:,:]
 
         # combine non-linear and linear transforms of input...
-        # h4 = input + h3
         h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
-        h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
-        h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
             result = [output, rand_shape]
@@ -2392,6 +2376,9 @@ class InfConvMergeModuleIMS(object):
         self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # record weight normalization parameters
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
@@ -2402,8 +2389,11 @@ class InfConvMergeModuleIMS(object):
             # initialize second conv layer parameters
             self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w2_td".format(self.mod_name))
+            self.g2_td = gain_ifn((2*self.rand_chans), "{}_g2_td".format(self.mod_name))
             self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
-            self.params.extend([self.w2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            # add TD conditioning weight normalization parameters
+            self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
 
     def share_params(self, source_module):
@@ -2429,6 +2419,9 @@ class InfConvMergeModuleIMS(object):
         self.g3_im = source_module.g3_im
         self.b3_im = source_module.b3_im
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # weight normalization params
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = source_module.w1_td
@@ -2437,8 +2430,11 @@ class InfConvMergeModuleIMS(object):
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = source_module.w2_td
+            self.g2_td = source_module.g2_td
             self.b2_td = source_module.b2_td
-            self.params.extend([self.w2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            # add TD conditioning weight normalization parameters
+            self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
 
     def load_params(self, param_dict):
@@ -2460,6 +2456,7 @@ class InfConvMergeModuleIMS(object):
             self.g1_td.set_value(floatX(param_dict['g1_td']))
             self.b1_td.set_value(floatX(param_dict['b1_td']))
             self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.g2_td.set_value(floatX(param_dict['g2_td']))
             self.b2_td.set_value(floatX(param_dict['b2_td']))
         return
 
@@ -2483,6 +2480,7 @@ class InfConvMergeModuleIMS(object):
             param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
             param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['g2_td'] = self.g2_td.get_value(borrow=False)
             param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
         return param_dict
 
@@ -2491,14 +2489,17 @@ class InfConvMergeModuleIMS(object):
         Put distributions over stuff based on td_input.
         """
         if self.use_td_cond:
-            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
-            h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
-            h2 = dnn_conv(h1, self.w2_td, subsample=(1,1), border_mode=(1,1))
-            h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
-            out_mean = h3[:,:self.rand_chans,:,:]
-            out_logvar = 0.0 * h3[:,self.rand_chans:,:,:] # use fixed logvar...
+            # transform into hidden layer
+            h1_dict = wn_conv_op(td_input, w=self.w1_td, g=self.g1_td, b=self.b1_td,
+                                 stride='single', noise=noise, bm=1)
+            h1 = self.act_func(h1_dict['h_post'])
+            # transform to conditioning parameters
+            h2_dict = wn_conv_op(h1, w=self.w2_td, g=self.g2_td, b=self.b2_td,
+                                 stride='single', noise=noise, bm=1)
+            h2 = h2_dict['h_post']
+
+            out_mean = h2[:,:self.rand_chans,:,:]
+            out_logvar = h2[:,self.rand_chans:,:,:]
         else:
             batch_size = td_input.shape[0]
             rows = td_input.shape[2]
@@ -2530,23 +2531,25 @@ class InfConvMergeModuleIMS(object):
                                     share_mask=share_mask)
 
         # apply first internal conv layer
-        h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-        h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-        h1 = add_noise(h1, noise=noise)
-        h1 = self.act_func(h1)
+        h1_dict = wn_conv_op(full_input, w=self.w1_im, g=self.g1_im, b=self.b1_im,
+                             stride='single', noise=noise, bm=1)
+        h1 = self.act_func(h1_dict['h_post'])
         h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                             share_mask=share_mask)
+
         # apply second internal conv layer
-        h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-        h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
-        h2 = add_noise(h2, noise=noise)
+        h2_dict = wn_conv_op(h1, w=self.w2_im, g=self.g2_im, b=self.b2_im,
+                             stride='single', noise=noise, bm=1)
+        h2 = h2_dict['h_post']
 
         # apply perturbation to IM input, then apply non-linearity
         out_im = self.act_func(im_input + h2)
 
         # compute conditional parameters from the updated IM state
-        h3 = dnn_conv(out_im, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-        h3 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+        h3_dict = wn_conv_op(out_im, w=self.w3_im, g=self.g3_im, b=self.b3_im,
+                             stride='single', noise=noise, bm=1)
+        h3 = h3_dict['h_post']
+
         out_mean = h3[:,:self.rand_chans,:,:]
         out_logvar = h3[:,self.rand_chans:,:,:]
         return out_mean, out_logvar, out_im
@@ -2636,7 +2639,9 @@ class InfConvMergeModule(object):
         # initialize second conv layer parameters
         self.w2_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
-        self.params.extend([self.w2_im])
+        self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize convolutional projection layer parameters
         if self.mod_type == 0:
             # module acts just on TD and BU input
@@ -2646,8 +2651,13 @@ class InfConvMergeModule(object):
             # module acts on TD and BU input, and their difference
             self.w3_im = weight_ifn((2*self.rand_chans, (3*self.td_chans), 3, 3),
                                     "{}_w3_im".format(self.mod_name))
+        self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # record weight normalization parameters
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
+
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
@@ -2658,8 +2668,11 @@ class InfConvMergeModule(object):
             # initialize second conv layer parameters
             self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w2_td".format(self.mod_name))
+            self.g2_td = gain_ifn((2*self.rand_chans), "{}_g2_td".format(self.mod_name))
             self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
             self.params.extend([self.w2_td, self.b2_td])
+            # add TD conditioning weight normalization parameters
+            self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
 
     def share_params(self, source_module):
@@ -2677,11 +2690,17 @@ class InfConvMergeModule(object):
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second conv layer parameters
         self.w2_im = source_module.w2_im
-        self.params.extend([self.w2_im])
-        # module acts just on TD and BU input
+        self.g2_im = source_module.g2_im
+        self.b2_im = source_module.b2_im
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
         self.w3_im = source_module.w3_im
+        self.g3_im = source_module.g3_im
         self.b3_im = source_module.b3_im
-        self.params.extend([self.w3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # weight normalization params
+        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
+                          self.g3_im, self.b3_im]
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = source_module.w1_td
@@ -2690,8 +2709,11 @@ class InfConvMergeModule(object):
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = source_module.w2_td
+            self.g2_td = source_module.g2_td
             self.b2_td = source_module.b2_td
-            self.params.extend([self.w2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            # add TD conditioning weight normalization parameters
+            self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
 
     def load_params(self, param_dict):
@@ -2703,13 +2725,17 @@ class InfConvMergeModule(object):
         self.g1_im.set_value(floatX(param_dict['g1_im']))
         self.b1_im.set_value(floatX(param_dict['b1_im']))
         self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
             self.g1_td.set_value(floatX(param_dict['g1_td']))
             self.b1_td.set_value(floatX(param_dict['b1_td']))
             self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.g2_td.set_value(floatX(param_dict['g2_td']))
             self.b2_td.set_value(floatX(param_dict['b2_td']))
         return
 
@@ -2723,13 +2749,17 @@ class InfConvMergeModule(object):
         param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
         param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
         param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
             param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
             param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['g2_td'] = self.g2_td.get_value(borrow=False)
             param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
         return param_dict
 
@@ -2738,14 +2768,17 @@ class InfConvMergeModule(object):
         Put distributions over stuff based on td_input.
         """
         if self.use_td_cond:
-            h1 = dnn_conv(td_input, self.w1_td, subsample=(1,1), border_mode=(1,1))
-            h1 = h1 + self.b1_td.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
-            h2 = dnn_conv(h1, self.w2_td, subsample=(1,1), border_mode=(1,1))
-            h3 = h2 + self.b2_td.dimshuffle('x',0,'x','x')
-            out_mean = h3[:,:self.rand_chans,:,:]
-            out_logvar = 0.0 * h3[:,self.rand_chans:,:,:] # use fixed logvar...
+            # transform into hidden layer
+            h1_dict = wn_conv_op(td_input, w=self.w1_td, g=self.g1_td, b=self.b1_td,
+                                 stride='single', noise=noise, bm=1)
+            h1 = self.act_func(h1_dict['h_post'])
+            # transform to conditioning parameters
+            h2_dict = wn_conv_op(h1, w=self.w2_td, g=self.g2_td, b=self.b2_td,
+                                 stride='single', noise=noise, bm=1)
+            h2 = h2_dict['h_post']
+
+            out_mean = h2[:,:self.rand_chans,:,:]
+            out_logvar = h2[:,self.rand_chans:,:,:]
         else:
             batch_size = td_input.shape[0]
             rows = td_input.shape[2]
@@ -2771,26 +2804,25 @@ class InfConvMergeModule(object):
                                     share_mask=share_mask)
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-            h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-            h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
+            h1_dict = wn_conv_op(full_input, w=self.w1_im, g=self.g1_im, b=self.b1_im,
+                                 stride='single', noise=noise, bm=1)
+            h1 = self.act_func(h1_dict['h_post'])
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
+
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-            # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            # combine non-linear and linear transforms of input...
-            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
+            h2_dict = wn_conv_op(h1, w=self.w2_im, g=self.g2_im, b=self.b2_im,
+                                 stride='single', noise=noise, bm=1)
+            h2 = h2_dict['h_post']
         else:
             # apply direct short-cut conv layer
-            h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+            h2_dict = wn_conv_op(full_input, w=self.w3_im, g=self.g3_im, b=self.b3_im,
+                                 stride='single', noise=noise, bm=1)
+            h2 = h2_dict['h_post']
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        out_mean = h4[:,:self.rand_chans,:,:]
-        out_logvar = h4[:,self.rand_chans:,:,:]
+        out_mean = h2[:,:self.rand_chans,:,:]
+        out_logvar = h2[:,self.rand_chans:,:,:]
         return out_mean, out_logvar, None
 
 ####################################
