@@ -1751,8 +1751,8 @@ class GenConvPertModule(object):
         # initialize third conv layer parameters
         self.w3 = weight_ifn((2*self.out_chans, self.conv_chans, fd, fd),
                                 "{}_w3".format(self.mod_name))
-        self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
-        self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
+        self.g3 = gain_ifn((2*self.out_chans), "{}_g3".format(self.mod_name))
+        self.b3 = bias_ifn((2*self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # record weight normalization parameters
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
@@ -1855,8 +1855,9 @@ class GenConvPertModule(object):
         #                      stride='single', noise=noise, bm=bm)
         # h2 = self.act_func(h2_dict['h_post'])
 
+        # compute perturbation and gating values
         h3_dict = wn_conv_op_2(h1, w=self.w3, g=self.g3, b=self.b3,
-                             stride='single', noise=noise, bm=bm)
+                               stride='single', noise=noise, bm=bm)
         h3 = h3_dict['h_post']
 
         h3_pert = h3[:,:self.out_chans,:,:]
