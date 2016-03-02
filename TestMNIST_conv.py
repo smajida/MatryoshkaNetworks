@@ -461,6 +461,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
+wn_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in wn_params])
 if iwae_samples == 1:
     # run an inference and reconstruction pass through the generative stuff
     im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
@@ -469,6 +470,7 @@ if iwae_samples == 1:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
     wn_init_cost = im_res_dict['wn_mean_cost'] + im_res_dict['wn_std_cost']
+    wn_opt_cost = wn_init_cost + wn_reg_cost
 
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg,2), T.flatten(Xg_recon,2),
@@ -509,6 +511,7 @@ else:
     log_p_z = sum(im_res_dict['log_p_z'])
     log_q_z = sum(im_res_dict['log_q_z'])
     wn_init_cost = im_res_dict['wn_mean_cost'] + im_res_dict['wn_std_cost']
+    wn_opt_cost = wn_init_cost + wn_reg_cost
 
     log_p_x = T.sum(log_prob_bernoulli( \
                     T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
@@ -571,7 +574,7 @@ t = time()
 print("Computing gradients...")
 gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
 inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
-wn_updates, wn_grads = wn_updater(wn_params, wn_init_cost, return_grads=True)
+wn_updates, wn_grads = wn_updater(wn_params, wn_opt_cost, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
@@ -593,7 +596,7 @@ g_cost_outputs = g_basic_costs
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
 i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
 g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
-wn_train_func = theano.function([Xg], wn_init_cost, updates=wn_updates)   # train to init WN params
+wn_train_func = theano.function([Xg], wn_opt_cost, updates=wn_updates)   # train to init WN params
 
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
@@ -616,7 +619,7 @@ for epoch in range(1, 10):
         g_batch_count += 1.
     g_epoch_cost = g_epoch_cost / g_batch_count
     str1 = "Pre-Epoch {}: ({})".format(epoch, desc.upper())
-    str2 = "    -- wn_init_cost: {0:.4f}".format(g_epoch_cost)
+    str2 = "    -- wn_opt_cost: {0:.4f}".format(g_epoch_cost)
     joint_str = "\n".join([str1, str2])
     print(joint_str)
     out_file.write(joint_str+"\n")
