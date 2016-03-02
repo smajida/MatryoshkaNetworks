@@ -86,7 +86,7 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
 def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
     # set each output channel to have unit norm afferent weights
     # conv weight shape: (out_chans, in_chans, rows, cols)
-    
+
     #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
     #w_n = w / w_norms.dimshuffle(0,'x','x','x')
 
@@ -128,7 +128,7 @@ def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
 def wn_fc_op(input, w, g, b, noise=None):
     # set each output channel to have unit norm afferent weights
     # fc weight shape: (in_chans, out_chans)
-    
+
     #w_norms = T.sqrt(T.sum(w**2.0, axis=0))
     #w_n = w / w_norms.dimshuffle('x',0)
 
@@ -1223,6 +1223,9 @@ class GenTopModule(object):
         self.g3 = gain_ifn((self.out_dim), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_dim), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
+        # record weight normalization parameters
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def load_params(self, param_dict):
@@ -1275,18 +1278,24 @@ class GenTopModule(object):
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape
+
         if self.use_fc:
-            h1 = T.dot(rand_vals, self.w1)
-            h1 = h1 + self.b1.dimshuffle('x',0)
-            h1 = add_noise(h1, noise=noise)
-            h1 = self.act_func(h1)
+            # apply first internal fc layer
+            h1_dict = wn_fc_op(rand_vals, w=self.w1, g=self.g1, b=self.b1,
+                               noise=noise)
+            h1 = self.act_func(h1_dict['h_post'])
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
+
+            # feedforward from fc layer to output
+            h2_dict = wn_fc_op(h1, w=self.w2, g=self.g2, b=self.b2,
+                               noise=noise)
+            h2 = self.act_func(h2_dict['h_post'])
         else:
-            h2 = T.dot(rand_vals, self.w3)
-        h2 = h2 + self.b3.dimshuffle('x',0)
-        h2 = add_noise(h2, noise=noise)
-        h2 = self.act_func(h2)
+            # feedforward directly from rand_vals
+            h2_dict = wn_fc_op(rand_vals, w=self.w3, g=self.g3, b=self.b3,
+                               noise=noise)
+            h2 = self.act_func(h2_dict['h_post'])
+
         if len(self.out_shape) > 1:
             # reshape vector outputs for use as conv layer inputs
             h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
@@ -2244,7 +2253,7 @@ class InfConvGRUModuleIMS(object):
             rows = td_input.shape[2]
             cols = td_input.shape[3]
             T.alloc(0.0, b_size, self.im_chans, rows, cols)
-        
+
         # prepare input to gating functions
         if self.mod_type == 0:
             gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
