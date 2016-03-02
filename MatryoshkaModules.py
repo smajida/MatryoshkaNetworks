@@ -1581,8 +1581,8 @@ class GenConvPertModule(object):
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # record weight normalization parameters
-        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
-                          self.g3_im, self.b3_im]
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def share_params(self, source_module):
@@ -1608,8 +1608,8 @@ class GenConvPertModule(object):
         self.b3 = source_module.b3
         self.params.extend([self.w3, self.g3, self.b3])
         # record weight normalization parameters
-        self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
-                          self.g3_im, self.b3_im]
+        self.wn_params = [self.g1, self.b1, self.g2, self.b2,
+                          self.g3, self.b3]
         return
 
     def load_params(self, param_dict):
