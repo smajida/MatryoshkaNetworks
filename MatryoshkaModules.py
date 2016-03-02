@@ -86,185 +86,14 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
 
 
 
-
-def wn_conv_op_0(input, w, g, b, stride='single', noise=None, bm=1):
-    # set each output channel to have unit norm afferent weights
-    # conv weight shape: (out_chans, in_chans, rows, cols)
-
-    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
-
-    w_n = w
-
-    # compute convolution
-    if stride == 'single':
-        # no resizing
-        h_pre = dnn_conv(input, w_n, subsample=(1, 1), border_mode=(bm, bm))
-    elif stride == 'double':
-        # downsampling, 2x2 stride
-        h_pre = dnn_conv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    else:
-        # upsampling, 0.5x0.5 stride
-        h_pre = deconv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    # compute channel-wise stats before rescale and shift
-    # conv result shape: (batch, out_chans, rows, cols)
-    pre_mean = T.mean(T.mean(T.mean(h_pre, axis=0), axis=2), axis=1)
-    pre_res = (h_pre - pre_mean.dimshuffle('x',0,'x','x'))
-    pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
-
-    # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
-    h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
-
-    # compute channel-wise stats after rescale and shift
-    post_mean = T.mean(T.mean(T.mean(h_post, axis=0), axis=2), axis=1)
-    post_res = (h_post - post_mean.dimshuffle('x',0,'x','x'))
-    post_std = T.sqrt(T.mean(T.mean(T.mean(post_res**2.0, axis=0), axis=2), axis=1))
-
-    # add noise
-    h_post = add_noise(h_post, noise=noise)
-
-    # return important quantities in a dict
-    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
-                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
-    return res_dict
-
-def wn_conv_op_1(input, w, g, b, stride='single', noise=None, bm=1):
-    # set each output channel to have unit norm afferent weights
-    # conv weight shape: (out_chans, in_chans, rows, cols)
-
-    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
-
-    w_n = w
-
-    # compute convolution
-    if stride == 'single':
-        # no resizing
-        h_pre = dnn_conv(input, w_n, subsample=(1, 1), border_mode=(bm, bm))
-    elif stride == 'double':
-        # downsampling, 2x2 stride
-        h_pre = dnn_conv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    else:
-        # upsampling, 0.5x0.5 stride
-        h_pre = deconv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    # compute channel-wise stats before rescale and shift
-    # conv result shape: (batch, out_chans, rows, cols)
-    pre_mean = T.mean(T.mean(T.mean(h_pre, axis=0), axis=2), axis=1)
-    pre_res = (h_pre - pre_mean.dimshuffle('x',0,'x','x'))
-    pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
-
-    # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
-    h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
-
-    # compute channel-wise stats after rescale and shift
-    post_mean = T.mean(T.mean(T.mean(h_post, axis=0), axis=2), axis=1)
-    post_res = (h_post - post_mean.dimshuffle('x',0,'x','x'))
-    post_std = T.sqrt(T.mean(T.mean(T.mean(post_res**2.0, axis=0), axis=2), axis=1))
-
-    # add noise
-    h_post = add_noise(h_post, noise=noise)
-
-    # return important quantities in a dict
-    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
-                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
-    return res_dict
-
-
-def wn_conv_op_2(input, w, g, b, stride='single', noise=None, bm=1):
-    # set each output channel to have unit norm afferent weights
-    # conv weight shape: (out_chans, in_chans, rows, cols)
-
-    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
-
-    w_n = w
-
-    # compute convolution
-    if stride == 'single':
-        # no resizing
-        h_pre = dnn_conv(input, w_n, subsample=(1, 1), border_mode=(bm, bm))
-    elif stride == 'double':
-        # downsampling, 2x2 stride
-        h_pre = dnn_conv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    else:
-        # upsampling, 0.5x0.5 stride
-        h_pre = deconv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    # compute channel-wise stats before rescale and shift
-    # conv result shape: (batch, out_chans, rows, cols)
-    pre_mean = T.mean(T.mean(T.mean(h_pre, axis=0), axis=2), axis=1)
-    pre_res = (h_pre - pre_mean.dimshuffle('x',0,'x','x'))
-    pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
-
-    # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
-    h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
-
-    # compute channel-wise stats after rescale and shift
-    post_mean = T.mean(T.mean(T.mean(h_post, axis=0), axis=2), axis=1)
-    post_res = (h_post - post_mean.dimshuffle('x',0,'x','x'))
-    post_std = T.sqrt(T.mean(T.mean(T.mean(post_res**2.0, axis=0), axis=2), axis=1))
-
-    # add noise
-    h_post = add_noise(h_post, noise=noise)
-
-    # return important quantities in a dict
-    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
-                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
-    return res_dict
-
-def wn_conv_op_3(input, w, g, b, stride='single', noise=None, bm=1):
-    # set each output channel to have unit norm afferent weights
-    # conv weight shape: (out_chans, in_chans, rows, cols)
-
-    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
-
-    w_n = w
-
-    # compute convolution
-    if stride == 'single':
-        # no resizing
-        h_pre = dnn_conv(input, w_n, subsample=(1, 1), border_mode=(bm, bm))
-    elif stride == 'double':
-        # downsampling, 2x2 stride
-        h_pre = dnn_conv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    else:
-        # upsampling, 0.5x0.5 stride
-        h_pre = deconv(input, w_n, subsample=(2, 2), border_mode=(bm, bm))
-    # compute channel-wise stats before rescale and shift
-    # conv result shape: (batch, out_chans, rows, cols)
-    pre_mean = T.mean(T.mean(T.mean(h_pre, axis=0), axis=2), axis=1)
-    pre_res = (h_pre - pre_mean.dimshuffle('x',0,'x','x'))
-    pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
-
-    # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
-    h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
-
-    # compute channel-wise stats after rescale and shift
-    post_mean = T.mean(T.mean(T.mean(h_post, axis=0), axis=2), axis=1)
-    post_res = (h_post - post_mean.dimshuffle('x',0,'x','x'))
-    post_std = T.sqrt(T.mean(T.mean(T.mean(post_res**2.0, axis=0), axis=2), axis=1))
-
-    # add noise
-    h_post = add_noise(h_post, noise=noise)
-
-    # return important quantities in a dict
-    res_dict = {'h_pre': h_pre, 'pre_mean': pre_mean, 'pre_std': pre_std,
-                'h_post': h_post, 'post_mean': post_mean, 'post_std': post_std}
-    return res_dict
-
-
 def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
     # set each output channel to have unit norm afferent weights
     # conv weight shape: (out_chans, in_chans, rows, cols)
 
-    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
+    w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
+    w_n = w / w_norms.dimshuffle(0,'x','x','x')
 
-    w_n = w
+    #w_n = w
 
     # compute convolution
     if stride == 'single':
@@ -303,10 +132,10 @@ def wn_fc_op(input, w, g, b, noise=None):
     # set each output channel to have unit norm afferent weights
     # fc weight shape: (in_chans, out_chans)
 
-    #w_norms = T.sqrt(T.sum(w**2.0, axis=0))
-    #w_n = w / w_norms.dimshuffle('x',0)
+    w_norms = T.sqrt(T.sum(w**2.0, axis=0))
+    w_n = w / w_norms.dimshuffle('x',0)
 
-    w_n = w
+    #w_n = w
 
     # compute initial linear transform
     h_pre = T.dot(input, w_n)
@@ -907,14 +736,14 @@ class BasicConvPertModule(object):
                                share_mask=share_mask)
 
         # apply first internal conv layer
-        h1_dict = wn_conv_op_0(input, w=self.w1, g=self.g1, b=self.b1,
+        h1_dict = wn_conv_op(input, w=self.w1, g=self.g1, b=self.b1,
                              stride='single', noise=noise, bm=bm)
         h1 = self.act_func(h1_dict['h_post'])
         h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                             share_mask=share_mask)
 
         # apply second internal conv layer
-        h2_dict = wn_conv_op_0(h1, w=self.w2, g=self.g2, b=self.b2,
+        h2_dict = wn_conv_op(h1, w=self.w2, g=self.g2, b=self.b2,
                              stride='single', noise=noise, bm=bm)
         h2 = h2_dict['h_post']
 
@@ -1033,7 +862,7 @@ class BasicConvModule(object):
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
 
-        h1_dict = wn_conv_op_1(input, w=self.w1, g=self.g1, b=self.b1,
+        h1_dict = wn_conv_op(input, w=self.w1, g=self.g1, b=self.b1,
                              stride=self.stride, noise=noise, bm=bm)
         h1 = self.act_func(h1_dict['h_post'])
 
@@ -1846,7 +1675,7 @@ class GenConvPertModule(object):
 
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
-        h1_dict = wn_conv_op_2(pert_input, w=self.w1, g=self.g1, b=self.b1,
+        h1_dict = wn_conv_op(pert_input, w=self.w1, g=self.g1, b=self.b1,
                              stride='single', noise=noise, bm=bm)
         h1 = self.act_func(h1_dict['h_post'])
 
@@ -1856,7 +1685,7 @@ class GenConvPertModule(object):
         # h2 = self.act_func(h2_dict['h_post'])
 
         # compute perturbation and gating values
-        h3_dict = wn_conv_op_2(h1, w=self.w3, g=self.g3, b=self.b3,
+        h3_dict = wn_conv_op(h1, w=self.w3, g=self.g3, b=self.b3,
                                stride='single', noise=noise, bm=bm)
         h3 = h3_dict['h_post']
 
@@ -2674,11 +2503,11 @@ class InfConvMergeModuleIMS(object):
         """
         if self.use_td_cond:
             # transform into hidden layer
-            h1_dict = wn_conv_op_3(td_input, w=self.w1_td, g=self.g1_td, b=self.b1_td,
+            h1_dict = wn_conv_op(td_input, w=self.w1_td, g=self.g1_td, b=self.b1_td,
                                  stride='single', noise=noise, bm=1)
             h1 = self.act_func(h1_dict['h_post'])
             # transform to conditioning parameters
-            h2_dict = wn_conv_op_3(h1, w=self.w2_td, g=self.g2_td, b=self.b2_td,
+            h2_dict = wn_conv_op(h1, w=self.w2_td, g=self.g2_td, b=self.b2_td,
                                  stride='single', noise=noise, bm=1)
             h2 = h2_dict['h_post']
 
