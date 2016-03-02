@@ -74,12 +74,12 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
-iwae_samples = 5  # number of samples to use in MEN bound
+iwae_samples = 8  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 gen_mt = 0
-inf_mt = 1
+inf_mt = 0
 use_td_cond = False
 
 ntrain = Xtr.shape[0]
