@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_seed_1234'
+desc = 'test_conv_new_matnet_seed_1234_mega_deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -82,8 +82,8 @@ use_td_noise = False
 gen_mt = 0
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 6
+depth_14x14 = 6
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -156,7 +156,7 @@ for i in range(depth_7x7):
 td_module_3 = \
 BasicConvModule(
     in_chans=(ngf*2),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
@@ -170,9 +170,9 @@ for i in range(depth_14x14):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
     new_module = \
     GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
+        in_chans=(ngf*1),
+        out_chans=(ngf*1),
+        conv_chans=(ngf*1),
         rand_chans=nz1,
         filt_shape=(3,3),
         use_rand=multi_rand,
@@ -190,7 +190,7 @@ for i in range(depth_14x14):
 td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
@@ -257,7 +257,7 @@ bu_modules_7x7.reverse() # reverse, to match "evaluation order"
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvModule(
-    in_chans=(ngf*2),
+    in_chans=(ngf*1),
     out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
@@ -272,9 +272,9 @@ for i in range(depth_14x14):
     mod_name = 'bu_mod_4{}'.format(alphabet[i])
     new_module = \
     BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
+        in_chans=(ngf*1),
+        out_chans=(ngf*1),
+        conv_chans=(ngf*1),
         filt_shape=(3,3),
         use_conv=use_conv,
         apply_bn=use_bn,
@@ -290,7 +290,7 @@ bu_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
-    out_chans=(ngf*2),
+    out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='double',
     act_func=act_func,
@@ -347,11 +347,11 @@ for i in range(depth_14x14):
     mod_name = 'im_mod_4{}'.format(alphabet[i])
     new_module = \
     InfConvMergeModule(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
+        td_chans=(ngf*1),
+        bu_chans=(ngf*1),
+        im_chans=(ngf*1),
         rand_chans=nz1,
-        conv_chans=(ngf*2),
+        conv_chans=(ngf*1),
         use_conv=True,
         use_td_cond=use_td_cond,
         apply_bn=use_bn,
@@ -608,7 +608,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 
 
 # pre-train for a few "mini epochs" on the weight normalization init costs
-for epoch in range(1, 10):
+for epoch in range(1, 25):
     Xtr = shuffle(Xtr)
     Xtr_mini = Xtr[0:10000,:]
     g_epoch_cost = 0.

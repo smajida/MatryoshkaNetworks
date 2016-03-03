@@ -1733,7 +1733,7 @@ class GenConvPertModule(object):
         #h2_mean_cost, h2_std_cost = wn_costs(h2_dict)
         h3_mean_cost, h3_std_cost = wn_costs(h3_dict)
         self.wn_mean_cost = h1_mean_cost + h3_mean_cost #+ h2_mean_cost
-        self.wn_std_cost = h1_std_cost + h3_std_dict #+ h2_std_cost
+        self.wn_std_cost = h1_std_cost + h3_std_cost #+ h2_std_cost
 
         if rand_shapes:
             result = [output, rand_shape]
