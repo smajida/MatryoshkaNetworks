@@ -379,17 +379,6 @@ merge_info = {
     'td_mod_3': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
-                  'bu_source': 'bu_mod_4b', 'im_source': None},
-    'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
-                  'bu_source': 'bu_mod_4c', 'im_source': None},
-    'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
-                  'bu_source': 'bu_mod_4d', 'im_source': None},
-    'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
-                  'bu_source': 'bu_mod_4e', 'im_source': None},
-    'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
-                  'bu_source': 'bu_mod_5', 'im_source': None},
-
     'td_mod_5': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
     'td_mod_6': {'td_type': 'pass', 'im_module': None,
