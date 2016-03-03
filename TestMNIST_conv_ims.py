@@ -85,8 +85,8 @@ use_td_noise = False
 gen_mt = 0
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 2
-depth_14x14 = 2
+depth_7x7 = 1
+depth_14x14 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -778,7 +778,16 @@ for epoch in range(1, niter+niter_decay+1):
         # train inference model on samples from the generator
         #smb_img = binarize_data(sample_func(rand_gen(size=(nbatch, nz0))))
         #i_result = i_train_func(smb_img)
+        # SHRINK LEARNING RATE
+        lr = lrt.get_value(borrow=False)
+        lr = lr / 50.0
+        lrt.set_value(floatX(lr))
+        # TRAIN MUTUAL INFO
         mi_result = mi_train_func(rand_gen(size=(nbatch, nz0)))
+        # RESTORE LEARNING RATE
+        lr = lrt.get_value(borrow=False)
+        lr = lr * 50.0
+        #
         i_result = [(1. * mi_result) for v in g_result]
         i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
