@@ -79,7 +79,6 @@ multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
-iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
@@ -453,6 +452,140 @@ inf_gen_model = InfGenModel(
     output_transform=output_transform
 )
 
+
+#########################################
+# Setup the information merging modules #
+#########################################
+
+# FC -> (7, 7)
+im_module_1_mi = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*2, 7, 7),
+    fc_dim=ngfc,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_1_mi'
+)
+
+# grow the (7, 7) -> (7, 7) part of network
+im_modules_7x7_mi = []
+for i in range(depth_7x7):
+    mod_name = 'im_mod_2{}_mi'.format(alphabet[i])
+    new_module = \
+    InfConvMergeModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        rand_chans=nz1,
+        conv_chans=(ngf*2),
+        use_conv=True,
+        use_td_cond=use_td_cond,
+        apply_bn=use_bn,
+        mod_type=inf_mt,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    im_modules_7x7_mi.append(new_module)
+
+# (7, 7) -> (14, 14)
+im_module_3_mi = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='half',
+    act_func=act_func,
+    mod_name='im_mod_3_mi'
+)
+
+# grow the (14, 14) -> (14, 14) part of network
+im_modules_14x14_mi = []
+for i in range(depth_14x14):
+    mod_name = 'im_mod_4{}_mi'.format(alphabet[i])
+    new_module = \
+    InfConvMergeModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        rand_chans=nz1,
+        conv_chans=(ngf*2),
+        use_conv=True,
+        use_td_cond=use_td_cond,
+        apply_bn=use_bn,
+        mod_type=inf_mt,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    im_modules_14x14_mi.append(new_module)
+
+im_modules_mi = [im_module_1_mi] + \
+                im_modules_7x7_mi + \
+                [im_module_3_mi] + \
+                im_modules_14x14_mi
+
+#
+# Setup a description for where to get conditional distributions from.
+#
+merge_info_mi = {
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1_mi',
+                 'bu_source': 'bu_mod_1', 'im_source': None},
+
+    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3_mi',
+                 'bu_source': None, 'im_source': im_modules_7x7_mi[-1].mod_name}
+
+    'td_mod_5': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None}
+}
+
+# add merge_info entries for the modules with latent variables
+for i in range(depth_7x7):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_2{}_mi'.format(alphabet[i])
+    im_src_name = 'im_mod_1_mi'
+    bu_src_name = 'bu_mod_3'
+    if i > 0:
+        im_src_name = 'im_mod_2{}_mi'.format(alphabet[i-1])
+    if i < (depth_7x7 - 1):
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
+    # add entry for this TD module
+    merge_info_mi[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+for i in range(depth_14x14):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_4{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_4{}_mi'.format(alphabet[i])
+    im_src_name = 'im_mod_3_mi'
+    bu_src_name = 'bu_mod_5'
+    if i > 0:
+        im_src_name = 'im_mod_4{}_mi'.format(alphabet[i-1])
+    if i < (depth_14x14 - 1):
+        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
+    # add entry for this TD module
+    merge_info_mi[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+
+
+# construct the "wrapper" object for managing all our modules
+inf_gen_model_mi = InfGenModel(
+    bu_modules=bu_modules,
+    td_modules=td_modules,
+    im_modules=im_modules_mi,
+    merge_info=merge_info_mi,
+    output_transform=output_transform
+)
+
+
+
 #inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
@@ -463,7 +596,10 @@ lam_kld = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
+gen_params_mi = inf_gen_model_mi.gen_params
+inf_params_mi = inf_gen_model_mi.inf_params
 g_params = gen_params + inf_params
+mi_params = gen_params_mi + inf_params_mi
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
@@ -478,95 +614,67 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
-if iwae_samples == 1:
-    # run an inference and reconstruction pass through the generative stuff
-    im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_res_dict['td_output']
-    kld_dict = im_res_dict['kld_dict']
-    log_p_z = sum(im_res_dict['log_p_z'])
-    log_q_z = sum(im_res_dict['log_q_z'])
+# run an inference and reconstruction pass through the generative stuff
+im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+Xg_recon = im_res_dict['td_output']
+kld_dict = im_res_dict['kld_dict']
+log_p_z = sum(im_res_dict['log_p_z'])
+log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                    do_sum=False), axis=1)
+log_p_x = T.sum(log_prob_bernoulli( \
+                T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                do_sum=False), axis=1)
 
-    # compute reconstruction error part of free-energy
-    vae_obs_nlls = -1.0 * log_p_x
-    vae_nll_cost = T.mean(vae_obs_nlls)
+# compute reconstruction error part of free-energy
+vae_obs_nlls = -1.0 * log_p_x
+vae_nll_cost = T.mean(vae_obs_nlls)
 
-    # compute per-layer KL-divergence part of cost
-    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-    # compute total per-observation KL-divergence part of cost
-    vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-    vae_kld_cost = T.mean(vae_obs_klds)
+# compute per-layer KL-divergence part of cost
+kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
+vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+# compute total per-observation KL-divergence part of cost
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_kld_cost = T.mean(vae_obs_klds)
 
-    # compute per-layer KL-divergence part of cost
-    alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
-    alt_kld_cost = T.mean(sum(alt_layer_klds))
+# compute per-layer KL-divergence part of cost
+alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+alt_kld_cost = T.mean(sum(alt_layer_klds))
 
-    # compute the KLd cost to use for optimization
-    opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+# compute the KLd cost to use for optimization
+opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 
-    # combined cost for generator stuff
-    vae_cost = vae_nll_cost + vae_kld_cost
-    vae_obs_costs = vae_obs_nlls + vae_obs_klds
-    # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
-    full_cost_inf = full_cost_gen
-else:
-    # run an inference and reconstruction pass through the generative stuff
-    batch_size = Xg.shape[0]
-    Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
-    im_res_dict = inf_gen_model.apply_im(Xg_rep, noise=noise)
-    Xg_rep_recon = im_res_dict['td_output']
-    kld_dict = im_res_dict['kld_dict']
-    log_p_z = sum(im_res_dict['log_p_z'])
-    log_q_z = sum(im_res_dict['log_q_z'])
-
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
-                    do_sum=False), axis=1)
-
-    # compute quantities used in the IWAE bound
-    log_ws_vec = log_p_x + log_p_z - log_q_z
-    log_ws_mat = log_ws_vec.reshape((batch_size, iwae_samples))
-    ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
-    ws_mat = T.exp(ws_mat)
-    nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-    nis_weights = theano.gradient.disconnected_grad(nis_weights)
-
-    vae_obs_costs = -1.0 * T.sum((nis_weights * log_ws_mat), axis=1)
-
-    # free-energy log likelihood bound...
-    vae_cost = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
-
-    # compute a VAE-style reconstruction cost averaged over IWAE samples
-    vae_obs_nlls = -1.0 * T.mean(log_p_x.reshape((batch_size, iwae_samples)), axis=1)
-    vae_nll_cost = T.mean(vae_obs_nlls)
-    # compute per-layer KL-divergence part of cost
-    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-    # compute total per-observation KL-divergence part of cost
-    vae_obs_klds = sum([T.mean(mod_kld.reshape((batch_size, iwae_samples)), axis=1) \
-                         for mod_name, mod_kld in kld_tuples])
-    vae_kld_cost = T.mean(vae_obs_klds)
-
-    # costs used by the optimizer -- train on combined VAE/IWAE costs
-    full_cost_gen = ((1.0 - lam_vae[0]) * T.mean(vae_obs_costs)) + \
-                    (lam_vae[0] * (vae_nll_cost + vae_kld_cost)) + \
-                    vae_reg_cost
-    full_cost_inf = full_cost_gen
-
-    # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_rd['td_output']
+# combined cost for generator stuff
+vae_cost = vae_nll_cost + vae_kld_cost
+vae_obs_costs = vae_obs_nlls + vae_obs_klds
+# cost used by the optimizer
+full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
+full_cost_inf = full_cost_gen
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+
+
+#########################################################
+# CONSTRUCT COST VARIABLES FOR THE MI PART OF OBJECTIVE #
+#########################################################
+# parameter regularization part of cost
+mi_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in mi_params])
+# draw samples from the model
+Xd_mi = inf_gen_model_mi.apply_td(rand_vals=td_inputs, batch_size=None)
+# binarize the samples suitably for fake pass-through gradients
+s = cu_rng.uniform(size=Xd_mi.shape, low=0.0, high=1.0, \
+                   dtype=theano.config.floatX)
+e = (s < Xd_mi) - Xd_mi
+Xd_bin_mi = Xd_mi + theano.gradient.disconnected_grad(e)
+
+# run an inference and reconstruction pass through the generative stuff
+mi_res_dict = inf_gen_model_mi.apply_im(Xd_bin_mi, noise=noise)
+log_q_z_mi = sum(mi_res_dict['log_q_z'])
+
+# cost used by the optimizer
+full_cost_mi = T.mean(-1. * log_q_z_mi) + mi_reg_cost
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
@@ -574,16 +682,17 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 
 # stuff for performing updates
 lrt = sharedX(0.001)
-#lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+mi_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
 gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
 inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
+mi_updates, mi_grads = mi_updater(mi_params, full_cost_mi, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
@@ -602,9 +711,10 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
+g_train_func  = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
+i_train_func  = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+g_eval_func   = theano.function([Xg], g_cost_outputs)                      # evaluate model costs
+mi_train_func = theano.function([Z0], full_cost_mi, updates=mi_updates)    # train for max mutual info
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
