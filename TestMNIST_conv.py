@@ -82,8 +82,8 @@ use_td_noise = False
 gen_mt = 0
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 6
+depth_14x14 = 6
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -594,9 +594,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+#i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
 g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
-wn_train_func = theano.function([Xg], wn_opt_cost, updates=wn_updates)   # train to init WN params
+#wn_train_func = theano.function([Xg], wn_opt_cost, updates=wn_updates)   # train to init WN params
 
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
@@ -607,23 +607,23 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 
-# pre-train for a few "mini epochs" on the weight normalization init costs
-for epoch in range(1, 10):
-    Xtr = shuffle(Xtr)
-    Xtr_mini = Xtr[0:10000,:]
-    g_epoch_cost = 0.
-    g_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr_mini, size=nbatch), total=(Xtr_mini.shape[0]/nbatch)):
-        imb_img = train_transform(imb)
-        g_epoch_cost += 1. * wn_train_func(floatX(imb_img))
-        g_batch_count += 1.
-    g_epoch_cost = g_epoch_cost / g_batch_count
-    str1 = "Pre-Epoch {}: ({})".format(epoch, desc.upper())
-    str2 = "    -- wn_opt_cost: {0:.4f}".format(g_epoch_cost)
-    joint_str = "\n".join([str1, str2])
-    print(joint_str)
-    out_file.write(joint_str+"\n")
-    out_file.flush()
+# # pre-train for a few "mini epochs" on the weight normalization init costs
+# for epoch in range(1, 10):
+#     Xtr = shuffle(Xtr)
+#     Xtr_mini = Xtr[0:10000,:]
+#     g_epoch_cost = 0.
+#     g_batch_count = 0.
+#     for imb in tqdm(iter_data(Xtr_mini, size=nbatch), total=(Xtr_mini.shape[0]/nbatch)):
+#         imb_img = train_transform(imb)
+#         g_epoch_cost += 1. * wn_train_func(floatX(imb_img))
+#         g_batch_count += 1.
+#     g_epoch_cost = g_epoch_cost / g_batch_count
+#     str1 = "Pre-Epoch {}: ({})".format(epoch, desc.upper())
+#     str2 = "    -- wn_opt_cost: {0:.4f}".format(g_epoch_cost)
+#     joint_str = "\n".join([str1, str2])
+#     print(joint_str)
+#     out_file.write(joint_str+"\n")
+#     out_file.flush()
 
 ############################################
 # ACTUAL MODEL TRAINING, FOR REAL PURPOSES #
@@ -676,9 +676,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        i_result = i_train_func(smb_img)
-        i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        #smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #i_result = i_train_func(smb_img)
+        #i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        i_epoch_costs = g_epoch_costs
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
@@ -742,34 +743,6 @@ for epoch in range(1, niter+niter_decay+1):
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
-        for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-        # draw images...
-        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 

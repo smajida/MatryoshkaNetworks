@@ -110,7 +110,7 @@ def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
     pre_std = T.sqrt(T.mean(T.mean(T.mean(pre_res**2.0, axis=0), axis=2), axis=1))
 
     # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
+    #h_post = h_pre * g.dimshuffle('x',0,'x','x')  # channel-wise rescale
     h_post = h_post + b.dimshuffle('x',0,'x','x') # channel-wise shift
 
     # compute channel-wise stats after rescale and shift
@@ -144,7 +144,7 @@ def wn_fc_op(input, w, g, b, noise=None):
     pre_std = T.sqrt(T.mean(pre_res**2.0, axis=0))
 
     # rescale and shift
-    h_post = h_pre * g.dimshuffle('x',0)  # channel-wise rescale
+    #h_post = h_pre * g.dimshuffle('x',0)  # channel-wise rescale
     h_post = h_post + b.dimshuffle('x',0) # channel-wise shift
 
     # compute channel-wise stats after rescale and shift
