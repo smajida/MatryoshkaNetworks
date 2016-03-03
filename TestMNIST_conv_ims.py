@@ -86,8 +86,8 @@ use_td_noise = False
 gen_mt = 0
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -325,12 +325,24 @@ bu_modules = [bu_module_6, bu_module_5] + \
 # Setup the information merging modules #
 #########################################
 
+# FC -> (7, 7)
+im_module_1 = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*2, 7, 7),
+    fc_dim=ngfc,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_1'
+)
+
 # grow the (7, 7) -> (7, 7) part of network
 im_modules_7x7 = []
 for i in range(depth_7x7):
     mod_name = 'im_mod_2{}'.format(alphabet[i])
     new_module = \
-    InfConvMergeModule(
+    InfConvMergeModuleIMS(
         td_chans=(ngf*2),
         bu_chans=(ngf*2),
         im_chans=(ngf*2),
@@ -345,12 +357,24 @@ for i in range(depth_7x7):
     )
     im_modules_7x7.append(new_module)
 
+# (7, 7) -> (14, 14)
+im_module_3 = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='half',
+    act_func=act_func,
+    mod_name='im_mod_3'
+)
+
 # grow the (14, 14) -> (14, 14) part of network
 im_modules_14x14 = []
 for i in range(depth_14x14):
     mod_name = 'im_mod_4{}'.format(alphabet[i])
     new_module = \
-    InfConvMergeModule(
+    InfConvMergeModuleIMS(
         td_chans=(ngf*2),
         bu_chans=(ngf*2),
         im_chans=(ngf*2),
@@ -365,34 +389,20 @@ for i in range(depth_14x14):
     )
     im_modules_14x14.append(new_module)
 
-im_modules = im_modules_7x7 + im_modules_14x14
+im_modules = [im_module_1] + \
+             im_modules_7x7 + \
+             [im_module_3] + \
+             im_modules_14x14
 
 #
-# Setup a description for where to get conditional distributions from. When
-# there's no info here for a particular top-down module, we won't pass any
-# random variables explicitly into the module, which will cause the module to
-# generate its own random variables (unconditionally). When a "bu_module" is
-# provided and an "im_module" is not, the conditional distribution is specified
-# directly by the bu_module's output, and no merging (via an im_module) is
-# required. This probably only happens at the "top" of the generator.
+# Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': None,
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
-    'td_mod_3': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None},
-
-    'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
-                  'bu_source': 'bu_mod_4b', 'im_source': None},
-    'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
-                  'bu_source': 'bu_mod_4c', 'im_source': None},
-    'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
-                  'bu_source': 'bu_mod_4d', 'im_source': None},
-    'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
-                  'bu_source': 'bu_mod_4e', 'im_source': None},
-    'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
-                  'bu_source': 'bu_mod_5', 'im_source': None},
+    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
+                 'bu_source': None, 'im_source': im_modules_7x7[-1].mod_name}
 
     'td_mod_5': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
@@ -405,10 +415,12 @@ for i in range(depth_7x7):
     td_type = 'cond'
     td_mod_name = 'td_mod_2{}'.format(alphabet[i])
     im_mod_name = 'im_mod_2{}'.format(alphabet[i])
-    im_src_name = None
-    bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
-    if i == (depth_7x7 - 1):
-        bu_src_name = 'bu_mod_3'
+    im_src_name = 'im_mod_1'
+    bu_src_name = 'bu_mod_3'
+    if i > 0:
+        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
+    if i < (depth_7x7 - 1):
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -418,10 +430,12 @@ for i in range(depth_14x14):
     td_type = 'cond'
     td_mod_name = 'td_mod_4{}'.format(alphabet[i])
     im_mod_name = 'im_mod_4{}'.format(alphabet[i])
-    im_src_name = None
-    bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
-    if i == (depth_14x14 - 1):
-        bu_src_name = 'bu_mod_5'
+    im_src_name = 'im_mod_3'
+    bu_src_name = 'bu_mod_5'
+    if i > 0:
+        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
+    if i < (depth_14x14 - 1):
+        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
