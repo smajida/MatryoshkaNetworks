@@ -711,10 +711,15 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func  = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func  = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func   = theano.function([Xg], g_cost_outputs)                      # evaluate model costs
-mi_train_func = theano.function([Z0], full_cost_mi, updates=mi_updates)    # train for max mutual info
+print("    -- mutual information function...")
+mi_train_func = theano.function([Z0], full_cost_mi, updates=mi_updates)
+print("    -- full model function...")
+g_train_func  = theano.function([Xg], g_cost_outputs, updates=g_updates)
+print("    -- inference only function...")
+i_train_func  = theano.function([Xg], g_cost_outputs, updates=inf_updates)
+print("    -- eval function...")
+g_eval_func   = theano.function([Xg], g_cost_outputs)
+
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -771,8 +776,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        i_result = i_train_func(smb_img)
+        #smb_img = binarize_data(sample_func(rand_gen(size=(nbatch, nz0))))
+        #i_result = i_train_func(smb_img)
+        mi_result = mi_train_func(rand_gen(size=(nbatch, nz0)))
+        i_result = [(1. * mi_result) for v in g_result]
         i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
