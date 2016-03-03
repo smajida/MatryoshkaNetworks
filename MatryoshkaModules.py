@@ -88,10 +88,10 @@ def wn_conv_op(input, w, g, b, stride='single', noise=None, bm=1):
     # set each output channel to have unit norm afferent weights
     # conv weight shape: (out_chans, in_chans, rows, cols)
 
-    w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
-    w_n = w / w_norms.dimshuffle(0,'x','x','x')
+    #w_norms = T.sqrt(T.sum(T.sum(T.sum(w**2.0, axis=3), axis=2), axis=1))
+    #w_n = w / w_norms.dimshuffle(0,'x','x','x')
 
-    #w_n = w
+    w_n = w
 
     # compute convolution
     if stride == 'single':
@@ -130,10 +130,10 @@ def wn_fc_op(input, w, g, b, noise=None):
     # set each output channel to have unit norm afferent weights
     # fc weight shape: (in_chans, out_chans)
 
-    w_norms = T.sqrt(T.sum(w**2.0, axis=0))
-    w_n = w / w_norms.dimshuffle('x',0)
+    #w_norms = T.sqrt(T.sum(w**2.0, axis=0))
+    #w_n = w / w_norms.dimshuffle('x',0)
 
-    #w_n = w
+    w_n = w
 
     # compute initial linear transform
     h_pre = T.dot(input, w_n)
@@ -660,19 +660,19 @@ class BasicConvPertModule(object):
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
+        self.params.extend([self.w1, self.b1])
         # initialize second conv layer parameters
         self.w2 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.out_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # initialize alternate conv layer parameters
         self.w3 = weight_ifn((self.out_chans, self.in_chans, fd, fd),
                              "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # gain and bias parameters are involved in weight normalization
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
@@ -687,17 +687,17 @@ class BasicConvPertModule(object):
         self.w1 = source_module.w1
         self.g1 = source_module.g1
         self.b1 = source_module.b1
-        self.params.extend([self.w1, self.g1, self.b1])
+        self.params.extend([self.w1, self.b1])
         # initialize second conv layer parameters
         self.w2 = source_module.w2
         self.g2 = source_module.g2
         self.b2 = source_module.b2
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # initialize alternate conv layer parameters
         self.w3 = source_module.w3
         self.g3 = source_module.g3
         self.b3 = source_module.b3
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # gain and bias parameters are involved in weight normalization
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
@@ -843,7 +843,7 @@ class BasicConvModule(object):
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.out_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
-        self.params = [self.w1, self.g1, self.b1]
+        self.params = [self.w1, self.b1]
         # bunch up the weight normalization parameters
         self.wn_params = [self.g1, self.b1]
         return
@@ -1234,19 +1234,19 @@ class GenTopModule(object):
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.fc_dim), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.fc_dim), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
+        self.params.extend([self.w1, self.b1])
         # initialize second layer parameters
         self.w2 = weight_ifn((self.fc_dim, self.out_dim),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.out_dim), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.out_dim), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # initialize single layer parameters
         self.w3 = weight_ifn((self.rand_dim, self.out_dim),
                              "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_dim), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_dim), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # record weight normalization parameters
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
@@ -1603,19 +1603,19 @@ class GenConvPertModule(object):
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.g1, self.b1])
+        self.params.extend([self.w1, self.b1])
         # initialize second conv layer parameters
         self.w2 = weight_ifn((self.conv_chans, self.conv_chans, fd, fd),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.conv_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # initialize third conv layer parameters
         self.w3 = weight_ifn((2*self.out_chans, self.conv_chans, fd, fd),
                                 "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((2*self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((2*self.out_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # record weight normalization parameters
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
@@ -1632,17 +1632,17 @@ class GenConvPertModule(object):
         self.w1 = source_module.w1
         self.g1 = source_module.g1
         self.b1 = source_module.b1
-        self.params.extend([self.w1, self.g1, self.b1])
+        self.params.extend([self.w1, self.b1])
         # share second conv layer parameters
         self.w2 = source_module.w2
         self.g2 = source_module.g2
         self.b2 = source_module.b2
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # share third conv layer parameters
         self.w3 = source_module.w3
         self.g3 = source_module.g3
         self.b3 = source_module.b3
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # record weight normalization parameters
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
@@ -2417,19 +2417,19 @@ class InfConvMergeModuleIMS(object):
                                     "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
-        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        self.params.extend([self.w1_im, self.b1_im])
         # initialize second conv layer parameters (from hidden layer -> IM state perturbation)
         self.w2_im = weight_ifn((self.im_chans, self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
         self.g2_im = gain_ifn((self.im_chans), "{}_g2_im".format(self.mod_name))
         self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
-        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        self.params.extend([self.w2_im, self.b2_im])
         # initialize convolutional projection layer parameters
         self.w3_im = weight_ifn((2*self.rand_chans, self.im_chans, 3, 3),
                                 "{}_w3_im".format(self.mod_name))
         self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.b3_im])
         # record weight normalization parameters
         self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
                           self.g3_im, self.b3_im]
@@ -2439,13 +2439,13 @@ class InfConvMergeModuleIMS(object):
                                     "{}_w1_td".format(self.mod_name))
             self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
             self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
-            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            self.params.extend([self.w1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w2_td".format(self.mod_name))
             self.g2_td = gain_ifn((2*self.rand_chans), "{}_g2_td".format(self.mod_name))
             self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
-            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.b2_td])
             # add TD conditioning weight normalization parameters
             self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
@@ -2462,17 +2462,17 @@ class InfConvMergeModuleIMS(object):
         self.w1_im = source_module.w1_im
         self.g1_im = source_module.g1_im
         self.b1_im = source_module.b1_im
-        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        self.params.extend([self.w1_im, self.b1_im])
         # initialize second conv layer parameters
         self.w2_im = source_module.w2_im
         self.g2_im = source_module.g2_im
         self.b2_im = source_module.b2_im
-        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        self.params.extend([self.w2_im, self.b2_im])
         # initialize conditioning layer parameters
         self.w3_im = source_module.w3_im
         self.g3_im = source_module.g3_im
         self.b3_im = source_module.b3_im
-        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.b3_im])
         # weight normalization params
         self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
                           self.g3_im, self.b3_im]
@@ -2481,12 +2481,12 @@ class InfConvMergeModuleIMS(object):
             self.w1_td = source_module.w1_td
             self.g1_td = source_module.g1_td
             self.b1_td = source_module.b1_td
-            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            self.params.extend([self.w1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = source_module.w2_td
             self.g2_td = source_module.g2_td
             self.b2_td = source_module.b2_td
-            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.b2_td])
             # add TD conditioning weight normalization parameters
             self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
@@ -2695,13 +2695,13 @@ class InfConvMergeModule(object):
                                     "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.conv_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
-        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        self.params.extend([self.w1_im, self.b1_im])
         # initialize second conv layer parameters
         self.w2_im = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                 "{}_w2_im".format(self.mod_name))
         self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
         self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
-        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        self.params.extend([self.w2_im, self.b2_im])
         # initialize convolutional projection layer parameters
         if self.mod_type == 0:
             # module acts just on TD and BU input
@@ -2713,7 +2713,7 @@ class InfConvMergeModule(object):
                                     "{}_w3_im".format(self.mod_name))
         self.g3_im = bias_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
-        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.b3_im])
         # record weight normalization parameters
         self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
                           self.g3_im, self.b3_im]
@@ -2724,7 +2724,7 @@ class InfConvMergeModule(object):
                                     "{}_w1_td".format(self.mod_name))
             self.g1_td = gain_ifn((self.conv_chans), "{}_g1_td".format(self.mod_name))
             self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
-            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            self.params.extend([self.w1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = weight_ifn((2*self.rand_chans, self.conv_chans, 3, 3),
                                     "{}_w2_td".format(self.mod_name))
@@ -2747,17 +2747,17 @@ class InfConvMergeModule(object):
         self.w1_im = source_module.w1_im
         self.g1_im = source_module.g1_im
         self.b1_im = source_module.b1_im
-        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        self.params.extend([self.w1_im, self.b1_im])
         # initialize second conv layer parameters
         self.w2_im = source_module.w2_im
         self.g2_im = source_module.g2_im
         self.b2_im = source_module.b2_im
-        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        self.params.extend([self.w2_im, self.b2_im])
         # initialize conditioning layer parameters
         self.w3_im = source_module.w3_im
         self.g3_im = source_module.g3_im
         self.b3_im = source_module.b3_im
-        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        self.params.extend([self.w3_im, self.b3_im])
         # weight normalization params
         self.wn_params = [self.g1_im, self.b1_im, self.g2_im, self.b2_im,
                           self.g3_im, self.b3_im]
@@ -2766,12 +2766,12 @@ class InfConvMergeModule(object):
             self.w1_td = source_module.w1_td
             self.g1_td = source_module.g1_td
             self.b1_td = source_module.b1_td
-            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            self.params.extend([self.w1_td, self.b1_td])
             # initialize second conv layer parameters
             self.w2_td = source_module.w2_td
             self.g2_td = source_module.g2_td
             self.b2_td = source_module.b2_td
-            self.params.extend([self.w2_td, self.g2_td, self.b2_td])
+            self.params.extend([self.w2_td, self.b2_td])
             # add TD conditioning weight normalization parameters
             self.wn_params.extend([self.g1_td, self.b1_td, self.g2_td, self.b2_td])
         return
@@ -3102,19 +3102,19 @@ class InfTopModule(object):
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
-        self.params = [self.w1, self.g1, self.b1]
+        self.params = [self.w1, self.b1]
         # initialize weights for transform out of fc layer
         self.w2 = weight_ifn((self.fc_chans, 2*self.rand_chans),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((2*self.rand_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((2*self.rand_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.g2, self.b2])
+        self.params.extend([self.w2, self.b2])
         # initialize weights for transform straight from input to output
         self.w3 = weight_ifn((self.bu_chans, 2*self.rand_chans),
                                 "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((2*self.rand_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((2*self.rand_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.g3, self.b3])
+        self.params.extend([self.w3, self.b3])
         # gain and bias parameters are involved in weight normalization
         self.wn_params = [self.g1, self.b1, self.g2, self.b2,
                           self.g3, self.b3]
