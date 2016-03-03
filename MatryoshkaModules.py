@@ -169,7 +169,7 @@ def wn_costs(res_dict):
     post_std = res_dict['post_std']
     # make costs to encourage zero mean and unit standard deviation
     mean_cost = T.mean(post_mean**2.0)
-    std_cost = T.mean((post_std - 1.0)**2.0)
+    std_cost = T.mean((post_std - 0.1)**2.0)
     return mean_cost, std_cost
 
 #######################################
