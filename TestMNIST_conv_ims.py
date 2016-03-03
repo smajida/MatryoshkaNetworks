@@ -662,7 +662,9 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 # parameter regularization part of cost
 mi_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in mi_params])
 # draw samples from the model
-Xd_mi = inf_gen_model_mi.apply_td(rand_vals=td_inputs, batch_size=None)
+Xd_mi, z_dict = inf_gen_model_mi.apply_td(rand_vals=td_inputs, 
+                                          batch_size=None,
+                                          return_z_dict=True)
 # binarize the samples suitably for fake pass-through gradients
 s = cu_rng.uniform(size=Xd_mi.shape, low=0.0, high=1.0, \
                    dtype=theano.config.floatX)
@@ -670,7 +672,8 @@ e = (s < Xd_mi) - Xd_mi
 Xd_bin_mi = Xd_mi + theano.gradient.disconnected_grad(e)
 
 # run an inference and reconstruction pass through the generative stuff
-mi_res_dict = inf_gen_model_mi.apply_im(Xd_bin_mi, noise=noise)
+mi_res_dict = inf_gen_model_mi.apply_im(Xd_bin_mi, noise=noise,
+                                        z_dict=z_dict)
 log_q_z_mi = sum(mi_res_dict['log_q_z'])
 
 # cost used by the optimizer

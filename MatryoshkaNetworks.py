@@ -832,7 +832,8 @@ class InfGenModel(object):
         pickle_file.close()
         return
 
-    def apply_td(self, rand_vals=None, batch_size=None, noise=None):
+    def apply_td(self, rand_vals=None, batch_size=None, noise=None,
+                 return_z_dict=False):
         """
         Compute a stochastic top-down pass using the given random values.
         -- batch_size must be provided if rand_vals is None, so we can
@@ -849,6 +850,7 @@ class InfGenModel(object):
             # based on a user-provided batch_size.
             rand_vals = [None for i in range(len(self.td_modules))]
         td_noise = noise if self.use_td_noise else None
+        z_dict = {}  # dict for the z used in the top-down pass
         td_acts = []
         for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
@@ -882,6 +884,8 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_acts[-1],
                                                rand_vals=rvs,
                                                noise=td_noise)
+                # record the z values used by this TD module
+                z_dict[td_mod_name] = rvs
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules (no rand input)
@@ -889,7 +893,10 @@ class InfGenModel(object):
                                            noise=td_noise)
             td_acts.append(td_act_i)
         # apply some transform (e.g. tanh or sigmoid) to final activations
-        result = self.output_transform(td_acts[-1])
+        if return_z_dict:
+            result = [self.output_transform(td_acts[-1]), z_dict]
+        else:
+            result = self.output_transform(td_acts[-1])
         return result
 
     def apply_bu(self, input, noise=None):
@@ -910,7 +917,7 @@ class InfGenModel(object):
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im(self, input, noise=None):
+    def apply_im(self, input, noise=None, z_dict=None):
         """
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
@@ -932,7 +939,13 @@ class InfGenModel(object):
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
         kld_dict = {}
-        z_dict = {}
+        if not (z_dict is None):
+            # user provided z values, no need to sample
+            generate_z = False
+        else:
+            # need to sample z values, as none were given
+            generate_z = True
+            z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
@@ -959,8 +972,12 @@ class InfGenModel(object):
                     cond_mean_td = 0.0 * cond_mean_im
                     cond_logvar_td = 0.0 * cond_logvar_im
                     # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if generate_z:
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
+                        z_dict[td_mod_name] = cond_rvs
+                    else:
+                        cond_rvs = z_dict[td_mod_name]
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
@@ -988,8 +1005,12 @@ class InfGenModel(object):
                     cond_mean_td = self.dist_scale[0] * cond_mean_td
                     cond_logvar_td = self.dist_scale[0] * cond_logvar_td
                     # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if generate_z:
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
+                        z_dict[td_mod_name] = cond_rvs
+                    else:
+                        cond_rvs = z_dict[td_mod_name]
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
@@ -1015,7 +1036,6 @@ class InfGenModel(object):
                                             do_sum=True)
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
-                z_dict[td_mod_name] = cond_rvs
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules
@@ -1044,6 +1064,12 @@ class InfGenModel(object):
         im_res_dict['log_p_z'] = logz_dict['log_p_z']
         im_res_dict['log_q_z'] = logz_dict['log_q_z']
         return im_res_dict
+
+
+
+
+
+
 
     def _construct_generate_samples(self):
         """
