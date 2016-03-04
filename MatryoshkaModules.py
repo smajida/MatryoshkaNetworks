@@ -3495,12 +3495,14 @@ class InfFCMergeModule(object):
         act_func: ---
         unif_drop: drop rate for uniform dropout
         apply_bn: whether to use batch normalization
+        use_td_cond: whether to use top-down conditioning
         use_bn_params: whether to use BN params
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, td_chans, bu_chans, fc_chans, rand_chans,
                  use_fc=True, act_func='relu',
                  unif_drop=0.0, apply_bn=True,
+                 use_td_cond=False,
                  use_bn_params=True,
                  mod_name='im_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
@@ -3522,6 +3524,7 @@ class InfFCMergeModule(object):
             self.act_func = lambda x: lrelu(x)
         self.unif_drop = unif_drop
         self.apply_bn = apply_bn
+        self.use_td_cond = use_td_cond
         self.use_bn_params = True
         self.mod_name = mod_name
         self._init_params() # initialize parameters
@@ -3531,36 +3534,100 @@ class InfFCMergeModule(object):
         """
         Initialize parameters for the layers in this module.
         """
+        self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
-        # initialize weights for transform into fc layer
-        self.w1 = weight_ifn(((self.td_chans+self.bu_chans), self.fc_chans),
-                             "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((self.fc_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((self.fc_chans), "{}_b1".format(self.mod_name))
-        self.params = [self.w1, self.g1, self.b1]
-        # initialize weights for transform out of fc layer
-        self.w2 = weight_ifn((self.fc_chans, 2*self.rand_chans),
-                             "{}_w2".format(self.mod_name))
-        self.params.extend([self.w2])
-        # initialize weights for transform straight from input to output
-        self.w3 = weight_ifn(((self.td_chans+self.bu_chans), 2*self.rand_chans),
-                    "{}_w3".format(self.mod_name))
-        self.b3 = bias_ifn((2*self.rand_chans), "{}_b3".format(self.mod_name))
-        self.params.extend([self.w3, self.b3])
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize first layer parameters (from input -> hidden layer)
+        self.w1_im = weight_ifn(((self.td_chans+self.bu_chans), self.fc_chans),
+                                "{}_w1_im".format(self.mod_name))
+        self.g1_im = gain_ifn((self.fc_chans), "{}_g1_im".format(self.mod_name))
+        self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize second layer parameters (from hidden layer -> IM state perturbation)
+        self.w2_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
+                                "{}_w2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
+        self.w3_im = weight_ifn(((self.td_chans+self.bu_chans), 2*self.rand_chans),
+                                "{}_w3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = weight_ifn((self.td_chans, self.fc_chans),
+                                    "{}_w1_td".format(self.mod_name))
+            self.g1_td = gain_ifn((self.fc_chans), "{}_g1_td".format(self.mod_name))
+            self.b1_td = bias_ifn((self.fc_chans), "{}_b1_td".format(self.mod_name))
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            # initialize second conv layer parameters
+            self.w2_td = weight_ifn((self.fc_chans, 2*self.rand_chans),
+                                    "{}_w2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.params.extend([self.w2_td, self.b2_td])
+        return
+
+    def share_params(self, source_module):
+        """
+        Set this module to share parameters with source_module.
+        """
+        self.params = []
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize first layer parameters
+        self.w1_im = source_module.w1_im
+        self.g1_im = source_module.g1_im
+        self.b1_im = source_module.b1_im
+        self.params.extend([self.w1_im, self.g1_im, self.b1_im])
+        # initialize second layer parameters
+        self.w2_im = source_module.w2_im
+        self.g2_im = source_module.g2_im
+        self.b2_im = source_module.b2_im
+        self.params.extend([self.w2_im, self.g2_im, self.b2_im])
+        # initialize conditioning layer parameters
+        self.w3_im = source_module.w3_im
+        self.g3_im = source_module.g3_im
+        self.b3_im = source_module.b3_im
+        self.params.extend([self.w3_im, self.g3_im, self.b3_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = source_module.w1_td
+            self.g1_td = source_module.g1_td
+            self.b1_td = source_module.b1_td
+            self.params.extend([self.w1_td, self.g1_td, self.b1_td])
+            # initialize second layer parameters
+            self.w2_td = source_module.w2_td
+            self.b2_td = source_module.b2_td
+            self.params.extend([self.w2_td, self.b2_td])
         return
 
     def load_params(self, param_dict):
         """
         Load module params directly from a dict of numpy arrays.
         """
-        self.w1.set_value(floatX(param_dict['w1']))
-        self.g1.set_value(floatX(param_dict['g1']))
-        self.b1.set_value(floatX(param_dict['b1']))
-        self.w2.set_value(floatX(param_dict['w2']))
-        self.w3.set_value(floatX(param_dict['w3']))
-        self.b3.set_value(floatX(param_dict['b3']))
+        # load info-merge parameters
+        self.w1_im.set_value(floatX(param_dict['w1_im']))
+        self.g1_im.set_value(floatX(param_dict['g1_im']))
+        self.b1_im.set_value(floatX(param_dict['b1_im']))
+        self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.g2_im.set_value(floatX(param_dict['g2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
+        self.w3_im.set_value(floatX(param_dict['w3_im']))
+        self.g3_im.set_value(floatX(param_dict['g3_im']))
+        self.b3_im.set_value(floatX(param_dict['b3_im']))
+        if self.use_td_cond:
+            self.w1_td.set_value(floatX(param_dict['w1_td']))
+            self.g1_td.set_value(floatX(param_dict['g1_td']))
+            self.b1_td.set_value(floatX(param_dict['b1_td']))
+            self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.b2_td.set_value(floatX(param_dict['b2_td']))
         return
 
     def dump_params(self):
@@ -3568,26 +3635,48 @@ class InfFCMergeModule(object):
         Dump module params directly to a dict of numpy arrays.
         """
         param_dict = {}
-        param_dict['w1'] = self.w1.get_value(borrow=False)
-        param_dict['g1'] = self.g1.get_value(borrow=False)
-        param_dict['b1'] = self.b1.get_value(borrow=False)
-        param_dict['w2'] = self.w2.get_value(borrow=False)
-        param_dict['w3'] = self.w3.get_value(borrow=False)
-        param_dict['b3'] = self.b3.get_value(borrow=False)
+        # dump info-merge conditioning parameters
+        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
+        param_dict['g1_im'] = self.g1_im.get_value(borrow=False)
+        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
+        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['g2_im'] = self.g2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
+        param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
+        param_dict['g3_im'] = self.g3_im.get_value(borrow=False)
+        param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        if self.use_td_cond:
+            param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
+            param_dict['g1_td'] = self.g1_td.get_value(borrow=False)
+            param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
+            param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
         return param_dict
 
     def apply_td(self, td_input, noise=None):
         """
-        Apply this fully connected inference module to the given input. This
-        produces a set of means and log variances for some Gaussian variables.
+        Put distributions over stuff based on td_input.
         """
-        batch_size = td_input.shape[0]
-        rand_shape = (batch_size, self.rand_chans)
-        # NOTE: top-down conditioning path is not implemented yet
-        out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
-                                 dtype=theano.config.floatX)
-        out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
-                                   dtype=theano.config.floatX)
+        if self.use_td_cond:
+            h1 = T.dot(td_input, self.w1_td)
+            if self.apply_bn:
+                h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h1 = h1 + self.b1_td.dimshuffle('x',0)
+                h1 = add_noise(h1, noise=noise)
+            h1 = self.act_func(h1)
+            h2 = T.dot(h1, self.w2_td)
+            h3 = h2 + self.b2_td.dimshuffle('x',0)
+            out_mean = h3[:,:self.rand_chans]
+            out_logvar = 0.0 * h3[:,self.rand_chans:] # use fixed logvar...
+        else:
+            batch_size = td_input.shape[0]
+            rand_shape = (batch_size, self.rand_chans)
+            out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                     dtype=theano.config.floatX)
+            out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
+                                       dtype=theano.config.floatX)
         return out_mean, out_logvar
 
     def apply_im(self, td_input, bu_input, im_input=None, 
@@ -3606,24 +3695,24 @@ class InfFCMergeModule(object):
                                   share_mask=share_mask)
         if self.use_fc:
             # feedforward to fc layer
-            h1 = T.dot(full_input, self.w1)
+            h1 = T.dot(full_input, self.w1_im)
             if self.apply_bn:
-                h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
+                h1 = h1 + self.b1_im.dimshuffle('x',0)
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # feedforward from fc layer to output
-            h2 = T.dot(h1, self.w2)
+            h2 = T.dot(h1, self.w2_im)
             # feedforward directly from BU/TD inputs to output
-            h3 = T.dot(full_input, self.w3)
-            h4 = h2 + h3 + self.b3.dimshuffle('x',0)
+            h3 = T.dot(full_input, self.w3_im)
+            h4 = h2 + h3 + self.b3_im.dimshuffle('x',0)
         else:
             # feedforward directly from BU input to output
-            h3 = T.dot(full_input, self.w3)
-            h4 = h3 + self.b3.dimshuffle('x',0)
+            h3 = T.dot(full_input, self.w3_im)
+            h4 = h3 + self.b3_im.dimshuffle('x',0)
         # split output into mean and log variance parts
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
