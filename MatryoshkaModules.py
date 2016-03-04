@@ -2148,6 +2148,8 @@ class GenFCResModule(object):
         # derp a derp parameter
         self.wx = weight_ifn((self.rand_chans, self.in_chans),
                                 "{}_wx".format(self.mod_name))
+        self._w_ = weight_ifn((self.in_chans, self.in_chans),
+                                "{}_w_".format(self.mod_name))
         self.params.extend([self.wx])
         return
 
@@ -2214,7 +2216,10 @@ class GenFCResModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # perturb top-down input with a simple function of latent variables
-        input = self.act_func( input + T.dot(rand_vals, self.wx) )
+        _input_ = T.dot(input, self._w_)
+        input = input + _input_
+        pert_vals = T.dot(rand_vals, self.wx)
+        input = self.act_func( input + pert_vals )
 
         # stack random values on top of input
         full_input = T.concatenate([0.0*rand_vals, input], axis=1)
@@ -3579,9 +3584,9 @@ class InfFCMergeModule(object):
         batch_size = td_input.shape[0]
         rand_shape = (batch_size, self.rand_chans)
         # NOTE: top-down conditioning path is not implemented yet
-        out_mean = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.001,
+        out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
                                  dtype=theano.config.floatX)
-        out_logvar = cu_rng.norma1(size=rand_shape, avg=0.0, std=0.001,
+        out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.001,
                                    dtype=theano.config.floatX)
         return out_mean, out_logvar
 

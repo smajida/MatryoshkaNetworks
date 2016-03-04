@@ -1,19 +1,3 @@
-Skip to content
-This repository  
-Search
-Pull requests
-Issues
-Gist
- @Philip-Bachman
- Unwatch 1
-  Star 4
- Fork 1 Philip-Bachman/MatryoshkaNetworks
- Code  Issues 0  Pull requests 0  Wiki  Pulse  Graphs  Settings
-Tree: bf5bba5cb4 Find file Copy pathMatryoshkaNetworks/TestMNIST_fc.py
-8f650fc  5 hours ago
-@Philip-Bachman Philip-Bachman testing alternate BU network style
-1 contributor
-RawBlameHistory    694 lines (616 sloc)  21.8 KB
 import os
 from time import time
 import numpy as np
@@ -52,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin'
+desc = 'test_fc_all_noise_010_dyn_bin_old'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -129,7 +113,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*1,),
+    out_shape=(ngf*8,),
     fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
@@ -426,7 +410,7 @@ im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
 # Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
+    'td_mod_1': {'td_type': 'top', 'im_module': None,
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_2': {'td_type': 'cond', 'im_module': 'im_mod_2',
