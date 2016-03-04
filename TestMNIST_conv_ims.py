@@ -42,7 +42,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_ims_im_res_late_cond_3'
+desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -612,9 +612,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        i_result = i_train_func(smb_img)
-        i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 5:
+            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+            i_result = i_train_func(smb_img)
+            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
