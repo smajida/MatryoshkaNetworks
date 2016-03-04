@@ -42,7 +42,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_mutual_info'
+desc = 'test_conv_new_matnet_mutual_info_train_all'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -85,8 +85,8 @@ use_td_noise = False
 gen_mt = 0
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 3
+depth_14x14 = 3
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -685,10 +685,11 @@ full_cost_mi = T.mean(-1. * log_q_z_mi) + mi_reg_cost
 
 # stuff for performing updates
 lrt = sharedX(0.001)
+lrt_mi = sharedX(0.001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-mi_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+mi_updater = updates.Adam(lr=lrt_mi, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
@@ -696,6 +697,7 @@ print("Computing gradients...")
 gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
 inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
 mi_updates, mi_grads = mi_updater(mi_params, full_cost_mi, return_grads=True)
+#mi_updates, mi_grads = mi_updater(inf_params_mi, full_cost_mi, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
@@ -781,17 +783,14 @@ for epoch in range(1, niter+niter_decay+1):
         # train inference model on samples from the generator
         #smb_img = binarize_data(sample_func(rand_gen(size=(nbatch, nz0))))
         #i_result = i_train_func(smb_img)
-        # SHRINK LEARNING RATE
+        # SET RELATIVE LEARNING RATE
         lr = lrt.get_value(borrow=False)
-        lr = lr / 50.0
-        lrt.set_value(floatX(lr))
+        lr = lr / 20.0
+        lrt_mi.set_value(floatX(lr))
         # TRAIN MUTUAL INFO
         mi_result = mi_train_func(rand_gen(size=(nbatch, nz0)))
-        # RESTORE LEARNING RATE
-        lr = lrt.get_value(borrow=False)
-        lr = lr * 50.0
-        #
         i_result = [(1. * mi_result) for v in g_result]
+        #i_result = [1. for v in g_result]
         i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
