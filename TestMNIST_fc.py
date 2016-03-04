@@ -217,8 +217,8 @@ td_module_8 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
-    apply_bn=use_bn,
-    act_func=act_func,
+    apply_bn=False,
+    act_func='ident',
     mod_name='td_mod_8'
 )
 
@@ -623,7 +623,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(0.0,1.0,10)
+kld_weights = np.linspace(0.0,1.0,25)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
