@@ -3585,7 +3585,8 @@ class InfFCMergeModule(object):
                                    dtype=theano.config.floatX)
         return out_mean, out_logvar
 
-    def apply_im(self, td_input, bu_input, share_mask=False, noise=None):
+    def apply_im(self, td_input, bu_input, im_input=None, 
+                 share_mask=False, noise=None):
         """
         Apply this fully connected inference module to the given input. This
         produces a set of means and log variances for some Gaussian variables.
@@ -3621,7 +3622,7 @@ class InfFCMergeModule(object):
         # split output into mean and log variance parts
         out_mean = h4[:,:self.rand_chans]
         out_logvar = h4[:,self.rand_chans:]
-        return out_mean, out_logvar
+        return out_mean, out_logvar, None
 
 #######################################################
 # INFERENCE FULLY CONNECTED MODULE FOR TOP OF NETWORK #
