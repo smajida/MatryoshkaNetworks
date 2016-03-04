@@ -81,6 +81,8 @@ use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
 inf_mt = 1
 
+alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
+
 ntrain = Xtr.shape[0]
 
 
