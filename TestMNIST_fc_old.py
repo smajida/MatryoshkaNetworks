@@ -244,6 +244,7 @@ InfTopModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'

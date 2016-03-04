@@ -3741,7 +3741,7 @@ class InfTopModule(object):
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, bu_chans, fc_chans, rand_chans,
-                 use_fc=True, act_func='relu',
+                 use_fc=True, use_sc=False, act_func='relu',
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True,
                  mod_name='dm_fc'):
@@ -3751,6 +3751,7 @@ class InfTopModule(object):
         self.fc_chans = fc_chans
         self.rand_chans = rand_chans
         self.use_fc = use_fc
+        self.use_sc = use_sc
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -3842,7 +3843,10 @@ class InfTopModule(object):
             h2 = T.dot(h1, self.w2)
             # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
-            h4 = h2 + self.b3.dimshuffle('x',0) #+ h3
+            if self.use_sc:
+                h4 = h2 + self.b3.dimshuffle('x',0) + h3
+            else:
+                h4 = h2 + self.b3.dimshuffle('x',0)
         else:
             # feedforward directly from BU input to output
             h3 = T.dot(bu_input, self.w3)
