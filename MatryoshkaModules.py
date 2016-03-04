@@ -2329,8 +2329,10 @@ class GenFCPertModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w3 = weight_ifn((self.fc_chans, 2*self.out_chans),
-                              "{}_w3".format(self.mod_name))
+        self.w3 = weight_ifn(((self.in_chans+self.rand_chans), 2*self.out_chans),
+                             "{}_w3".format(self.mod_name))
+        # self.w3 = weight_ifn((self.fc_chans, 2*self.out_chans),
+        #                       "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
@@ -2399,14 +2401,14 @@ class GenFCPertModule(object):
         # stack random values on top of input
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal fc layer
-        h1 = T.dot(pert_input, self.w1)
-        if self.apply_bn:
-            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h1 = h1 + self.b1.dimshuffle('x',0)
-            h1 = add_noise(h1, noise=noise)
-        h1 = self.act_func(h1)
+        # h1 = T.dot(pert_input, self.w1)
+        # if self.apply_bn:
+        #     h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+        #                     use_gb=self.use_bn_params)
+        # else:
+        #     h1 = h1 + self.b1.dimshuffle('x',0)
+        #     h1 = add_noise(h1, noise=noise)
+        # h1 = self.act_func(h1)
         # # apply second internal fc layer
         # h2 = T.dot(h1, self.w2)
         # if self.apply_bn:
@@ -2419,7 +2421,9 @@ class GenFCPertModule(object):
         # # apply final fc layer
         # h3 = T.dot(h2, self.w3)
 
-        h3 = T.dot(h1, self.w3)
+        h3 = T.dot(pert_input, self.w3)
+
+        #h3 = T.dot(h1, self.w3)
         h3_pert = h3[:,:self.out_chans]
         h3_gate = h3[:,self.out_chans:]
 
