@@ -29,7 +29,9 @@ from load import load_binarized_mnist, load_udm
 #
 from MatryoshkaModules import BasicFCModule, GenFCResModule, \
                               GenTopModule, InfFCMergeModule, \
-                              InfTopModule, BasicFCResModule
+                              InfTopModule, BasicFCResModule, \
+                              BasicFCPertModule, GenFCPertModule, \
+                              InfFCMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
@@ -62,8 +64,8 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 64          # # of dim for Z1
+nz0 = 32          # # of dim for Z0
+nz1 = 32          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
@@ -72,12 +74,12 @@ niter_decay = 1000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-act_func = 'relu' # activation func to use where they can be selected
+act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
-use_td_noise = True # whether to use noise in TD pass
-use_bu_noise = True # whether to use noise in BU pass
-derp_factor = 9001 # it's over 9000
+use_td_noise = False # whether to use noise in TD pass
+use_bu_noise = False # whether to use noise in BU pass
+inf_mt = 1
 
 ntrain = Xtr.shape[0]
 
@@ -120,118 +122,111 @@ GenTopModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
-) # output is (batch, ngf*2)
+)
 
-td_module_1a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_1a'
-) # output is (batch, ngf*8)
+# stochastic perturbation layers
+td_modules_2 = []
+for i in range(2):
+    mod_name = 'td_mod_2{}'.format(alphabet[i])
+    new_module = \
+    GenFCPertModule(
+        in_chans=(ngf*1),
+        out_chans=(ngf*1),
+        fc_chans=(ngf*1),
+        rand_chans=nz1,
+        use_rand=multi_rand,
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    td_modules_2.append(new_module)
+# manual stuff for parameter sharing....
 
-td_module_2 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_2'
-) # output is (batch, ngf*4)
-
-td_module_2a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_2a'
-) # output is (batch, ngf*8)
-
+# shape change layer
 td_module_3 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*2),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_3'
-) # output is (batch, ngf*8)
+)
 
-td_module_3a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_3a'
-) # output is (batch, ngf*8)
+# stochastic perturbation layers
+td_modules_4 = []
+for i in range(2):
+    mod_name = 'td_mod_4{}'.format(alphabet[i])
+    new_module = \
+    GenFCPertModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        fc_chans=(ngf*2),
+        rand_chans=nz1,
+        use_rand=multi_rand,
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    td_modules_4.append(new_module)
+# manual stuff for parameter sharing....
 
-td_module_4 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_4'
-) # output is (batch, ngf*16)
-
-td_module_4a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_4a'
-) # output is (batch, ngf*8)
-
+# shape change layer
 td_module_5 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
+BasicFCModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*4),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_5'
-) # output is (batch, ngf*16)
+)
 
-td_module_6 = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_6'
-) # output is (batch, ngf*8)
+# stochastic perturbation layers
+td_modules_6 = []
+for i in range(2):
+    mod_name = 'td_mod_6{}'.format(alphabet[i])
+    new_module = \
+    GenFCPertModule(
+        in_chans=(ngf*4),
+        out_chans=(ngf*4),
+        fc_chans=(ngf*4),
+        rand_chans=nz1,
+        use_rand=multi_rand,
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    td_modules_6.append(new_module)
+# manual stuff for parameter sharing....
 
 td_module_7 = \
 BasicFCModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_7'
+)
+
+td_module_8 = \
+BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
-    apply_bn=False,
-    use_noise=False,
-    act_func='ident',
-    mod_name='td_mod_7'
-) # output is (batch, nx)
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_8'
+)
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1] + \
+             td_modules_2 + \
+             [td_module_3] + \
+             td_modules_4 + \
+             [td_module_5] + \
+             td_modules_6 + \
+             [td_module_7, td_module_8]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -240,7 +235,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*1),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -249,179 +244,252 @@ InfTopModule(
     mod_name='bu_mod_1'
 )
 
-bu_module_1a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_1a'
-) # output is (batch, ngf*8)
+# deterministic perturbation layers
+bu_modules_2 = []
+for i in range(2):
+    mod_name = 'bu_mod_2{}'.format(alphabet[i])
+    new_module = \
+    BasicFCPertModule(
+        in_chans=(ngf*1),
+        out_chans=(ngf*1),
+        fc_chans=(ngf*1),
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    bu_modules_2.append(new_module)
+bu_modules_2.reverse()
+# manual stuff for parameter sharing....
 
-bu_module_2 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_2'
-)
-
-bu_module_2a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_2a'
-) # output is (batch, ngf*8)
-
+# shape change layer
 bu_module_3 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
+BasicFCModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*1),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_3'
 )
 
-bu_module_3a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_3a'
-) # output is (batch, ngf*8)
+# deterministic perturbation layers
+bu_modules_4 = []
+for i in range(2):
+    mod_name = 'bu_mod_4{}'.format(alphabet[i])
+    new_module = \
+    BasicFCPertModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        fc_chans=(ngf*2),
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    bu_modules_4.append(new_module)
+bu_modules_4.reverse()
+# manual stuff for parameter sharing....
 
-bu_module_4 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_4'
-)
-
-bu_module_4a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_4a'
-) # output is (batch, ngf*8)
-
+# shape change layer
 bu_module_5 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
+BasicFCModule(
+    in_chans=(ngf*4),
+    out_chans=(ngf*2),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_5'
 )
 
-bu_module_6 = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_6'
-)
+# deterministic perturbation layers
+bu_modules_6 = []
+for i in range(2):
+    mod_name = 'bu_mod_6{}'.format(alphabet[i])
+    new_module = \
+    BasicFCPertModule(
+        in_chans=(ngf*4),
+        out_chans=(ngf*4),
+        fc_chans=(ngf*4),
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    bu_modules_6.append(new_module)
+bu_modules_6.reverse()
+# manual stuff for parameter sharing....
 
 bu_module_7 = \
 BasicFCModule(
-    in_chans=nx,
-    out_chans=(ngf*8),
-    apply_bn=False,
+    in_chans=(ngf*8),
+    out_chans=(ngf*4),
+    apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_7'
 )
 
+bu_module_8 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_8'
+)
+
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_8, bu_module_7] + \
+             bu_modules_6 + \
+             [bu_module_5] + \
+             bu_modules_4 + \
+             [bu_module_3] + \
+             bu_modules_2 + \
+             [bu_module_1]
+             
 
 
 #########################################
 # Setup the information merging modules #
 #########################################
 
-im_module_2 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
+im_module_1 = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*1,),
+    fc_dim=ngfc,
     use_fc=True,
     apply_bn=use_bn,
     act_func=act_func,
-    mod_name='im_mod_2'
+    mod_name='im_mod_1'
 )
 
+# stochastic inference layers
+im_modules_2 = []
+for i in range(2):
+    mod_name = 'im_mod_2{}'.format(alphabet[i])
+    new_module = \
+    InfFCMergeModuleIMS(
+        td_chans=(ngf*1),
+        bu_chans=(ngf*1),
+        im_chans=(ngf*1),
+        fc_chans=(ngf*1),
+        rand_chans=nz1,
+        use_fc=use_fc,
+        act_func=act_func,
+        apply_bn=use_bn,
+        use_td_cond=use_td_cond,
+        mod_type=inf_mt,
+        mod_name=mod_name
+    )
+    im_modules_2.append(new_module)
+# manual stuff for parameter sharing....
+
+# shape change layer
 im_module_3 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
+BasicFCModule(
+    in_chans=(ngf*1),
+    out_chans=(ngf*2),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_3'
 )
 
-im_module_4 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_4'
-)
+# stochastic inference layers
+im_modules_4 = []
+for i in range(2):
+    mod_name = 'im_mod_4{}'.format(alphabet[i])
+    new_module = \
+    InfFCMergeModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        fc_chans=(ngf*2),
+        rand_chans=nz1,
+        use_fc=use_fc,
+        act_func=act_func,
+        apply_bn=use_bn,
+        use_td_cond=use_td_cond,
+        mod_type=inf_mt,
+        mod_name=mod_name
+    )
+    im_modules_4.append(new_module)
+# manual stuff for parameter sharing....
 
+# shape change layer
 im_module_5 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
+BasicFCModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*4),
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_5'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
+# stochastic inference layers
+im_modules_6 = []
+for i in range(2):
+    mod_name = 'im_mod_6{}'.format(alphabet[i])
+    new_module = \
+    InfFCMergeModuleIMS(
+        td_chans=(ngf*4),
+        bu_chans=(ngf*4),
+        im_chans=(ngf*4),
+        fc_chans=(ngf*4),
+        rand_chans=nz1,
+        use_fc=use_fc,
+        act_func=act_func,
+        apply_bn=use_bn,
+        use_td_cond=use_td_cond,
+        mod_type=inf_mt,
+        mod_name=mod_name
+    )
+    im_modules_6.append(new_module)
+# manual stuff for parameter sharing....
+
+# modules must be listed in "evaluation order"
+im_modules = [im_module_1] + \
+             im_modules_2 + \
+             [im_module_3] + \
+             im_modules_4 + \
+             [im_module_5] + \
+             im_modules_6
 
 #
-# Setup a description for where to get conditional distributions from. When
-# there's no info here for a particular top-down module, we won't pass any
-# random variables explicitly into the module, which will cause the module to
-# generate its own random variables (unconditionally). When a "bu_module" is
-# provided and an "im_module" is not, the conditional distribution is specified
-# directly by the bu_module's output, and no merging (via an im_module) is
-# required. This probably only happens at the "top" of the generator.
+# Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'bu_source': 'bu_mod_1', 'im_module': None},
-    'td_mod_2': {'bu_source': 'bu_mod_2', 'im_module': 'im_mod_2'},
-    'td_mod_3': {'bu_source': 'bu_mod_3', 'im_module': 'im_mod_3'},
-    'td_mod_4': {'bu_source': 'bu_mod_4', 'im_module': 'im_mod_4'},
-    'td_mod_5': {'bu_source': 'bu_mod_5', 'im_module': 'im_mod_5'},
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
+                 'bu_source': 'bu_mod_1', 'im_source': None},
+
+    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
+                 'bu_source': None, 'im_source': im_modules_2[-1].mod_name},
+
+    'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
+                 'bu_source': None, 'im_source': im_modules_4[-1].mod_name},
+
+    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None},
+
+    'td_mod_8': {'td_type': 'pass', 'im_module': None,
+                 'bu_source': None, 'im_source': None}
 }
+
+# add merge_info entries for the modules with latent variables
+for level in [2, 4, 6]:
+    for i in range(2):
+        td_type = 'cond'
+        td_mod_name = 'td_mod_{}{}'.format(level, alphabet[i])
+        im_mod_name = 'im_mod_{}{}'.format(level, alphabet[i])
+        im_src_name = 'im_mod_{}'.format(level-1)
+        bu_src_name = 'bu_mod_{}'.format(level+1)
+        if i > 0:
+            im_src_name = 'im_mod_{}{}'.format(level, alphabet[i-1])
+        if i < (2 - 1):
+            bu_src_name = 'bu_mod_{}{}'.format(level, alphabet[i+1])
+        # add entry for this TD module
+        merge_info[td_mod_name] = {
+            'td_type': td_type, 'im_module': im_mod_name,
+            'bu_source': bu_src_name, 'im_source': im_src_name
+        }
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
@@ -430,9 +498,7 @@ inf_gen_model = InfGenModel(
     td_modules=td_modules,
     im_modules=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform,
-    use_td_noise=use_td_noise,
-    use_bu_noise=use_bu_noise
+    output_transform=output_transform
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -554,7 +620,7 @@ n_check = 0
 n_updates = 0
 t = time()
 lam_vae.set_value(floatX([0.5]))
-kld_weights = np.linspace(0.0,1.0,25)
+kld_weights = np.linspace(0.0,1.0,10)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
