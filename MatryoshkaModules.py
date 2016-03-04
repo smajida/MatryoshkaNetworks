@@ -1325,7 +1325,7 @@ class GenTopModule(object):
     """
     def __init__(self,
                  rand_dim, fc_dim, out_shape,
-                 use_fc, apply_bn=True,
+                 use_fc, use_sc=False, apply_bn=True,
                  unif_drop=0.0,
                  act_func='relu',
                  use_bn_params=True,
@@ -1342,6 +1342,7 @@ class GenTopModule(object):
             self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
         self.fc_dim = fc_dim
         self.use_fc = use_fc
+        self.use_sc = use_sc
         self.apply_bn = apply_bn
         self.unif_drop = unif_drop
         self.use_bn_params = use_bn_params
@@ -1447,7 +1448,10 @@ class GenTopModule(object):
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-            h2 = T.dot(h1, self.w2) #+ T.dot(rand_vals, self.w3)
+            if self.use_sc:
+                h2 = T.dot(h1, self.w2) + T.dot(rand_vals, self.w3)
+            else:
+                h2 = T.dot(h1, self.w2)
         else:
             h2 = T.dot(rand_vals, self.w3)
         if self.apply_bn:
@@ -2216,8 +2220,6 @@ class GenFCResModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # perturb top-down input with a simple function of latent variables
-        _input_ = T.dot(input, self._w_)
-        input = input + _input_
         pert_vals = T.dot(rand_vals, self.wx)
         input = self.act_func( input + pert_vals )
 

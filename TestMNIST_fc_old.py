@@ -74,9 +74,9 @@ use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'relu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
-noise_std = 0.0   # amount of noise to inject in BU and IM modules
-use_td_noise = False # whether to use noise in TD pass
-use_bu_noise = False # whether to use noise in BU pass
+noise_std = 0.1   # amount of noise to inject in BU and IM modules
+use_td_noise = True # whether to use noise in TD pass
+use_bu_noise = True # whether to use noise in BU pass
 
 ntrain = Xtr.shape[0]
 
@@ -116,6 +116,7 @@ GenTopModule(
     out_shape=(ngf*8,),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
