@@ -79,6 +79,7 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
+use_td_cond = False
 inf_mt = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']

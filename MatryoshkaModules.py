@@ -2329,7 +2329,7 @@ class GenFCPertModule(object):
         self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
-        self.w3 = weight_ifn((self.fc_chans, self.out_chans),
+        self.w3 = weight_ifn((self.fc_chans, 2*self.out_chans),
                               "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
@@ -2420,8 +2420,8 @@ class GenFCPertModule(object):
         # h3 = T.dot(h2, self.w3)
 
         h3 = T.dot(h1, self.w3)
-        h3_pert = h3[:,:self.out_chans,:,:]
-        h3_gate = h3[:,self.out_chans:,:,:]
+        h3_pert = h3[:,:self.out_chans]
+        h3_gate = h3[:,self.out_chans:]
 
         # combine non-linear and linear transforms of input...
         h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
@@ -3252,10 +3252,10 @@ class InfFCMergeModuleIMS(object):
             self.act_func = lambda x: relu(x)
         else:
             self.act_func = lambda x: lrelu(x)
-        self.chan_drop = chan_drop
         self.apply_bn = apply_bn
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
+        self.unif_drop = unif_drop
         self.mod_type = mod_type
         self.mod_name = mod_name
         self._init_params() # initialize parameters
@@ -3403,8 +3403,8 @@ class InfFCMergeModuleIMS(object):
             h1 = self.act_func(h1)
             h2 = T.dot(h1, self.w2_td)
             h3 = h2 + self.b2_td.dimshuffle('x',0)
-            out_mean = h3[:,:self.rand_chans,:,:]
-            out_logvar = 0.0 * h3[:,self.rand_chans:,:,:] # use fixed logvar...
+            out_mean = h3[:,:self.rand_chans]
+            out_logvar = 0.0 * h3[:,self.rand_chans:] # use fixed logvar...
         else:
             batch_size = td_input.shape[0]
             rand_shape = (batch_size, self.rand_chans)
@@ -3455,8 +3455,8 @@ class InfFCMergeModuleIMS(object):
         # compute conditional parameters from the updated IM state
         h3 = T.dot(out_im, self.w3_im)
         h3 = h3 + self.b3_im.dimshuffle('x',0)
-        out_mean = h3[:,:self.rand_chans,:,:]
-        out_logvar = h3[:,self.rand_chans:,:,:]
+        out_mean = h3[:,:self.rand_chans]
+        out_logvar = h3[:,self.rand_chans:]
         return out_mean, out_logvar, out_im
 
 ####################################
