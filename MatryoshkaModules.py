@@ -3278,13 +3278,13 @@ class InfFCMergeModuleIMS(object):
         ############################################
         # initialize first layer parameters (from input -> hidden layer)
         if self.mod_type == 0:
-            self.w1_im = weight_ifn(((self.td_chans+self.bu_chans+self.im_chans), self.fc_chans),
+            self.w1_im = weight_ifn(((self.td_chans+self.bu_chans+self.im_chans), self.im_chans),
                                     "{}_w1_im".format(self.mod_name))
         else:
-            self.w1_im = weight_ifn(((3*self.td_chans+self.im_chans), self.fc_chans),
+            self.w1_im = weight_ifn(((3*self.td_chans+self.im_chans), self.im_chans),
                                     "{}_w1_im".format(self.mod_name))
-        self.g1_im = gain_ifn((self.fc_chans), "{}_g1_im".format(self.mod_name))
-        self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
+        self.g1_im = gain_ifn((self.im_chans), "{}_g1_im".format(self.mod_name))
+        self.b1_im = bias_ifn((self.im_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second layer parameters (from hidden layer -> IM state perturbation)
         self.w2_im = weight_ifn((self.fc_chans, self.im_chans),
@@ -3434,7 +3434,28 @@ class InfFCMergeModuleIMS(object):
         # do dropout
         full_input = fc_drop_func(full_input, self.unif_drop, share_mask=share_mask)
 
-        # apply first internal layer
+        # # apply first internal layer
+        # h1 = T.dot(full_input, self.w1_im)
+        # if self.apply_bn:
+        #     h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
+        #                     use_gb=self.use_bn_params)
+        # else:
+        #     h1 = h1 + self.b1_im.dimshuffle('x',0)
+        #     h1 = add_noise(h1, noise=noise)
+        # h1 = self.act_func(h1)
+        # h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
+        # # apply second internal layer
+        # h2 = T.dot(h1, self.w2_im)
+        # if self.apply_bn:
+        #     h2 = switchy_bn(h2, g=self.g2_im, b=self.b2_im, n=noise,
+        #                     use_gb=self.use_bn_params)
+        # else:
+        #     h2 = h2 + self.b2_im.dimshuffle('x',0)
+        #     h2 = add_noise(h2, noise=noise)
+
+        # # apply perturbation to IM input, then apply non-linearity
+        # out_im = self.act_func(im_input + h2)
+
         h1 = T.dot(full_input, self.w1_im)
         if self.apply_bn:
             h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
@@ -3442,19 +3463,7 @@ class InfFCMergeModuleIMS(object):
         else:
             h1 = h1 + self.b1_im.dimshuffle('x',0)
             h1 = add_noise(h1, noise=noise)
-        h1 = self.act_func(h1)
-        h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
-        # apply second internal layer
-        h2 = T.dot(h1, self.w2_im)
-        if self.apply_bn:
-            h2 = switchy_bn(h2, g=self.g2_im, b=self.b2_im, n=noise,
-                            use_gb=self.use_bn_params)
-        else:
-            h2 = h2 + self.b2_im.dimshuffle('x',0)
-            h2 = add_noise(h2, noise=noise)
-
-        # apply perturbation to IM input, then apply non-linearity
-        out_im = self.act_func(im_input + h2)
+        out_im = self.act_func(h1)
 
         # compute conditional parameters from the updated IM state
         h3 = T.dot(out_im, self.w3_im)
