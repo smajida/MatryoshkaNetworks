@@ -257,7 +257,7 @@ class BasicFCPertModule(object):
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True,
                  mod_name='basic_fc_res'):
-        assert (in_chans == out_chans),
+        assert (in_chans == out_chans), \
                 "no shape change in pert module."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
@@ -2281,7 +2281,7 @@ class GenFCPertModule(object):
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True, act_func='relu',
                  mod_name='gm_fc'):
-        assert (in_chans == out_chans),
+        assert (in_chans == out_chans), \
                 "no size changes in perturbation layers."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
