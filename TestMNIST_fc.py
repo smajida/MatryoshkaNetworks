@@ -70,7 +70,7 @@ ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 1000 # # of iter to linearly decay learning rate to zero
+niter_decay = 1500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -347,7 +347,7 @@ bu_modules = [bu_module_8, bu_module_7] + \
              [bu_module_3] + \
              bu_modules_2 + \
              [bu_module_1]
-             
+
 
 
 #########################################
