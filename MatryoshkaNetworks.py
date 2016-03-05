@@ -987,6 +987,9 @@ class InfGenModel(object):
                                                noise=td_noise)
                     cond_mean_td = self.dist_scale[0] * cond_mean_td
                     cond_logvar_td = self.dist_scale[0] * cond_logvar_td
+                    # estimate location as an offset from prior
+                    cond_mean_im = cond_mean_im + cond_mean_td
+
                     # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
