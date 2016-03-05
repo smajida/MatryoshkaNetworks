@@ -35,6 +35,13 @@ from MatryoshkaNetworks import InfGenModel
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
+# setup paths for dumping diagnostic info
+desc = 'test_fc_all_noise_010_dyn_bin_old'
+result_dir = "{}/results/{}".format(EXP_DIR, desc)
+inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+if not os.path.exists(result_dir):
+    os.makedirs(result_dir)
+
 fixed_binarization = False
 # load MNIST dataset, either fixed or dynamic binarization
 data_path = "{}/data/".format(EXP_DIR)
@@ -51,7 +58,7 @@ else:
     Xva = Xte
 
 
-sset_seed(1)       # seed for shared rngs
+set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
