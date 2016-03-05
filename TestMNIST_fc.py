@@ -76,10 +76,10 @@ use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
-noise_std = 0.0   # amount of noise to inject in BU and IM modules
-use_td_noise = False # whether to use noise in TD pass
-use_bu_noise = False # whether to use noise in BU pass
-use_td_cond = False
+noise_std = 0.1   # amount of noise to inject in BU and IM modules
+use_td_noise = True # whether to use noise in TD pass
+use_bu_noise = True # whether to use noise in BU pass
+use_td_cond = True
 inf_mt = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
