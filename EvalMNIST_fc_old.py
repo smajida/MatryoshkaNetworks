@@ -51,9 +51,9 @@ else:
     Xva = Xte
 
 
-set_seed(1)       # seed for shared rngs
+sset_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
-nbatch = 500      # # of examples in batch
+nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
@@ -61,15 +61,15 @@ ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 1000 # # of iter to linearly decay learning rate to zero
+niter_decay = 1500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-act_func = 'relu' # activation func to use where they can be selected
-iwae_samples = 5  # number of samples to use in MEN bound
-noise_std = 0.1   # amount of noise to inject in BU and IM modules
-use_td_noise = False # whether to use noise in TD pass
-use_bu_noise = False # whether to use noise in BU pass
+act_func = 'lrelu' # activation func to use where they can be selected
+iwae_samples = 10  # number of samples to use in MEN bound
+noise_std = 0.0   # amount of noise to inject in BU and IM modules
+use_td_noise = True # whether to use noise in TD pass
+use_bu_noise = True # whether to use noise in BU pass
 
 ntrain = Xtr.shape[0]
 
@@ -139,16 +139,7 @@ GenTopModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
-) # output is (batch, ngf*2)
-
-td_module_1a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_1a'
-) # output is (batch, ngf*8)
+)
 
 td_module_2 = \
 GenFCResModule(
@@ -161,16 +152,7 @@ GenFCResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_2'
-) # output is (batch, ngf*4)
-
-td_module_2a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_2a'
-) # output is (batch, ngf*8)
+)
 
 td_module_3 = \
 GenFCResModule(
@@ -183,16 +165,7 @@ GenFCResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_3'
-) # output is (batch, ngf*8)
-
-td_module_3a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_3a'
-) # output is (batch, ngf*8)
+)
 
 td_module_4 = \
 GenFCResModule(
@@ -205,16 +178,7 @@ GenFCResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_4'
-) # output is (batch, ngf*16)
-
-td_module_4a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_4a'
-) # output is (batch, ngf*8)
+)
 
 td_module_5 = \
 GenFCResModule(
@@ -227,7 +191,7 @@ GenFCResModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_5'
-) # output is (batch, ngf*16)
+)
 
 td_module_6 = \
 BasicFCModule(
@@ -236,7 +200,7 @@ BasicFCModule(
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_6'
-) # output is (batch, ngf*8)
+)
 
 td_module_7 = \
 BasicFCModule(
@@ -246,7 +210,7 @@ BasicFCModule(
     use_noise=False,
     act_func='ident',
     mod_name='td_mod_7'
-) # output is (batch, nx)
+)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1, td_module_2, td_module_3,
@@ -269,15 +233,6 @@ InfTopModule(
     mod_name='bu_mod_1'
 )
 
-bu_module_1a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_1a'
-) # output is (batch, ngf*8)
-
 bu_module_2 = \
 BasicFCResModule(
     in_chans=(ngf*8),
@@ -288,15 +243,6 @@ BasicFCResModule(
     act_func=act_func,
     mod_name='bu_mod_2'
 )
-
-bu_module_2a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_2a'
-) # output is (batch, ngf*8)
 
 bu_module_3 = \
 BasicFCResModule(
@@ -309,15 +255,6 @@ BasicFCResModule(
     mod_name='bu_mod_3'
 )
 
-bu_module_3a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_3a'
-) # output is (batch, ngf*8)
-
 bu_module_4 = \
 BasicFCResModule(
     in_chans=(ngf*8),
@@ -328,15 +265,6 @@ BasicFCResModule(
     act_func=act_func,
     mod_name='bu_mod_4'
 )
-
-bu_module_4a = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_4a'
-) # output is (batch, ngf*8)
 
 bu_module_5 = \
 BasicFCResModule(
@@ -465,7 +393,6 @@ inf_gen_model = InfGenModel(
     use_bu_noise=use_bu_noise
 )
 
-
 ###################
 # LOAD PARAMETERS #
 ###################
@@ -576,7 +503,7 @@ for epoch in range(2):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 250,
+            iwae_bounds = iwae_multi_eval(imb_img, 10,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
