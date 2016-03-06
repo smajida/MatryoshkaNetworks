@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old'
+desc = 'test_fc_all_noise_010_dyn_bin_old_nz_128'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,8 +62,8 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 64          # # of dim for Z0
-nz1 = 64          # # of dim for Z1
+nz0 = 128          # # of dim for Z0
+nz1 = 128          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
