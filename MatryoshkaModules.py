@@ -2220,11 +2220,11 @@ class GenFCResModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # perturb top-down input with a simple function of latent variables
-        pert_vals = T.dot(rand_vals, self.wx)
-        input = self.act_func( input + pert_vals )
+        #pert_vals = T.dot(rand_vals, self.wx)
+        #input = self.act_func( input + pert_vals )
 
         # stack random values on top of input
-        full_input = T.concatenate([0.0*rand_vals, input], axis=1)
+        full_input = T.concatenate([rand_vals, input], axis=1)
 
         if self.use_fc:
             # apply first internal fc layer
@@ -3679,7 +3679,7 @@ class InfFCMergeModule(object):
         bu_input = T.flatten(bu_input, 2)
         # concatenate TD and BU inputs
         full_input = T.concatenate([td_input, bu_input], axis=1)
-        
+
         # apply dropout
         full_input = fc_drop_func(full_input, self.unif_drop,
                                   share_mask=share_mask)
