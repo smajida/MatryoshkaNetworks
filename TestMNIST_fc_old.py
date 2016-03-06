@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old_sc
+desc = 'test_fc_all_noise_010_dyn_bin_old_sc_deeper'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -176,27 +176,53 @@ GenFCResModule(
 )
 
 td_module_6 = \
-BasicFCModule(
+GenFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_6'
 )
 
 td_module_7 = \
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_7'
+)
+
+td_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_8'
+)
+
+td_module_9 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     use_noise=False,
     act_func='ident',
-    mod_name='td_mod_7'
+    mod_name='td_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5,
+              td_module_6, td_module_7, td_module_8, td_module_9]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -260,26 +286,48 @@ BasicFCResModule(
 )
 
 bu_module_6 = \
-BasicFCModule(
+BasicFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_6'
 )
 
 bu_module_7 = \
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_7'
+)
+
+bu_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_8'
+)
+
+bu_module_9 = \
 BasicFCModule(
     in_chans=nx,
     out_chans=(ngf*8),
     apply_bn=False,
     act_func=act_func,
-    mod_name='bu_mod_7'
+    mod_name='bu_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_9, bu_module_8, bu_module_7, bu_module_6, bu_module_5,
+              bu_module_4, bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -334,7 +382,32 @@ InfFCMergeModule(
     mod_name='im_mod_5'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
+im_module_6 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_6'
+)
+
+im_module_7 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_7'
+)
+
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5,
+              im_module_6, im_module_7]
 
 
 #
@@ -356,10 +429,16 @@ merge_info = {
     'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
                  'bu_source': 'bu_mod_6', 'im_source': None},
 
-    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+    'td_mod_6': {'td_type': 'cond', 'im_module': 'im_mod_6',
+                 'bu_source': 'bu_mod_7', 'im_source': None},
+
+    'td_mod_7': {'td_type': 'cond', 'im_module': 'im_mod_7',
+                 'bu_source': 'bu_mod_8', 'im_source': None},
+
+    'td_mod_8': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+    'td_mod_9': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None}
 }
 
