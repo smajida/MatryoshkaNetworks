@@ -2404,7 +2404,7 @@ class GenFCPertModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # stack random values on top of input
-        pert_input = T.concatenate([rand_vals, 0.0*input], axis=1)
+        pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal fc layer
         h1 = T.dot(pert_input, self.w1)
         if self.apply_bn:
@@ -2656,7 +2656,7 @@ class InfConvGRUModuleIMS(object):
             rows = td_input.shape[2]
             cols = td_input.shape[3]
             T.alloc(0.0, b_size, self.im_chans, rows, cols)
-        
+
         # prepare input to gating functions
         if self.mod_type == 0:
             gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
@@ -3668,7 +3668,7 @@ class InfFCMergeModule(object):
                                        dtype=theano.config.floatX)
         return out_mean, out_logvar
 
-    def apply_im(self, td_input, bu_input, im_input=None, 
+    def apply_im(self, td_input, bu_input, im_input=None,
                  share_mask=False, noise=None):
         """
         Apply this fully connected inference module to the given input. This
