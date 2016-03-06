@@ -65,6 +65,7 @@ npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
+scf = 256          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
@@ -612,7 +613,7 @@ for epoch in range(2):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 25,
+            iwae_bounds = iwae_multi_eval(imb_img, 50*25,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
