@@ -3679,6 +3679,7 @@ class InfFCMergeModule(object):
         bu_input = T.flatten(bu_input, 2)
         # concatenate TD and BU inputs
         full_input = T.concatenate([td_input, bu_input], axis=1)
+        
         # apply dropout
         full_input = fc_drop_func(full_input, self.unif_drop,
                                   share_mask=share_mask)

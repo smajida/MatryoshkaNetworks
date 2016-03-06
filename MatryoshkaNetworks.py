@@ -736,7 +736,7 @@ class InfGenModel(object):
         train_dist_scale: whether to train rescaling param (for testing)
     """
     def __init__(self,
-                 bu_modules, td_modules, im_modules,
+                 bu_modules, td_modules, im_modules, sc_modules,
                  merge_info, output_transform,
                  use_td_noise=False,
                  use_bu_noise=True,
@@ -745,6 +745,7 @@ class InfGenModel(object):
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
+        self.sc_modules = [m for m in sc_modules]
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
@@ -755,6 +756,8 @@ class InfGenModel(object):
         for module in self.bu_modules: # bottom-up is part of inference
             self.inf_params.extend(module.params)
         for module in self.im_modules: # info merge is part of inference
+            self.inf_params.extend(module.params)
+        for module in self.sc_modules: # shortcut is part of inference
             self.inf_params.extend(module.params)
         # filter redundant parameters, to allow parameter sharing
         p_dict = {}
@@ -804,6 +807,8 @@ class InfGenModel(object):
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump TD modules
         mod_param_dicts = [m.dump_params() for m in self.im_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump IM modules
+        mod_param_dicts = [m.dump_params() for m in self.sc_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1) # dump SC modules
         # dump dist_scale parameter
         ds_ary = self.dist_scale.get_value(borrow=False)
         cPickle.dump(ds_ary, f_handle, protocol=-1)
@@ -825,6 +830,9 @@ class InfGenModel(object):
             mod.load_params(param_dict=param_dict)
         mod_param_dicts = cPickle.load(pickle_file) # load IM modules
         for param_dict, mod in zip(mod_param_dicts, self.im_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file) # load SC modules
+        for param_dict, mod in zip(mod_param_dicts, self.sc_modules):
             mod.load_params(param_dict=param_dict)
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
@@ -892,7 +900,7 @@ class InfGenModel(object):
         result = self.output_transform(td_acts[-1])
         return result
 
-    def apply_bu(self, input, noise=None):
+    def apply_bu(self, input, noise=None, sc_info=None):
         """
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
@@ -902,13 +910,33 @@ class InfGenModel(object):
         res_dict = {}
         for i, bu_mod in enumerate(self.bu_modules):
             if (i == 0):
-                res = bu_mod.apply(input, noise=bu_noise)
+                bu_info = input
             else:
-                res = bu_mod.apply(bu_acts[i-1], noise=bu_noise)
+                bu_info = bu_acts[i-1]
+            if i == (len(self.bu_modules) - 1):
+                # add shortcut info for the top-most inference module
+                bu_info = T.concatenate([bu_info, sc_info], axis=1)
+            res = bu_mod.apply(bu_info, noise=bu_noise)
             bu_acts.append(res)
             res_dict[bu_mod.mod_name] = res
         res_dict['bu_acts'] = bu_acts
         return res_dict
+
+    def apply_sc(self, input, noise=None):
+        """
+        Apply this model's shortcut inference modules to the given input,
+        and return the output of final shortcut module.
+        """
+        bu_noise = noise if self.use_bu_noise else None
+        sc_acts = []
+        for i, sc_mod in enumerate(self.sc_modules):
+            if (i == 0):
+                res = sc_mod.apply(input, noise=bu_noise)
+            else:
+                res = sc_mod.apply(sc_acts[i-1], noise=bu_noise)
+            sc_acts.append(res)
+        sc_info = sc_acts[-1]
+        return sc_info
 
     def apply_im(self, input, noise=None):
         """
@@ -935,7 +963,9 @@ class InfGenModel(object):
         z_dict = {}
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
+        sc_info = self.apply_sc(input=input, noise=bu_noise)
+        bu_res_dict = self.apply_bu(input=input, noise=bu_noise,
+                                    sc_info=sc_info)
         # dict for storing IM state information
         im_res_dict = {None: None}
         # now, run top-down pass using latent variables sampled from
@@ -974,6 +1004,7 @@ class InfGenModel(object):
                     td_info = td_acts[-1]              # info from TD pass
                     bu_info = bu_res_dict[bu_src_name] # info from BU pass
                     im_info = im_res_dict[im_src_name] # info from IM pass
+                    bu_info = T.concatenate([bu_info, sc_info], axis=1)
                     # get the conditional distribution SSs (Sufficient Stat s)
                     cond_mean_im, cond_logvar_im, im_act_i = \
                             im_module.apply_im(td_input=td_info,

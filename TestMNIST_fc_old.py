@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old_nz_128'
+desc = 'test_fc_all_noise_010_dyn_bin_old_sc
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,10 +62,11 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 128          # # of dim for Z0
-nz1 = 128          # # of dim for Z1
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
+scf = 256
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
 niter_decay = 1500 # # of iter to linearly decay learning rate to zero
@@ -204,7 +205,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -288,7 +289,7 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 im_module_2 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -300,7 +301,7 @@ InfFCMergeModule(
 im_module_3 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -312,7 +313,7 @@ InfFCMergeModule(
 im_module_4 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -324,7 +325,7 @@ InfFCMergeModule(
 im_module_5 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -344,16 +345,16 @@ merge_info = {
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_2': {'td_type': 'cond', 'im_module': 'im_mod_2',
-                 'bu_source': 'bu_mod_2', 'im_source': None},
-
-    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_3', 'im_source': None},
 
-    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
+    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_4', 'im_source': None},
 
-    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
                  'bu_source': 'bu_mod_5', 'im_source': None},
+
+    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+                 'bu_source': 'bu_mod_6', 'im_source': None},
 
     'td_mod_6': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
@@ -362,12 +363,36 @@ merge_info = {
                  'bu_source': None, 'im_source': None}
 }
 
+####################
+# Shortcut modules #
+####################
+sc_module_1 = \
+BasicFCModule(
+    in_chans=(scf*2),
+    out_chans=scf,
+    apply_bn=False,
+    act_func='ident',
+    mod_name='sc_mod_1'
+)
+
+sc_module_2 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(scf*2),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='sc_mod_2'
+)
+
+sc_modules = [sc_module_2, sc_module_1]
+
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
+    sc_modules=sc_modules,
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
