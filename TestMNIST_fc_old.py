@@ -583,8 +583,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
-g_eval_func = theano.function([Xg], g_cost_outputs)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -609,12 +610,14 @@ for epoch in range(1, niter+niter_decay+1):
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
+    i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
+    i_batch_count = 0.
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
@@ -624,11 +627,11 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform( imb ) # np.repeat(imb, 10, axis=0) )
+        imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(imb_img)
+        g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -638,6 +641,12 @@ for epoch in range(1, niter+niter_decay+1):
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
+        # train inference model on samples from the generator
+        if epoch > 25:
+            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+            i_result = i_train_func(smb_img)
+            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
             noise.set_value(floatX([0.0]))
@@ -670,12 +679,16 @@ for epoch in range(1, niter+niter_decay+1):
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
+    i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+    str2i = " ".join(i_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
@@ -692,7 +705,7 @@ for epoch in range(1, niter+niter_decay+1):
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
             v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
@@ -712,19 +725,18 @@ for epoch in range(1, niter+niter_decay+1):
         tr_recons = recon_func(tr_rb)
         va_recons = recon_func(va_rb)
         # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nx))
-        va_vis_batch = np.zeros((200, nx))
+        tr_vis_batch = np.zeros((200, nc, npx, npx))
+        va_vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
             idx_in = 2*rec_pair
             idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:] = tr_rb[rec_pair,:]
-            tr_vis_batch[idx_out,:] = tr_recons[rec_pair,:]
-            va_vis_batch[idx_in,:] = va_rb[rec_pair,:]
-            va_vis_batch[idx_out,:] = va_recons[rec_pair,:]
+            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
+            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
+            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
+            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
         # draw images...
         grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
         grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
 
 
 
