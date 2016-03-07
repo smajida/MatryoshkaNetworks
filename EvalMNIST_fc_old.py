@@ -599,7 +599,7 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 Xva_blocks = [Xva] #np.split(Xva, 2, axis=0)
-for epoch in range(2):
+for epoch in range(5):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):
@@ -613,7 +613,7 @@ for epoch in range(2):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 50*25,
+            iwae_bounds = iwae_multi_eval(imb_img, 1*25,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
