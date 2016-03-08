@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old_sc_deeper_bypass'
+desc = 'test_fc_dyn_bin_old_sc_deeper_bypass_inf'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -642,10 +642,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        # if epoch > 25:
-        #     smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        #     i_result = i_train_func(smb_img)
-        #     i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 25:
+            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+            i_result = i_train_func(smb_img)
+            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
@@ -709,35 +709,6 @@ for epoch in range(1, niter+niter_decay+1):
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
-        for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-        # draw images...
-        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
 
 
 
