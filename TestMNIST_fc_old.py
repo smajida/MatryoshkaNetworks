@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_dyn_bin_old_sc_deeper_bypass_inf'
+desc = 'test_fc_dyn_bin_old_sc_deeper_bypass_long_train'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -69,7 +69,7 @@ ngfc = 64         # number of filters in top-most fc layer
 scf = 256
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 2000 # # of iter to linearly decay learning rate to zero
+niter_decay = 3000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -642,10 +642,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 25:
-            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-            i_result = i_train_func(smb_img)
-            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        #if epoch > 25:
+        #    smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #    i_result = i_train_func(smb_img)
+        #    i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
