@@ -886,7 +886,8 @@ class BasicConvPertModule(object):
         else:
             h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
             h3 = add_noise(h3, noise=noise)
-        output = self.act_func(h3)
+        #output = self.act_func(h3)
+        output = h3
         if rand_shapes:
             result = [output, input.shape]
         else:
@@ -1861,11 +1862,11 @@ class GenConvPertModule(object):
         rand_shape = rand_vals.shape # return vals must be theano vars
 
         # apply perturbation to input #
-        pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(bm, bm))
-        input = self.activation(input + pert)
+        #pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(bm, bm))
+        #input = self.act_func(input + pert)
         # ------------TEST----------- #
 
-        pert_input = T.concatenate([0.*rand_vals, input], axis=1)
+        pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
         h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
@@ -1897,7 +1898,8 @@ class GenConvPertModule(object):
         else:
             h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
             h4 = add_noise(h4, noise=noise)
-        output = self.act_func(h4)
+        #output = self.act_func(h4)
+        output = h4
         if rand_shapes:
             result = [output, rand_shape]
         else:
@@ -2951,7 +2953,8 @@ class InfConvMergeModuleIMS(object):
             h2 = add_noise(h2, noise=noise)
 
         # apply perturbation to IM input, then apply non-linearity
-        out_im = self.act_func(im_input + h2)
+        # out_im = self.act_func(im_input + h2)
+        out_im = im_input + h2
 
         # compute conditional parameters from the updated IM state
         h3 = dnn_conv(out_im, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
