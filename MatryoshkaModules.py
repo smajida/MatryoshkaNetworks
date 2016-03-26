@@ -1757,13 +1757,13 @@ class GenConvPertModule(object):
         self.b2 = bias_ifn((self.conv_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize third conv layer parameters
-        self.w3 = weight_ifn((1*self.out_chans, self.conv_chans, fd, fd),
-                                "{}_w3".format(self.mod_name))
+        self.w3 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
+                             "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # derp a derp parameterrrrr
-        self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
+        self.wx = weight_ifn((self.in_chans, self.rand_chans, 3, 3),
                              "{}_wx".format(self.mod_name))
         self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
                              "{}_wy".format(self.mod_name))
@@ -1860,7 +1860,12 @@ class GenConvPertModule(object):
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape # return vals must be theano vars
 
-        pert_input = T.concatenate([rand_vals, input], axis=1)
+        # apply perturbation to input #
+        pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(bm, bm))
+        input = self.activation(input + pert)
+        # ------------TEST----------- #
+
+        pert_input = T.concatenate([0.*rand_vals, input], axis=1)
         # apply first internal conv layer
         h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
@@ -1884,11 +1889,7 @@ class GenConvPertModule(object):
 
         h3 = dnn_conv(h1, self.w3, subsample=(1, 1), border_mode=(bm, bm))
 
-        # h3_pert = h3[:,:self.out_chans,:,:]
-        # h3_gate = h3[:,self.out_chans:,:,:]
-
         # combine non-linear and linear transforms of input...
-        # h4 = (sigmoid(h3_gate + 1.0) * input) + h3_pert
         h4 = input + h3
         if self.apply_bn:
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
@@ -2656,7 +2657,7 @@ class InfConvGRUModuleIMS(object):
             rows = td_input.shape[2]
             cols = td_input.shape[3]
             T.alloc(0.0, b_size, self.im_chans, rows, cols)
-        
+
         # prepare input to gating functions
         if self.mod_type == 0:
             gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
@@ -3668,7 +3669,7 @@ class InfFCMergeModule(object):
                                        dtype=theano.config.floatX)
         return out_mean, out_logvar
 
-    def apply_im(self, td_input, bu_input, im_input=None, 
+    def apply_im(self, td_input, bu_input, im_input=None,
                  share_mask=False, noise=None):
         """
         Apply this fully connected inference module to the given input. This
