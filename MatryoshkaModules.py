@@ -2923,6 +2923,11 @@ class InfConvMergeModuleIMS(object):
             rows = td_input.shape[2]
             cols = td_input.shape[3]
             T.alloc(0.0, b_size, self.im_chans, rows, cols)
+
+        # TEMP #
+        im_input = 0. * im_input
+        # ---- #
+
         # stack top-down and bottom-up inputs on top of each other
         if self.mod_type == 0:
             full_input = T.concatenate([td_input, bu_input, im_input], axis=1)
