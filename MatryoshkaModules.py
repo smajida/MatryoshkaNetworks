@@ -1862,11 +1862,11 @@ class GenConvPertModule(object):
         rand_shape = rand_vals.shape # return vals must be theano vars
 
         # apply perturbation to input #
-        #pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(bm, bm))
-        #input = self.act_func(input + pert)
+        pert = dnn_conv(rand_vals, self.wx, subsample=(1, 1), border_mode=(bm, bm))
+        input = input + pert
         # ------------TEST----------- #
 
-        pert_input = T.concatenate([rand_vals, input], axis=1)
+        pert_input = T.concatenate([0.*rand_vals, input], axis=1)
         # apply first internal conv layer
         h1 = dnn_conv(pert_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
@@ -1898,8 +1898,8 @@ class GenConvPertModule(object):
         else:
             h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
             h4 = add_noise(h4, noise=noise)
-        #output = self.act_func(h4)
-        output = h4
+        output = self.act_func(h4)
+        #output = h4
         if rand_shapes:
             result = [output, rand_shape]
         else:
@@ -2923,10 +2923,6 @@ class InfConvMergeModuleIMS(object):
             rows = td_input.shape[2]
             cols = td_input.shape[3]
             T.alloc(0.0, b_size, self.im_chans, rows, cols)
-
-        # TEMP #
-        im_input = 0. * im_input
-        # ---- #
 
         # stack top-down and bottom-up inputs on top of each other
         if self.mod_type == 0:
