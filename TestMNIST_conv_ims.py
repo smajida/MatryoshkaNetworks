@@ -42,7 +42,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep_2'
+desc = 'test_conv_direct_gen_pert_5deep_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ else:
     Xva = Xte
 
 
-set_seed(231)      # seed for shared rngs
+set_seed(123)      # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
