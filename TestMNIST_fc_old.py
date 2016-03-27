@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old_nz_128'
+desc = 'test_fc_dyn_bin_old_sc_deeper_bypass_long_train'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,13 +62,14 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 128          # # of dim for Z0
-nz1 = 128          # # of dim for Z1
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
+scf = 256
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 1500 # # of iter to linearly decay learning rate to zero
+niter_decay = 3000 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -175,27 +176,53 @@ GenFCResModule(
 )
 
 td_module_6 = \
-BasicFCModule(
+GenFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_6'
 )
 
 td_module_7 = \
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_7'
+)
+
+td_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_8'
+)
+
+td_module_9 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     use_noise=False,
     act_func='ident',
-    mod_name='td_mod_7'
+    mod_name='td_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5,
+              td_module_6, td_module_7, td_module_8, td_module_9]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -204,7 +231,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -259,26 +286,48 @@ BasicFCResModule(
 )
 
 bu_module_6 = \
-BasicFCModule(
+BasicFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_6'
 )
 
 bu_module_7 = \
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_7'
+)
+
+bu_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_8'
+)
+
+bu_module_9 = \
 BasicFCModule(
     in_chans=nx,
     out_chans=(ngf*8),
     apply_bn=False,
     act_func=act_func,
-    mod_name='bu_mod_7'
+    mod_name='bu_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_9, bu_module_8, bu_module_7, bu_module_6, bu_module_5,
+              bu_module_4, bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -288,7 +337,7 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 im_module_2 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -300,7 +349,7 @@ InfFCMergeModule(
 im_module_3 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -312,7 +361,7 @@ InfFCMergeModule(
 im_module_4 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -324,7 +373,7 @@ InfFCMergeModule(
 im_module_5 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -333,7 +382,32 @@ InfFCMergeModule(
     mod_name='im_mod_5'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
+im_module_6 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_6'
+)
+
+im_module_7 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_7'
+)
+
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5,
+              im_module_6, im_module_7]
 
 
 #
@@ -344,23 +418,52 @@ merge_info = {
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_2': {'td_type': 'cond', 'im_module': 'im_mod_2',
-                 'bu_source': 'bu_mod_2', 'im_source': None},
-
-    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_3', 'im_source': None},
 
-    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
+    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_4', 'im_source': None},
 
-    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
                  'bu_source': 'bu_mod_5', 'im_source': None},
 
-    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+                 'bu_source': 'bu_mod_6', 'im_source': None},
+
+    'td_mod_6': {'td_type': 'cond', 'im_module': 'im_mod_6',
+                 'bu_source': 'bu_mod_7', 'im_source': None},
+
+    'td_mod_7': {'td_type': 'cond', 'im_module': 'im_mod_7',
+                 'bu_source': 'bu_mod_8', 'im_source': None},
+
+    'td_mod_8': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+    'td_mod_9': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None}
 }
+
+####################
+# Shortcut modules #
+####################
+sc_module_1 = \
+BasicFCModule(
+    in_chans=(scf*2),
+    out_chans=scf,
+    apply_bn=False,
+    act_func='ident',
+    mod_name='sc_mod_1'
+)
+
+sc_module_2 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(scf*2),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='sc_mod_2'
+)
+
+sc_modules = [sc_module_2, sc_module_1]
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
@@ -368,6 +471,7 @@ inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
+    sc_modules=sc_modules,
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
@@ -479,8 +583,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)
-g_eval_func = theano.function([Xg], g_cost_outputs)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -505,12 +610,14 @@ for epoch in range(1, niter+niter_decay+1):
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
+    i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
+    i_batch_count = 0.
     v_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
@@ -520,11 +627,11 @@ for epoch in range(1, niter+niter_decay+1):
         else:
             vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform( imb ) # np.repeat(imb, 10, axis=0) )
+        imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(imb_img)
+        g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -534,6 +641,12 @@ for epoch in range(1, niter+niter_decay+1):
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
+        # train inference model on samples from the generator
+        #if epoch > 25:
+        #    smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #    i_result = i_train_func(smb_img)
+        #    i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
             noise.set_value(floatX([0.0]))
@@ -566,12 +679,16 @@ for epoch in range(1, niter+niter_decay+1):
     gen_grad_norms = np.asarray(gen_grad_norms)
     inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
+    i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx]) \
+                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+    str2i = " ".join(i_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
     str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
             ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
@@ -588,40 +705,10 @@ for epoch in range(1, niter+niter_decay+1):
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
             v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nx))
-        va_vis_batch = np.zeros((200, nx))
-        for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:] = tr_rb[rec_pair,:]
-            tr_vis_batch[idx_out,:] = tr_recons[rec_pair,:]
-            va_vis_batch[idx_in,:] = va_rb[rec_pair,:]
-            va_vis_batch[idx_out,:] = va_recons[rec_pair,:]
-        # draw images...
-        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
-
 
 
 

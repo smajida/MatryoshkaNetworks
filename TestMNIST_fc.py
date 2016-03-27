@@ -64,8 +64,8 @@ set_seed(1)       # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
-nz1 = 32          # # of dim for Z1
+nz0 = 64          # # of dim for Z0
+nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
@@ -79,8 +79,9 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
-use_td_cond = True
-inf_mt = 1
+use_td_cond = False
+inf_mt = 0
+gen_depth = 5
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -119,9 +120,10 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*1,),
+    out_shape=(ngf*4,),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
@@ -129,13 +131,13 @@ GenTopModule(
 
 # stochastic perturbation layers
 td_modules_2 = []
-for i in range(2):
+for i in range(gen_depth):
     mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
     GenFCPertModule(
-        in_chans=(ngf*1),
-        out_chans=(ngf*1),
-        fc_chans=(ngf*1),
+        in_chans=(ngf*4),
+        out_chans=(ngf*4),
+        fc_chans=(ngf*4),
         rand_chans=nz1,
         use_rand=multi_rand,
         use_fc=use_fc,
@@ -146,90 +148,28 @@ for i in range(2):
     td_modules_2.append(new_module)
 # manual stuff for parameter sharing....
 
-# shape change layer
 td_module_3 = \
-BasicFCModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_3'
-)
-
-# stochastic perturbation layers
-td_modules_4 = []
-for i in range(2):
-    mod_name = 'td_mod_4{}'.format(alphabet[i])
-    new_module = \
-    GenFCPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        fc_chans=(ngf*2),
-        rand_chans=nz1,
-        use_rand=multi_rand,
-        use_fc=use_fc,
-        apply_bn=use_bn,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    td_modules_4.append(new_module)
-# manual stuff for parameter sharing....
-
-# shape change layer
-td_module_5 = \
-BasicFCModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_5'
-)
-
-# stochastic perturbation layers
-td_modules_6 = []
-for i in range(2):
-    mod_name = 'td_mod_6{}'.format(alphabet[i])
-    new_module = \
-    GenFCPertModule(
-        in_chans=(ngf*4),
-        out_chans=(ngf*4),
-        fc_chans=(ngf*4),
-        rand_chans=nz1,
-        use_rand=multi_rand,
-        use_fc=use_fc,
-        apply_bn=use_bn,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    td_modules_6.append(new_module)
-# manual stuff for parameter sharing....
-
-td_module_7 = \
 BasicFCModule(
     in_chans=(ngf*4),
     out_chans=(ngf*8),
     apply_bn=use_bn,
     act_func=act_func,
-    mod_name='td_mod_7'
+    mod_name='td_mod_3'
 )
 
-td_module_8 = \
+td_module_4 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     act_func='ident',
-    mod_name='td_mod_8'
+    mod_name='td_mod_4'
 )
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1] + \
              td_modules_2 + \
-             [td_module_3] + \
-             td_modules_4 + \
-             [td_module_5] + \
-             td_modules_6 + \
-             [td_module_7, td_module_8]
+             [td_module_3, td_module_4]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -238,10 +178,11 @@ td_modules = [td_module_1] + \
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*1),
+    bu_chans=(ngf*4),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
@@ -249,13 +190,13 @@ InfTopModule(
 
 # deterministic perturbation layers
 bu_modules_2 = []
-for i in range(2):
+for i in range(gen_depth):
     mod_name = 'bu_mod_2{}'.format(alphabet[i])
     new_module = \
     BasicFCPertModule(
-        in_chans=(ngf*1),
-        out_chans=(ngf*1),
-        fc_chans=(ngf*1),
+        in_chans=(ngf*4),
+        out_chans=(ngf*4),
+        fc_chans=(ngf*4),
         use_fc=use_fc,
         apply_bn=use_bn,
         act_func=act_func,
@@ -265,86 +206,26 @@ for i in range(2):
 bu_modules_2.reverse()
 # manual stuff for parameter sharing....
 
-# shape change layer
 bu_module_3 = \
-BasicFCModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_3'
-)
-
-# deterministic perturbation layers
-bu_modules_4 = []
-for i in range(2):
-    mod_name = 'bu_mod_4{}'.format(alphabet[i])
-    new_module = \
-    BasicFCPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        fc_chans=(ngf*2),
-        use_fc=use_fc,
-        apply_bn=use_bn,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    bu_modules_4.append(new_module)
-bu_modules_4.reverse()
-# manual stuff for parameter sharing....
-
-# shape change layer
-bu_module_5 = \
-BasicFCModule(
-    in_chans=(ngf*4),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_5'
-)
-
-# deterministic perturbation layers
-bu_modules_6 = []
-for i in range(2):
-    mod_name = 'bu_mod_6{}'.format(alphabet[i])
-    new_module = \
-    BasicFCPertModule(
-        in_chans=(ngf*4),
-        out_chans=(ngf*4),
-        fc_chans=(ngf*4),
-        use_fc=use_fc,
-        apply_bn=use_bn,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    bu_modules_6.append(new_module)
-bu_modules_6.reverse()
-# manual stuff for parameter sharing....
-
-bu_module_7 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=(ngf*4),
     apply_bn=use_bn,
     act_func=act_func,
-    mod_name='bu_mod_7'
+    mod_name='bu_mod_3'
 )
 
-bu_module_8 = \
+bu_module_4 = \
 BasicFCModule(
     in_chans=nx,
     out_chans=(ngf*8),
     apply_bn=use_bn,
     act_func=act_func,
-    mod_name='bu_mod_8'
+    mod_name='bu_mod_4'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_8, bu_module_7] + \
-             bu_modules_6 + \
-             [bu_module_5] + \
-             bu_modules_4 + \
-             [bu_module_3] + \
+bu_modules = [bu_module_4, bu_module_3] + \
              bu_modules_2 + \
              [bu_module_1]
 
@@ -357,9 +238,10 @@ bu_modules = [bu_module_8, bu_module_7] + \
 im_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*1,),
+    out_shape=(ngf*4,),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_1'
@@ -367,70 +249,8 @@ GenTopModule(
 
 # stochastic inference layers
 im_modules_2 = []
-for i in range(2):
+for i in range(gen_depth):
     mod_name = 'im_mod_2{}'.format(alphabet[i])
-    new_module = \
-    InfFCMergeModuleIMS(
-        td_chans=(ngf*1),
-        bu_chans=(ngf*1),
-        im_chans=(ngf*1),
-        fc_chans=(ngf*1),
-        rand_chans=nz1,
-        use_fc=use_fc,
-        act_func=act_func,
-        apply_bn=use_bn,
-        use_td_cond=use_td_cond,
-        mod_type=inf_mt,
-        mod_name=mod_name
-    )
-    im_modules_2.append(new_module)
-# manual stuff for parameter sharing....
-
-# shape change layer
-im_module_3 = \
-BasicFCModule(
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_3'
-)
-
-# stochastic inference layers
-im_modules_4 = []
-for i in range(2):
-    mod_name = 'im_mod_4{}'.format(alphabet[i])
-    new_module = \
-    InfFCMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        fc_chans=(ngf*2),
-        rand_chans=nz1,
-        use_fc=use_fc,
-        act_func=act_func,
-        apply_bn=use_bn,
-        use_td_cond=use_td_cond,
-        mod_type=inf_mt,
-        mod_name=mod_name
-    )
-    im_modules_4.append(new_module)
-# manual stuff for parameter sharing....
-
-# shape change layer
-im_module_5 = \
-BasicFCModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*4),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_5'
-)
-
-# stochastic inference layers
-im_modules_6 = []
-for i in range(2):
-    mod_name = 'im_mod_6{}'.format(alphabet[i])
     new_module = \
     InfFCMergeModuleIMS(
         td_chans=(ngf*4),
@@ -445,16 +265,12 @@ for i in range(2):
         mod_type=inf_mt,
         mod_name=mod_name
     )
-    im_modules_6.append(new_module)
+    im_modules_2.append(new_module)
 # manual stuff for parameter sharing....
 
 # modules must be listed in "evaluation order"
 im_modules = [im_module_1] + \
-             im_modules_2 + \
-             [im_module_3] + \
-             im_modules_4 + \
-             [im_module_5] + \
-             im_modules_6
+             im_modules_2
 
 #
 # Setup a description for where to get conditional distributions from.
@@ -463,22 +279,16 @@ merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
-    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
-                 'bu_source': None, 'im_source': im_modules_2[-1].mod_name},
-
-    'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
-                 'bu_source': None, 'im_source': im_modules_4[-1].mod_name},
-
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+    'td_mod_3': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_8': {'td_type': 'pass', 'im_module': None,
+    'td_mod_4': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None}
 }
 
 # add merge_info entries for the modules with latent variables
-for level in [2, 4, 6]:
-    for i in range(2):
+for level in [2]:
+    for i in range(gen_depth):
         td_type = 'cond'
         td_mod_name = 'td_mod_{}{}'.format(level, alphabet[i])
         im_mod_name = 'im_mod_{}{}'.format(level, alphabet[i])
@@ -486,7 +296,7 @@ for level in [2, 4, 6]:
         bu_src_name = 'bu_mod_{}'.format(level+1)
         if i > 0:
             im_src_name = 'im_mod_{}{}'.format(level, alphabet[i-1])
-        if i < (2 - 1):
+        if i < (gen_depth - 1):
             bu_src_name = 'bu_mod_{}{}'.format(level, alphabet[i+1])
         # add entry for this TD module
         merge_info[td_mod_name] = {

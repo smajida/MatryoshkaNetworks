@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old'
+desc = 'test_fc_all_noise_010_dyn_bin_old_sc_deeper_bypass'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,6 +65,7 @@ npx = 28          # # of pixels width/height of images
 nz0 = 64          # # of dim for Z0
 nz1 = 64          # # of dim for Z1
 ngf = 64          # base # of filters for conv layers in generative stuff
+scf = 256          # base # of filters for conv layers in generative stuff
 ngfc = 64         # number of filters in top-most fc layer
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
@@ -75,8 +76,8 @@ use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 iwae_samples = 4  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
-use_td_noise = True # whether to use noise in TD pass
-use_bu_noise = True # whether to use noise in BU pass
+use_td_noise = False # whether to use noise in TD pass
+use_bu_noise = False # whether to use noise in BU pass
 
 ntrain = Xtr.shape[0]
 
@@ -201,27 +202,53 @@ GenFCResModule(
 )
 
 td_module_6 = \
-BasicFCModule(
+GenFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_6'
 )
 
 td_module_7 = \
+GenFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_rand=multi_rand,
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_7'
+)
+
+td_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='td_mod_8'
+)
+
+td_module_9 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     use_noise=False,
     act_func='ident',
-    mod_name='td_mod_7'
+    mod_name='td_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3,
-              td_module_4, td_module_5, td_module_6, td_module_7]
+td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5,
+              td_module_6, td_module_7, td_module_8, td_module_9]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -230,7 +257,7 @@ td_modules = [td_module_1, td_module_2, td_module_3,
 
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -285,26 +312,48 @@ BasicFCResModule(
 )
 
 bu_module_6 = \
-BasicFCModule(
+BasicFCResModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_6'
 )
 
 bu_module_7 = \
+BasicFCResModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    fc_chans=(ngf*8),
+    use_fc=use_fc,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_7'
+)
+
+bu_module_8 = \
+BasicFCModule(
+    in_chans=(ngf*8),
+    out_chans=(ngf*8),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='bu_mod_8'
+)
+
+bu_module_9 = \
 BasicFCModule(
     in_chans=nx,
     out_chans=(ngf*8),
     apply_bn=False,
     act_func=act_func,
-    mod_name='bu_mod_7'
+    mod_name='bu_mod_9'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
-              bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_9, bu_module_8, bu_module_7, bu_module_6, bu_module_5,
+              bu_module_4, bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -314,7 +363,7 @@ bu_modules = [bu_module_7, bu_module_6, bu_module_5, bu_module_4,
 im_module_2 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -326,7 +375,7 @@ InfFCMergeModule(
 im_module_3 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -338,7 +387,7 @@ InfFCMergeModule(
 im_module_4 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -350,7 +399,7 @@ InfFCMergeModule(
 im_module_5 = \
 InfFCMergeModule(
     td_chans=(ngf*8),
-    bu_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
     fc_chans=(ngf*8),
     rand_chans=nz1,
     use_fc=True,
@@ -359,8 +408,32 @@ InfFCMergeModule(
     mod_name='im_mod_5'
 )
 
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5]
+im_module_6 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_6'
+)
 
+im_module_7 = \
+InfFCMergeModule(
+    td_chans=(ngf*8),
+    bu_chans=(ngf*8 + scf),
+    fc_chans=(ngf*8),
+    rand_chans=nz1,
+    use_fc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_7'
+)
+
+im_modules = [im_module_2, im_module_3, im_module_4, im_module_5,
+              im_module_6, im_module_7]
 
 #
 # Setup a description for where to get conditional distributions from.
@@ -370,23 +443,52 @@ merge_info = {
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_2': {'td_type': 'cond', 'im_module': 'im_mod_2',
-                 'bu_source': 'bu_mod_2', 'im_source': None},
-
-    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_3', 'im_source': None},
 
-    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
+    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
                  'bu_source': 'bu_mod_4', 'im_source': None},
 
-    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
                  'bu_source': 'bu_mod_5', 'im_source': None},
 
-    'td_mod_6': {'td_type': 'pass', 'im_module': None,
+    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
+                 'bu_source': 'bu_mod_6', 'im_source': None},
+
+    'td_mod_6': {'td_type': 'cond', 'im_module': 'im_mod_6',
+                 'bu_source': 'bu_mod_7', 'im_source': None},
+
+    'td_mod_7': {'td_type': 'cond', 'im_module': 'im_mod_7',
+                 'bu_source': 'bu_mod_8', 'im_source': None},
+
+    'td_mod_8': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+    'td_mod_9': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None}
 }
+
+####################
+# Shortcut modules #
+####################
+sc_module_1 = \
+BasicFCModule(
+    in_chans=(scf*2),
+    out_chans=scf,
+    apply_bn=False,
+    act_func='ident',
+    mod_name='sc_mod_1'
+)
+
+sc_module_2 = \
+BasicFCModule(
+    in_chans=nx,
+    out_chans=(scf*2),
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='sc_mod_2'
+)
+
+sc_modules = [sc_module_2, sc_module_1]
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
@@ -394,6 +496,7 @@ inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
+    sc_modules=sc_modules,
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
@@ -496,7 +599,7 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 Xva_blocks = [Xva] #np.split(Xva, 2, axis=0)
-for epoch in range(2):
+for epoch in range(5):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):
@@ -510,7 +613,7 @@ for epoch in range(2):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 1000,
+            iwae_bounds = iwae_multi_eval(imb_img, 50*25,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound

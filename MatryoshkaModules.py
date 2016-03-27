@@ -211,10 +211,16 @@ class BasicFCResModule(object):
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal linear layer
             h2 = T.dot(h1, self.w2)
+            if self.apply_bn:
+                h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h2 = h2 + self.b2.dimshuffle('x',0)
+                h2 = add_noise(h2, noise=noise)
             # apply short-cut linear layer
             h3 = T.dot(input, self.w3)
             # combine non-linear and linear transforms of input...
-            h4 = h2 + h3
+            h4 = h2 + input #h3
         else:
             # apply short-cut linear layer
             h4 = T.dot(input, self.w3)
@@ -2242,10 +2248,16 @@ class GenFCResModule(object):
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
             # apply second internal fc layer
             h2 = T.dot(h1, self.w2)
+            if self.apply_bn:
+                h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
+                                use_gb=self.use_bn_params)
+            else:
+                h2 = h2 + self.b2.dimshuffle('x',0)
+                h2 = add_noise(h2, noise=noise)
             # apply direct short-cut layer
             h3 = T.dot(full_input, self.w3)
             # combine non-linear and linear transforms of input...
-            h4 = h2 + h3
+            h4 = h2 + input #h3
         else:
             # only apply direct short-cut layer
             h4 = T.dot(full_input, self.w3)
@@ -2407,7 +2419,7 @@ class GenFCPertModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # stack random values on top of input
-        pert_input = T.concatenate([rand_vals, 0.0*input], axis=1)
+        pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal fc layer
         h1 = T.dot(pert_input, self.w1)
         if self.apply_bn:
@@ -3684,6 +3696,7 @@ class InfFCMergeModule(object):
         bu_input = T.flatten(bu_input, 2)
         # concatenate TD and BU inputs
         full_input = T.concatenate([td_input, bu_input], axis=1)
+
         # apply dropout
         full_input = fc_drop_func(full_input, self.unif_drop,
                                   share_mask=share_mask)
