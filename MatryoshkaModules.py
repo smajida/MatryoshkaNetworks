@@ -2229,8 +2229,8 @@ class GenFCResModule(object):
         input = fc_drop_func(input, self.unif_drop, share_mask=share_mask)
 
         # perturb top-down input with a simple function of latent variables
-        #pert_vals = T.dot(rand_vals, self.wx)
-        #input = self.act_func( input + pert_vals )
+        pert_vals = T.dot(rand_vals, self.wx)
+        input = self.act_func( input + pert_vals )
 
         # stack random values on top of input
         full_input = T.concatenate([rand_vals, input], axis=1)
