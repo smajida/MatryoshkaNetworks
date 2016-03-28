@@ -27,9 +27,8 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenTopModule, InfConvMergeModule, \
-                              InfTopModule, BasicConvResModule, \
+from MatryoshkaModules import BasicConvModule, GenTopModule, \
+                              InfConvMergeModule, InfTopModule, \
                               GenConvPertModule, BasicConvPertModule, \
                               GenConvGRUModule, InfConvMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
@@ -82,7 +81,6 @@ act_func = 'lrelu' # activation func to use where they can be selected
 noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
-gen_mt = 0
 inf_mt = 1
 use_td_cond = False
 depth_7x7 = 5
@@ -148,7 +146,6 @@ for i in range(depth_7x7):
         use_conv=use_conv,
         apply_bn=use_bn,
         act_func=act_func,
-        mod_type=gen_mt,
         us_stride=1,
         mod_name=mod_name
     )
@@ -182,7 +179,6 @@ for i in range(depth_14x14):
         use_conv=use_conv,
         apply_bn=use_bn,
         act_func=act_func,
-        mod_type=gen_mt,
         us_stride=1,
         mod_name=mod_name
     )

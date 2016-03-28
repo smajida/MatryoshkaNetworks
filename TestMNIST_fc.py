@@ -27,16 +27,16 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicFCModule, GenFCResModule, \
+from MatryoshkaModules import BasicFCModule, GenFCPertModule, \
                               GenTopModule, InfFCMergeModule, \
-                              InfTopModule, BasicFCResModule
+                              InfTopModule, BasicFCPertModule
 from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_dyn_bin_old_gen_pert'
+desc = 'test_fc_dyn_bin_with_im_state'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -79,7 +79,8 @@ noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
 gen_depth = 7
-use_ims = False
+use_ims = True
+inf_mt = 0
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -131,7 +132,7 @@ td_modules_2 = []
 for i in range(gen_depth):
     td_mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
-    GenFCResModule(
+    GenFCPertModule(
         in_chans=(ngf*8),
         out_chans=(ngf*8),
         fc_chans=(ngf*8),
@@ -189,7 +190,7 @@ bu_modules_2 = []
 for i in range(gen_depth):
     bu_mod_name = 'bu_mod_2{}'.format(alphabet[i])
     new_module = \
-    BasicFCResModule(
+    BasicFCPertModule(
         in_chans=(ngf*8),
         out_chans=(ngf*8),
         fc_chans=(ngf*8),
@@ -214,7 +215,7 @@ bu_module_4 = \
 BasicFCModule(
     in_chans=nx,
     out_chans=(ngf*8),
-    apply_bn=False,
+    apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_4'
 )
@@ -229,28 +230,45 @@ bu_modules = [bu_module_4, bu_module_3] + \
 # Setup the information merging modules #
 #########################################
 
-im_modules = []
+im_module_1 = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*8,),
+    fc_dim=ngfc,
+    use_fc=True,
+    use_sc=True,
+    apply_bn=use_bn,
+    act_func=act_func,
+    mod_name='im_mod_1'
+)
+
+im_modules_2 = []
 for i in range(gen_depth):
     im_mod_name = 'im_mod_2{}'.format(alphabet[i])
     new_module = \
-    InfFCMergeModule(
+    InfFCMergeModuleIMS(
         td_chans=(ngf*8),
         bu_chans=(ngf*8 + scf),
+        im_chans=(ngf*8),
         fc_chans=(ngf*8),
         rand_chans=nz1,
         use_fc=True,
         apply_bn=use_bn,
         act_func=act_func,
+        mod_type=inf_mt,
         mod_name=im_mod_name
     )
-    im_modules.append(new_module)
+    im_modules_2.append(new_module)
+
+im_modules = [im_module_1] + \
+             im_modules_2
 
 
 #
 # Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': None,
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
     'td_mod_3': {'td_type': 'pass', 'im_module': None,
@@ -480,10 +498,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        #if epoch > 25:
-        #    smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        #    i_result = i_train_func(smb_img)
-        #    i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 50:
+           smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+           i_result = i_train_func(smb_img)
+           i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
