@@ -417,6 +417,7 @@ class InfGenModel(object):
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
+        self.use_sc = use_sc
         if self.use_sc:
             self.sc_modules = [m for m in sc_modules]
         else:
