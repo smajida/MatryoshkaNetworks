@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_dyn_bin_new_model'
+desc = 'test_fc_dyn_bin_new_gen_pert'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -312,7 +312,8 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
-    use_bu_noise=use_bu_noise
+    use_bu_noise=use_bu_noise,
+    use_sc=True
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
