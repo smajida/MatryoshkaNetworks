@@ -128,18 +128,14 @@ GenTopModule(
     act_func=act_func,
     mod_name='td_mod_1'
 )
-
+ 
 td_modules_2 = []
 for i in range(gen_depth):
     td_mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
-    GenFCPertModule(
-        in_chans=(ngf*8),
-        out_chans=(ngf*8),
-        fc_chans=(ngf*8),
+    FancyGRUModule(
+        state_chans=(ngf*8),
         rand_chans=nz1,
-        use_rand=multi_rand,
-        use_fc=use_fc,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name=td_mod_name
