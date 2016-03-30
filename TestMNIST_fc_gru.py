@@ -29,8 +29,7 @@ from load import load_binarized_mnist, load_udm
 #
 from MatryoshkaModules import BasicFCModule, GenFCPertModule, \
                               FancyFCGRUModule, GenTopModule, \
-                              InfFCMergeModule, InfFCMergeModuleIMS, \
-                              InfTopModule
+                              InfFCGRUModuleIMS, InfTopModule
 from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
@@ -245,19 +244,19 @@ im_modules_2 = []
 for i in range(gen_depth):
     im_mod_name = 'im_mod_2{}'.format(alphabet[i])
     new_module = \
-    InfFCMergeModuleIMS(
+    InfFCGRUModuleIMS(
         td_chans=(ngf*8),
         bu_chans=(ngf*8 + scf),
         im_chans=(ngf*8),
-        fc_chans=(ngf*8),
         rand_chans=nz1,
-        use_fc=True,
         apply_bn=use_bn,
         act_func=act_func,
-        mod_type=inf_mt,
+        use_td_cond=False,
         mod_name=im_mod_name
     )
     im_modules_2.append(new_module)
+for im_mod in im_modules_2[1:]:
+    im_mod.share_params(im_modules_2[0])
 
 im_modules = [im_module_1] + \
              im_modules_2
