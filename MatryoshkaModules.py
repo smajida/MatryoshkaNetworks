@@ -237,6 +237,149 @@ class BasicFCPertModule(object):
             result = output
         return result
 
+
+####################################
+# BASIC FULLY-CONNECTED GRU MODULE #
+####################################
+
+class FancyFCGRUModule(object):
+    """
+    GRU-type module that optionally takes an exogenous input.
+
+    Params:
+        state_chans: dimension of GRU state
+        rand_chans: dimension of stochastic inputs (0 or None means no input)
+        act_func: --
+        unif_drop: drop rate for uniform dropout
+        apply_bn: whether to apply batch normalization
+        use_bn_params: whether to use post-processing params for BN
+        mod_name: text name for identifying module in theano graph
+    """
+    def __init__(self,
+                 state_chans, rand_chans,
+                 act_func='relu',
+                 unif_drop=0.0, apply_bn=True,
+                 use_bn_params=True,
+                 mod_name='basic_fc_gru'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.state_chans = state_chans
+        if ((rand_chans is None) or (rand_chans == 0)):
+            self.rand_chans = 0
+        else:
+            self.rand_chans = rand_chans
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.apply_bn = apply_bn
+        self.mod_name = mod_name
+        self.use_bn_params = use_bn_params
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        # initialize gating parameters
+        self.w1 = weight_ifn((self.state_chans+self.rand_chans, 2*self.state_chans),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((2*self.state_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((2*self.state_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize state update parameters
+        self.w2 = weight_ifn((self.state_chans+self.rand_chans, self.state_chans),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.state_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load module params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        return
+
+    def dump_params(self):
+        """
+        Dump module params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['g2'] = self.g2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals=None, rand_shapes=False, noise=None,
+              share_mask=False):
+        """
+        Apply this fully-connected module to some input.
+        """
+        # if rand_vals was given, add it to the gating input
+        if self.rand_chans > 0:
+            g_in = T.concatenate([input, rand_vals], axis=1)
+        else:
+            g_in = input
+            rand_vals = T.alloc(0.0, input.shape[0], 4)
+        rand_shape = rand_vals.shape
+        # compute gate stuff
+        h1 = T.dot(g_in, self.w1)
+        if self.apply_bn:
+            h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = add_noise(h1, noise=noise)
+        h1 = sigmoid(h1 + 1.)
+        # split information for update/recall gates
+        r = h1[:,:self.state_chans]
+        z = h1[:,self.state_chans:]
+
+        # apply recall gate to input and compute state update proposal
+        if self.rand_chans > 0:
+            u_in = T.concatenate([r * input, rand_vals], axis=1)
+        else:
+            u_in = r * input
+        h2 = T.dot(u_in, self.w2)
+        if self.apply_bn:
+            h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
+                            use_gb=self.use_bn_params)
+        else:
+            h2 = h2 + self.b2.dimshuffle('x',0)
+            h2 = add_noise(h2, noise=noise)
+        update = self.act_func(h2)
+
+        # compute the updated GRU state
+        output = (z * input) + ((1. - z) * update)
+
+        if rand_shapes:
+            result = [output, rand_shape]
+        else:
+            result = output
+        return result
+
 ###############################
 # BASIC FULLY-CONNECTED LAYER #
 ###############################
