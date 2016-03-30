@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_all_noise_010_dyn_bin_old_sc_deeper_bypass'
+desc = 'test_fc_dyn_bin_with_im_state'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -78,6 +78,11 @@ iwae_samples = 4  # number of samples to use in MEN bound
 noise_std = 0.0   # amount of noise to inject in BU and IM modules
 use_td_noise = False # whether to use noise in TD pass
 use_bu_noise = False # whether to use noise in BU pass
+gen_depth = 7
+use_ims = True
+inf_mt = 0
+
+alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
 ntrain = Xtr.shape[0]
 
@@ -149,106 +154,46 @@ GenTopModule(
     mod_name='td_mod_1'
 )
 
-td_module_2 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_2'
-)
+td_modules_2 = []
+for i in range(gen_depth):
+    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
+    new_module = \
+    GenFCPertModule(
+        in_chans=(ngf*8),
+        out_chans=(ngf*8),
+        fc_chans=(ngf*8),
+        rand_chans=nz1,
+        use_rand=multi_rand,
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=td_mod_name
+    )
+    td_modules_2.append(new_module)
 
 td_module_3 = \
-GenFCResModule(
+BasicFCModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_3'
 )
 
 td_module_4 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_4'
-)
-
-td_module_5 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_5'
-)
-
-td_module_6 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_6'
-)
-
-td_module_7 = \
-GenFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_rand=multi_rand,
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_7'
-)
-
-td_module_8 = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_8'
-)
-
-td_module_9 = \
 BasicFCModule(
     in_chans=(ngf*8),
     out_chans=nx,
     apply_bn=False,
     use_noise=False,
     act_func='ident',
-    mod_name='td_mod_9'
+    mod_name='td_mod_4'
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2, td_module_3, td_module_4, td_module_5,
-              td_module_6, td_module_7, td_module_8, td_module_9]
+td_modules = [td_module_1] + \
+             td_modules_2 + \
+             [td_module_3, td_module_4]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -267,205 +212,116 @@ InfTopModule(
     mod_name='bu_mod_1'
 )
 
-bu_module_2 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_2'
-)
+bu_modules_2 = []
+for i in range(gen_depth):
+    bu_mod_name = 'bu_mod_2{}'.format(alphabet[i])
+    new_module = \
+    BasicFCPertModule(
+        in_chans=(ngf*8),
+        out_chans=(ngf*8),
+        fc_chans=(ngf*8),
+        use_fc=use_fc,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=bu_mod_name
+    )
+    bu_modules_2.append(new_module)
+bu_modules_2.reverse()
 
 bu_module_3 = \
-BasicFCResModule(
+BasicFCModule(
     in_chans=(ngf*8),
     out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_3'
 )
 
 bu_module_4 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
+BasicFCModule(
+    in_chans=nx,
     out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_4'
 )
 
-bu_module_5 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_5'
-)
-
-bu_module_6 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_6'
-)
-
-bu_module_7 = \
-BasicFCResModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    fc_chans=(ngf*8),
-    use_fc=use_fc,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_7'
-)
-
-bu_module_8 = \
-BasicFCModule(
-    in_chans=(ngf*8),
-    out_chans=(ngf*8),
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_8'
-)
-
-bu_module_9 = \
-BasicFCModule(
-    in_chans=nx,
-    out_chans=(ngf*8),
-    apply_bn=False,
-    act_func=act_func,
-    mod_name='bu_mod_9'
-)
-
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_9, bu_module_8, bu_module_7, bu_module_6, bu_module_5,
-              bu_module_4, bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_4, bu_module_3] + \
+             bu_modules_2 + \
+             [bu_module_1]
 
 
 #########################################
 # Setup the information merging modules #
 #########################################
 
-im_module_2 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
+im_module_1 = \
+GenTopModule(
+    rand_dim=nz0,
+    out_shape=(ngf*8,),
+    fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
     act_func=act_func,
-    mod_name='im_mod_2'
+    mod_name='im_mod_1'
 )
 
-im_module_3 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_3'
-)
+im_modules_2 = []
+for i in range(gen_depth):
+    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
+    new_module = \
+    InfFCMergeModuleIMS(
+        td_chans=(ngf*8),
+        bu_chans=(ngf*8 + scf),
+        im_chans=(ngf*8),
+        fc_chans=(ngf*8),
+        rand_chans=nz1,
+        use_fc=True,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_type=inf_mt,
+        mod_name=im_mod_name
+    )
+    im_modules_2.append(new_module)
 
-im_module_4 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_4'
-)
+im_modules = [im_module_1] + \
+             im_modules_2
 
-im_module_5 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_5'
-)
-
-im_module_6 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_6'
-)
-
-im_module_7 = \
-InfFCMergeModule(
-    td_chans=(ngf*8),
-    bu_chans=(ngf*8 + scf),
-    fc_chans=(ngf*8),
-    rand_chans=nz1,
-    use_fc=True,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_7'
-)
-
-im_modules = [im_module_2, im_module_3, im_module_4, im_module_5,
-              im_module_6, im_module_7]
 
 #
 # Setup a description for where to get conditional distributions from.
 #
 merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': None,
+    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
-    'td_mod_2': {'td_type': 'cond', 'im_module': 'im_mod_2',
-                 'bu_source': 'bu_mod_3', 'im_source': None},
-
-    'td_mod_3': {'td_type': 'cond', 'im_module': 'im_mod_3',
-                 'bu_source': 'bu_mod_4', 'im_source': None},
-
-    'td_mod_4': {'td_type': 'cond', 'im_module': 'im_mod_4',
-                 'bu_source': 'bu_mod_5', 'im_source': None},
-
-    'td_mod_5': {'td_type': 'cond', 'im_module': 'im_mod_5',
-                 'bu_source': 'bu_mod_6', 'im_source': None},
-
-    'td_mod_6': {'td_type': 'cond', 'im_module': 'im_mod_6',
-                 'bu_source': 'bu_mod_7', 'im_source': None},
-
-    'td_mod_7': {'td_type': 'cond', 'im_module': 'im_mod_7',
-                 'bu_source': 'bu_mod_8', 'im_source': None},
-
-    'td_mod_8': {'td_type': 'pass', 'im_module': None,
+    'td_mod_3': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
 
-    'td_mod_9': {'td_type': 'pass', 'im_module': None,
+    'td_mod_4': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None}
 }
+# add inference modules' merge info
+for i in range(gen_depth):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
+    im_src_name = 'im_mod_1'
+    bu_src_name = 'bu_mod_3'
+    if i > 0:
+        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
+    if i < (gen_depth - 1):
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
+    if not use_ims:
+        im_src_name = None
+    # add entry for this TD module
+    merge_info[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+
 
 ####################
 # Shortcut modules #
@@ -500,7 +356,8 @@ inf_gen_model = InfGenModel(
     merge_info=merge_info,
     output_transform=output_transform,
     use_td_noise=use_td_noise,
-    use_bu_noise=use_bu_noise
+    use_bu_noise=use_bu_noise,
+    use_sc=True
 )
 
 ###################
@@ -613,7 +470,7 @@ for epoch in range(5):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 50*25,
+            iwae_bounds = iwae_multi_eval(imb_img, 1*25,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound

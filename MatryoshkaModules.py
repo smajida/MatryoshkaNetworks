@@ -2544,7 +2544,7 @@ class InfFCMergeModuleIMS(object):
         self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize conditioning layer parameters
-        self.w3_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
+        self.w3_im = weight_ifn((self.im_chans, 2*self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
         self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
@@ -2708,7 +2708,7 @@ class InfFCMergeModuleIMS(object):
         out_im = self.act_func(im_input + h2)
 
         # compute conditional parameters from the updated IM state
-        h3 = T.dot(h1, self.w3_im)
+        h3 = T.dot(out_im, self.w3_im)
         h3 = h3 + self.b3_im.dimshuffle('x',0)
         out_mean = h3[:,:self.rand_chans]
         out_logvar = h3[:,self.rand_chans:]
