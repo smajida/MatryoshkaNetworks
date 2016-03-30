@@ -74,7 +74,7 @@ niter_decay = 1500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
-act_func = 'lrelu' # activation func to use where they can be selected
+act_func = 'tanh' # activation func to use where they can be selected
 iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
@@ -141,6 +141,8 @@ for i in range(gen_depth):
         mod_name=td_mod_name
     )
     td_modules_2.append(new_module)
+for td_mod in td_modules_2[1:]:
+    td_mod.share_params(td_modules_2[0])
 
 td_module_3 = \
 BasicFCModule(
@@ -196,6 +198,8 @@ for i in range(gen_depth):
     )
     bu_modules_2.append(new_module)
 bu_modules_2.reverse()
+for bu_mod in bu_modules_2[1:]:
+    bu_mod.share_params(bu_modules_2[0])
 
 bu_module_3 = \
 BasicFCModule(

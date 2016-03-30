@@ -319,6 +319,25 @@ class FancyFCGRUModule(object):
         self.b2.set_value(floatX(param_dict['b2']))
         return
 
+    def share_params(self, source_module):
+        """
+        Set parameters in this module to be shared with source_module.
+        -- This just sets our parameter info to point to the shared variables
+           used by source_module.
+        """
+        self.params = []
+        # share gating layer parameters
+        self.w1 = source_module.w1
+        self.g1 = source_module.g1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.g1, self.b1])
+        # share update layer parameters
+        self.w2 = source_module.w2
+        self.g2 = source_module.g2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.g2, self.b2])
+        return
+
     def dump_params(self):
         """
         Dump module params directly to a dict of numpy arrays.
