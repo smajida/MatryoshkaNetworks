@@ -133,7 +133,7 @@ td_modules_2 = []
 for i in range(gen_depth):
     td_mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
-    FancyGRUModule(
+    FancyFCGRUModule(
         state_chans=(ngf*8),
         rand_chans=nz1,
         apply_bn=use_bn,
