@@ -27,9 +27,10 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicFCModule, GenFCResModule, \
-                              GenTopModule, InfFCMergeModule, \
-                              InfTopModule, BasicFCResModule
+from MatryoshkaModules import BasicFCModule, GenFCPertModule, \
+                              BasicFCPertModule, GenTopModule, \
+                              InfFCMergeModule, InfFCMergeModuleIMS, \
+                              InfTopModule
 from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
