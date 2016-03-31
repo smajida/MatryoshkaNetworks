@@ -78,7 +78,7 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
-gen_depth = 8
+gen_depth = 10
 use_ims = True
 inf_mt = 0
 
@@ -496,10 +496,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 50:
-           smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-           i_result = i_train_func(smb_img)
-           i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        # if epoch > 50:
+        #    smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #    i_result = i_train_func(smb_img)
+        #    i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
