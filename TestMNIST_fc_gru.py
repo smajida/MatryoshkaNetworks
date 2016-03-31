@@ -496,10 +496,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        # if epoch > 50:
-        #    smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        #    i_result = i_train_func(smb_img)
-        #    i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 50:
+           smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+           i_result = i_train_func(smb_img)
+           i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
