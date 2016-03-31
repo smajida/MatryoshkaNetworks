@@ -78,7 +78,7 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
-gen_depth = 3
+gen_depth = 8
 use_ims = True
 inf_mt = 0
 
