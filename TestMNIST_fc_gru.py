@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_dyn_bin_gru_draw_fix_kld'
+desc = 'test_fc_dyn_bin_gru_draw_depth_15'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -78,7 +78,7 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
-gen_depth = 10
+gen_depth = 15
 use_ims = True
 inf_mt = 0
 
@@ -458,8 +458,8 @@ for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    #if ((epoch-1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     #lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
