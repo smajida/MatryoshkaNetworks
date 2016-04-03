@@ -1643,13 +1643,11 @@ class GenConvGRUModule(object):
     Test module.
     """
     def __init__(self,
-                 in_chans, out_chans, conv_chans, rand_chans, filt_shape,
-                 use_rand=True, use_conv=True, us_stride=1,
+                 in_chans, out_chans, rand_chans, filt_shape,
+                 use_rand=True,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
-                 use_bn_params=True, act_func='relu', mod_type=0,
+                 use_bn_params=True, act_func='relu',
                  mod_name='gm_conv'):
-        assert ((us_stride == 1)), \
-                "us_stride must be 1."
         assert ((in_chans == out_chans)), \
                 "in_chans == out_chans is required."
         assert (filt_shape == (3,3) or filt_shape == (5,5)), \
@@ -1658,12 +1656,9 @@ class GenConvGRUModule(object):
                 "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
-        self.conv_chans = conv_chans
         self.rand_chans = rand_chans
         self.filt_dim = filt_shape[0]
         self.use_rand = use_rand
-        self.use_conv = use_conv
-        self.us_stride = us_stride
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
         self.apply_bn = apply_bn
@@ -1679,7 +1674,6 @@ class GenConvGRUModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self.mod_type = mod_type
         self._init_params() # initialize parameters
         return
 

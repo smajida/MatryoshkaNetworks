@@ -27,11 +27,9 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenTopModule, InfConvMergeModule, \
-                              InfTopModule, BasicConvResModule, \
-                              GenConvPertModule, BasicConvPertModule, \
-                              GenConvGRUModule, InfConvGRUModuleIMS
+from MatryoshkaModules import BasicConvModule, GenConvGRUModule, \
+                              GenTopModule, InfConvGRUModuleIMS, \
+                              InfTopModule
 from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 
 # path for dumping experiment info and fetching dataset
@@ -141,7 +139,6 @@ for i in range(depth_7x7):
         use_rand=multi_rand,
         apply_bn=use_bn,
         act_func=act_func,
-        us_stride=1,
         mod_name=mod_name
     )
     td_modules_7x7.append(new_module)
@@ -172,7 +169,6 @@ for i in range(depth_14x14):
         use_rand=multi_rand,
         apply_bn=use_bn,
         act_func=act_func,
-        us_stride=1,
         mod_name=mod_name
     )
     td_modules_14x14.append(new_module)
