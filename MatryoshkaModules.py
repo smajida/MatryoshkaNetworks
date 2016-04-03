@@ -943,7 +943,7 @@ class BasicConvGRUModule(object):
         else:
             h = h + self.b1.dimshuffle('x',0,'x','x')
             h = add_noise(h, noise=noise)
-        h = T.nnet.hard_sigmoid(h + 1.)
+        h = sigmoid(h + 1.)
         u = h[:,:self.in_chans,:,:]
         r = h[:,self.in_chans:,:,:]
         # compute new state proposal -- include hidden layer
@@ -1799,7 +1799,7 @@ class GenConvGRUModule(object):
         else:
             h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = add_noise(h1, noise=noise)
-        u = T.nnet.hard_sigmoid(h1 + 1.)
+        u = sigmoid(h1 + 1.)
         #
         h2 = dnn_conv(gate_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
@@ -1808,7 +1808,7 @@ class GenConvGRUModule(object):
         else:
             h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
             h2 = add_noise(h2, noise=noise)
-        r = T.nnet.hard_sigmoid(h2 + 1.)
+        r = sigmoid(h2 + 1.)
         # compute new state proposal -- include hidden layer
         state_input = T.concatenate([rand_vals, r*input], axis=1)
         s = dnn_conv(state_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
@@ -2250,7 +2250,7 @@ class InfConvGRUModuleIMS(object):
         else:
             u = u + self.b1_im.dimshuffle('x',0,'x','x')
             u = add_noise(u, noise=noise)
-        u = T.nnet.hard_sigmoid(u + 1.)
+        u = sigmoid(u + 1.)
         #
         r = dnn_conv(gate_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
         if self.apply_bn:
@@ -2259,7 +2259,7 @@ class InfConvGRUModuleIMS(object):
         else:
             r = r + self.b2_im.dimshuffle('x',0,'x','x')
             r = add_noise(r, noise=noise)
-        r = T.nnet.hard_sigmoid(r + 1.)
+        r = sigmoid(r + 1.)
 
         # compute new state for GRU state update
         state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
