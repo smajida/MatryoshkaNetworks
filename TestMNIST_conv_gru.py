@@ -142,7 +142,8 @@ for i in range(depth_7x7):
         mod_name=mod_name
     )
     td_modules_7x7.append(new_module)
-# manual stuff for parameter sharing....
+for td_mod in td_modules_7x7[1:]:
+    td_mod.share_params(td_modules_7x7[0])
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
@@ -172,7 +173,8 @@ for i in range(depth_14x14):
         mod_name=mod_name
     )
     td_modules_14x14.append(new_module)
-# manual stuff for parameter sharing....
+for td_mod in td_modules_14x14[1:]:
+    td_mod.share_params(td_modules_14x14[0])
 
 # (14, 14) -> (28, 28)
 td_module_5 = \
@@ -321,6 +323,8 @@ for i in range(depth_7x7):
         mod_name=mod_name
     )
     im_modules_7x7.append(new_module)
+for im_mod in im_modules_7x7[1:]:
+    im_mod.share_params(im_modules_7x7[0])
 
 # (7, 7) -> (14, 14)
 im_module_3 = \
@@ -350,6 +354,8 @@ for i in range(depth_14x14):
         mod_name=mod_name
     )
     im_modules_14x14.append(new_module)
+for im_mod in im_modules_14x14[1:]:
+    im_mod.share_params(im_modules_14x14[0])
 
 im_modules = [im_module_1] + \
              im_modules_7x7 + \
