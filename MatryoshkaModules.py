@@ -2208,8 +2208,8 @@ class InfConvGRUModuleIMS(object):
             h = h + self.b1_im.dimshuffle('x',0,'x','x')
             h = add_noise(h, noise=noise)
         h = sigmoid(h + 1.)
-        u = h[:,:self.in_chans,:,:]
-        r = h[:,self.in_chans:,:,:]
+        u = h[:,:self.im_chans,:,:]
+        r = h[:,self.im_chans:,:,:]
 
         # compute new state for GRU state update
         state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
