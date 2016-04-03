@@ -16,7 +16,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.ops import log_mean_exp, binarize_data
+from lib.ops import log_mean_exp, binarize_data, flip_bits
 from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
@@ -41,7 +41,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_direct_gen_pert_5deep_1'
+desc = 'test_conv_flippy_fp01_fm02'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -83,8 +83,10 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 2
+depth_14x14 = 2
+flip_prob = 0.1
+flip_mean = 0.2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -467,8 +469,9 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
-Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
+Xg_in = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg_out = T.tensor4() # symbolic var for outputs to reconstruct
+Z0 = T.matrix()      # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -477,14 +480,14 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+im_res_dict = inf_gen_model.apply_im(Xg_in, noise=noise)
 Xg_recon = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
 log_p_x = T.sum(log_prob_bernoulli( \
-                T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                T.flatten(Xg_out,2), T.flatten(Xg_recon,2),
                 do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
@@ -537,9 +540,9 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg], Xg_recon)
+recon_func = theano.function([Xg_in], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:10,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -551,9 +554,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
+g_train_func = theano.function([Xg_in, Xg_out], g_cost_outputs, updates=g_updates)
+i_train_func = theano.function([Xg_in, Xg_out], g_cost_outputs, updates=inf_updates)
+g_eval_func = theano.function([Xg_in, Xg_out], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
@@ -599,7 +602,9 @@ for epoch in range(1, niter+niter_decay+1):
         vmb_img = train_transform(vmb)
         # train vae on training batch
         noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(floatX(imb_img))
+        imb_img_in = flip_bits(imb_img, flip_prob=flip_prob, flip_mean=flip_mean)
+        imb_img_out = floatX(imb_img)
+        g_result = g_train_func(imb_img_in, imb_img_out)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1.*g_result[3])
         vae_klds.append(1.*g_result[4])
@@ -610,18 +615,18 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 5:
-            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-            i_result = i_train_func(smb_img)
-            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        # if epoch > 5:
+        #     smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #     i_result = i_train_func(smb_img, smb_img)
+        #     i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
             noise.set_value(floatX([0.0]))
-            v_result = g_eval_func(vmb_img)
+            v_result = g_eval_func(vmb_img, vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+    if (epoch == 5) or (epoch == 15) or (epoch == 50) or (epoch == 150):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -677,35 +682,6 @@ for epoch in range(1, niter+niter_decay+1):
     print(joint_str)
     out_file.write(joint_str+"\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
-        for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
-        # draw images...
-        grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
 
 
 

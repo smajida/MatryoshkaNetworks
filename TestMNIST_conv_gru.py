@@ -67,7 +67,7 @@ nz1 = 4           # # of dim for Z1
 ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
+niter = 200       # # of iter at starting learning rate
 niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
@@ -117,7 +117,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*3, 7, 7),
+    out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     use_sc=True,
@@ -132,8 +132,8 @@ for i in range(depth_7x7):
     mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
     GenConvGRUModule(
-        in_chans=(ngf*3),
-        out_chans=(ngf*3),
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
         rand_chans=nz1,
         filt_shape=(3,3),
         use_rand=multi_rand,
@@ -148,8 +148,8 @@ for td_mod in td_modules_7x7[1:]:
 # (7, 7) -> (14, 14)
 td_module_3 = \
 BasicConvModule(
-    in_chans=(ngf*3),
-    out_chans=(ngf*3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
@@ -163,8 +163,8 @@ for i in range(depth_14x14):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
     new_module = \
     GenConvGRUModule(
-        in_chans=(ngf*3),
-        out_chans=(ngf*3),
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
         rand_chans=nz1,
         filt_shape=(3,3),
         use_rand=multi_rand,
@@ -180,7 +180,7 @@ for td_mod in td_modules_14x14[1:]:
 td_module_5 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*3),
+    in_chans=(ngf*2),
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
@@ -216,7 +216,7 @@ td_modules = [td_module_1] + \
 # (7, 7) -> FC
 bu_module_1 = \
 InfTopModule(
-    bu_chans=(ngf*3*7*7),
+    bu_chans=(ngf*2*7*7),
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
@@ -229,8 +229,8 @@ InfTopModule(
 # (7, 7) -> (7, 7)
 bu_module_2 = \
 BasicConvModule(
-    in_chans=(ngf*3),
-    out_chans=(ngf*3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='single',
@@ -241,8 +241,8 @@ BasicConvModule(
 # (14, 14) -> (7, 7)
 bu_module_3 = \
 BasicConvModule(
-    in_chans=(ngf*3),
-    out_chans=(ngf*3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
@@ -253,8 +253,8 @@ BasicConvModule(
 # (14, 14) -> (14, 14)
 bu_module_4 = \
 BasicConvModule(
-    in_chans=(ngf*3),
-    out_chans=(ngf*3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='single',
@@ -266,7 +266,7 @@ BasicConvModule(
 bu_module_5 = \
 BasicConvModule(
     in_chans=(ngf*1),
-    out_chans=(ngf*3),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
@@ -298,7 +298,7 @@ bu_modules = [bu_module_6, bu_module_5, bu_module_4,
 im_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*3, 7, 7),
+    out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
     use_sc=True,
@@ -313,9 +313,9 @@ for i in range(depth_7x7):
     mod_name = 'im_mod_2{}'.format(alphabet[i])
     new_module = \
     InfConvGRUModuleIMS(
-        td_chans=(ngf*3),
-        bu_chans=(ngf*3),
-        im_chans=(ngf*3),
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
         rand_chans=nz1,
         use_td_cond=use_td_cond,
         apply_bn=use_bn,
@@ -329,8 +329,8 @@ for im_mod in im_modules_7x7[1:]:
 # (7, 7) -> (14, 14)
 im_module_3 = \
 BasicConvModule(
-    in_chans=(ngf*3),
-    out_chans=(ngf*3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
@@ -344,9 +344,9 @@ for i in range(depth_14x14):
     mod_name = 'im_mod_4{}'.format(alphabet[i])
     new_module = \
     InfConvGRUModuleIMS(
-        td_chans=(ngf*3),
-        bu_chans=(ngf*3),
-        im_chans=(ngf*3),
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
         rand_chans=nz1,
         use_td_cond=use_td_cond,
         apply_bn=use_bn,

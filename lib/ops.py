@@ -18,6 +18,16 @@ def binarize_data(X):
     X_binary = 1.0 * (probs < X)
     return X_binary.astype(theano.config.floatX)
 
+def flip_bits(X, flip_prob=0.1, flip_mean=0.5):
+    """
+    Randomize X at rate flip_prob, and set new bit with probability flip_mean.
+    """
+    X_shape = X.shape
+    flip_mask = 1. * (np_rng.rand(*X_shape) < flip_prob)
+    new_bits = 1. * (np_rng.rand(*X_shape) < flip_mean)
+    X_flip = ((1. - flip_mask) * X) + (flip_mask * new_bits)
+    return X_flip.astype(theano.config.floatX)
+
 def mean_pool_rows(input, pool_count=None, pool_size=None):
     """Apply mean pooling over rows of the matrix input."""
     pooled_rows = []
