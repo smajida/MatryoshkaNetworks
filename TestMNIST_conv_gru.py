@@ -380,7 +380,7 @@ for i in range(depth_7x7):
     im_src_name = 'im_mod_1'
     bu_src_name = 'bu_mod_3'
     if i > 0:
-        im_src_name = 'im_mod_2{}'.format(alphabet[i-1]) s
+        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,

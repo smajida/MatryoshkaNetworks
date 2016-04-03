@@ -2200,7 +2200,7 @@ class InfConvGRUModuleIMS(object):
 
         # compute gating information for GRU state update
         gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
-        h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(bm, bm))
+        h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
         if self.apply_bn:
             h = switchy_bn(h, g=self.g1_im, b=self.b1_im, n=noise,
                            use_gb=self.use_bn_params)
@@ -2213,7 +2213,7 @@ class InfConvGRUModuleIMS(object):
 
         # compute new state for GRU state update
         state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
-        s = dnn_conv(state_input, self.w2_im, subsample=(1, 1), border_mode=(bm, bm))
+        s = dnn_conv(state_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
         if self.apply_bn:
             s = switchy_bn(s, g=self.g2_im, b=self.b2_im, n=noise,
                            use_gb=self.use_bn_params)
