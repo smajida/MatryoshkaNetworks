@@ -821,6 +821,150 @@ class BasicConvModule(object):
         return result
 
 
+#########################################
+# DOUBLE GENERATOR CONVOLUTIONAL MODULE #
+#########################################
+
+class BasicConvGRUModule(object):
+    """
+    Test module.
+    """
+    def __init__(self, filt_shape, in_chans, out_chans,
+                 act_func='tanh', unif_drop=0.0, chan_drop=0.0,
+                 apply_bn=True, use_bn_params=True, stride='single',
+                 mod_name='gm_conv'):
+        assert ((in_chans == out_chans)), \
+                "in_chans == out_chans is required."
+        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
+                "filt_shape must be (3,3) or (5,5)."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+                "invalid act_func {}.".format(act_func)
+        self.filt_dim = filt_shape[0]
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
+        self.apply_bn = apply_bn
+        self.use_bn_params = use_bn_params
+        self.mod_name = mod_name
+        self._init_params() # initialize parameters
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this module.
+        """
+        self.params = []
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        gain_ifn = inits.Normal(loc=1., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        fd = self.filt_dim
+        # initialize gate layer parameters
+        self.w1 = weight_ifn((2*self.in_chans, self.in_chans, fd, fd),
+                             "{}_w1".format(self.mod_name))
+        self.g1 = gain_ifn((2*self.in_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((2*self.in_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.g1, self.b1])
+        # initialize first new state layer parameters
+        self.w2 = weight_ifn((self.in_chans, self.in_chans, fd, fd),
+                             "{}_w2".format(self.mod_name))
+        self.g2 = gain_ifn((self.in_chans), "{}_g2".format(self.mod_name))
+        self.b2 = bias_ifn((self.in_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.g2, self.b2])
+        return
+
+    def share_params(self, source_module):
+        """
+        Set parameters in this module to be shared with source_module.
+        -- This just sets our parameter info to point to the shared variables
+           used by source_module.
+        """
+        self.params = []
+        # share first conv layer parameters
+        self.w1 = source_module.w1
+        self.g1 = source_module.g1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.g1, self.b1])
+        # share second conv layer parameters
+        self.w2 = source_module.w2
+        self.g2 = source_module.g2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.g2, self.b2])
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load module params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.g1.set_value(floatX(param_dict['g1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.g2.set_value(floatX(param_dict['g2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        return
+
+    def dump_params(self):
+        """
+        Dump module params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['g1'] = self.g1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['g2'] = self.g2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals=None, rand_shapes=False,
+              noise=None, share_mask=False):
+        """
+        Apply this generator module to some input.
+        """
+        batch_size = input.shape[0]    # number of inputs in this batch
+        bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
+
+        # compute update gate and remember gate
+        h = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        if self.apply_bn:
+            h = switchy_bn(h, g=self.g1, b=self.b1, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            h = h + self.b1.dimshuffle('x',0,'x','x')
+            h = add_noise(h, noise=noise)
+        h = sigmoid(h + 1.)
+        u = h[:,:self.in_chans,:,:]
+        r = h[:,self.in_chans:,:,:]
+        # compute new state proposal -- include hidden layer
+        s = dnn_conv((r * input), self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        if self.apply_bn:
+            s = switchy_bn(s, g=self.g2, b=self.b2, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            s = s + self.b2.dimshuffle('x',0,'x','x')
+            s = add_noise(s, noise=noise)
+        s = self.act_func(s)
+        # combine initial state and proposed new state based on u
+        output = (u * input) + ((1. - u) * s)
+        #
+        if rand_shapes:
+            result = [output, input.shape]
+        else:
+            result = output
+        return result
+
+
 ########################################
 # DISCRIMINATOR FULLY CONNECTED MODULE #
 ########################################
@@ -1500,7 +1644,7 @@ class GenConvGRUModule(object):
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
-                 use_rand=True, use_conv=True, us_stride=2,
+                 use_rand=True, use_conv=True, us_stride=1,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
                  use_bn_params=True, act_func='relu', mod_type=0,
                  mod_name='gm_conv'):
@@ -1636,16 +1780,24 @@ class GenConvGRUModule(object):
         # compute update gate and remember gate
         gate_input = T.concatenate([rand_vals, input], axis=1)
         h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        h = h + self.b1.dimshuffle('x',0,'x','x')
-        h = add_noise(h, noise=noise)
+        if self.apply_bn:
+            h = switchy_bn(h, g=self.g1, b=self.b1, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            h = h + self.b1.dimshuffle('x',0,'x','x')
+            h = add_noise(h, noise=noise)
         h = sigmoid(h + 1.)
         u = h[:,:self.in_chans,:,:]
         r = h[:,self.in_chans:,:,:]
         # compute new state proposal -- include hidden layer
         state_input = T.concatenate([rand_vals, r*input], axis=1)
         s = dnn_conv(state_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
-        s = s + self.b2.dimshuffle('x',0,'x','x')
-        s = add_noise(s, noise=noise)
+        if self.apply_bn:
+            s = switchy_bn(s, g=self.g2, b=self.b2, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            s = s + self.b2.dimshuffle('x',0,'x','x')
+            s = add_noise(s, noise=noise)
         s = self.act_func(s)
         # combine initial state and proposed new state based on u
         output = (u * input) + ((1. - u) * s)
@@ -1868,8 +2020,6 @@ class InfConvGRUModuleIMS(object):
         bu_chans: number of channels in the "bottom-up" inputs to module
         im_chans: number of channels in the "info-merge" inputs to module
         rand_chans: number of latent channels that we want conditionals for
-        conv_chans: number of channels in the "internal" convolution layer
-        use_conv: flag for whether to use "internal" convolution layer
         act_func: ---
         unif_drop: drop rate for uniform dropout
         chan_drop: drop rate for channel-wise dropout
@@ -1879,13 +2029,13 @@ class InfConvGRUModuleIMS(object):
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self,
-                 td_chans, bu_chans, im_chans, rand_chans, conv_chans,
-                 use_conv=True, act_func='relu',
-                 unif_drop=0.0, chan_drop=0.0,
-                 apply_bn=True,
+                 td_chans, bu_chans, im_chans, rand_chans,
+                 act_func='tanh',
+                 unif_drop=0.0,
+                 chan_drop=0.0,
+                 apply_bn=False,
                  use_td_cond=False,
                  use_bn_params=True,
-                 mod_type=0,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
                 "invalid act_func {}.".format(act_func)
@@ -1893,8 +2043,6 @@ class InfConvGRUModuleIMS(object):
         self.bu_chans = bu_chans
         self.im_chans = im_chans
         self.rand_chans = rand_chans
-        self.conv_chans = conv_chans
-        self.use_conv = use_conv
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -1910,7 +2058,6 @@ class InfConvGRUModuleIMS(object):
         self.apply_bn = apply_bn
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
-        self.mod_type = mod_type
         self.mod_name = mod_name
         self._init_params() # initialize parameters
         return
@@ -1927,22 +2074,14 @@ class InfConvGRUModuleIMS(object):
         # Initialize "inference" model parameters. #
         ############################################
         # initialize GRU gating parameters
-        if self.mod_type == 0:
-            self.w1_im = weight_ifn((2*self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
-                                    "{}_w1_im".format(self.mod_name))
-        else:
-            self.w1_im = weight_ifn((2*self.im_chans, (3*self.td_chans+self.im_chans), 3, 3),
-                                    "{}_w1_im".format(self.mod_name))
+        self.w1_im = weight_ifn((2*self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
+                                "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((2*self.im_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((2*self.im_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize GRU state update parameters
-        if self.mod_type == 0:
-            self.w2_im = weight_ifn((self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
-                                    "{}_w2_im".format(self.mod_name))
-        else:
-            self.w2_im = weight_ifn((self.im_chans, (3*self.td_chans+self.im_chans), 3, 3),
-                                    "{}_w2_im".format(self.mod_name))
+        self.w2_im = weight_ifn((self.im_chans, (self.td_chans+self.bu_chans+self.im_chans), 3, 3),
+                                "{}_w2_im".format(self.mod_name))
         self.g2_im = gain_ifn((self.im_chans), "{}_g2_im".format(self.mod_name))
         self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
@@ -2065,39 +2204,35 @@ class InfConvGRUModuleIMS(object):
             cols = td_input.shape[3]
             im_input = T.alloc(0.0, b_size, self.im_chans, rows, cols)
 
-        # prepare input to gating functions
-        if self.mod_type == 0:
-            gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
-        else:
-            gate_input = T.concatenate([td_input, bu_input, td_input-bu_input, im_input], axis=1)
-        gate_input = conv_drop_func(gate_input, self.unif_drop, self.chan_drop,
-                                    share_mask=share_mask)
         # compute gating information for GRU state update
-        h1 = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
-        h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
-        h1 = add_noise(h1, noise=noise)
-        h1 = sigmoid(h1 + 1.)
-        u = h1[:,:self.im_chans,:,:]
-        r = h1[:,self.im_chans:,:,:]
-
-        # prepare input for computing new state
-        if self.mod_type == 0:
-            state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
+        gate_input = T.concatenate([td_input, bu_input, im_input], axis=1)
+        h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(bm, bm))
+        if self.apply_bn:
+            h = switchy_bn(h, g=self.g1_im, b=self.b1_im, n=noise,
+                           use_gb=self.use_bn_params)
         else:
-            state_input = T.concatenate([td_input, bu_input, td_input-bu_input, r*im_input], axis=1)
-        state_input = conv_drop_func(state_input, self.unif_drop, self.chan_drop,
-                                     share_mask=share_mask)
+            h = h + self.b1_im.dimshuffle('x',0,'x','x')
+            h = add_noise(h, noise=noise)
+        h = sigmoid(h + 1.)
+        u = h[:,:self.in_chans,:,:]
+        r = h[:,self.in_chans:,:,:]
+
         # compute new state for GRU state update
-        h2 = dnn_conv(state_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
-        h2 = h2 + self.b2_im.dimshuffle('x',0,'x','x')
-        h2 = h2 + add_noise(h2, noise=noise)
-        # perform GRU-style state update (for IM state)
-        out_im = (u * im_input) + ((1. - u) * self.act_func(h2))
+        state_input = T.concatenate([td_input, bu_input, r*im_input], axis=1)
+        s = dnn_conv(state_input, self.w2_im, subsample=(1, 1), border_mode=(bm, bm))
+        if self.apply_bn:
+            s = switchy_bn(s, g=self.g2_im, b=self.b2_im, n=noise,
+                           use_gb=self.use_bn_params)
+        else:
+            s = s + self.b2_im.dimshuffle('x',0,'x','x')
+            s = add_noise(s, noise=noise)
+        s = self.act_func(s)
+        # combine initial state and proposed new state based on u
+        out_im = (u * im_input) + ((1. - u) * s)
 
         # compute conditioning parameters
         h3 = dnn_conv(out_im, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
         h3 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
-        h3 = h3 + add_noise(h3, noise=noise)
         out_mean = h3[:,:self.rand_chans,:,:]
         out_logvar = h3[:,self.rand_chans:,:,:]
         return out_mean, out_logvar, out_im

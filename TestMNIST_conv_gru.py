@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_gru_im_and_td_dbl'
+desc = 'test_conv_gru_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -60,7 +60,7 @@ else:
     Xva = Xte
 
 
-set_seed(12)      # seed for shared rngs
+set_seed(123)      # seed for shared rngs
 nc = 1            # # of channels in image
 nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
@@ -74,13 +74,15 @@ niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
-iwae_samples = 1  # number of samples to use in MEN bound
-noise_std = 0.0   # amount of noise to inject in BU and IM modules
+act_func = 'tanh' # activation func to use where they can be selected
+noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
-gen_mt = 0
-inf_mt = 0
 use_td_cond = False
+depth_7x7 = 1
+depth_14x14 = 1
+
+alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
 ntrain = Xtr.shape[0]
 
@@ -120,117 +122,30 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
-    act_func='tanh',
+    act_func=act_func,
     mod_name='td_mod_1'
 )
 
-# (7, 7) -> (7, 7)
-td_module_2a = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2a'
-)
-
-# (7, 7) -> (7, 7)
-td_module_2b = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2b'
-)
-#td_module_2b.share_params(td_module_2a)
-
-# (7, 7) -> (7, 7)
-td_module_2c = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2c'
-)
-td_module_2c.share_params(td_module_2a)
-
-# (7, 7) -> (7, 7)
-td_module_2d = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2d'
-)
-td_module_2d.share_params(td_module_2b)
-
-# (7, 7) -> (7, 7)
-td_module_2e = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2e'
-)
-td_module_2e.share_params(td_module_2a)
-
-# (7, 7) -> (7, 7)
-td_module_2f = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_2f'
-)
-td_module_2f.share_params(td_module_2b)
+# grow the (7, 7) -> (7, 7) part of network
+td_modules_7x7 = []
+for i in range(depth_7x7):
+    mod_name = 'td_mod_2{}'.format(alphabet[i])
+    new_module = \
+    GenConvGRUModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        rand_chans=nz1,
+        filt_shape=(3,3),
+        use_rand=multi_rand,
+        apply_bn=use_bn,
+        act_func=act_func,
+        us_stride=1,
+        mod_name=mod_name
+    )
+    td_modules_7x7.append(new_module)
+# manual stuff for parameter sharing....
 
 # (7, 7) -> (14, 14)
 td_module_3 = \
@@ -240,116 +155,28 @@ BasicConvModule(
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
-    act_func='tanh',
+    act_func=act_func,
     mod_name='td_mod_3'
 )
 
-# (14, 14) -> (14, 14)
-td_module_4a = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4a'
-)
-
-# (14, 14) -> (14, 14)
-td_module_4b = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4b'
-)
-#td_module_4b.share_params(td_module_4a)
-
-# (14, 14) -> (14, 14)
-td_module_4c = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4c'
-)
-td_module_4c.share_params(td_module_4a)
-
-# (14, 14) -> (14, 14)
-td_module_4d = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4d'
-)
-td_module_4d.share_params(td_module_4b)
-
-# (14, 14) -> (14, 14)
-td_module_4e = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4e'
-)
-td_module_4e.share_params(td_module_4a)
-
-# (14, 14) -> (14, 14)
-td_module_4f = \
-GenConvGRUModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    rand_chans=nz1,
-    filt_shape=(3,3),
-    use_rand=multi_rand,
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    act_func='tanh',
-    mod_type=gen_mt,
-    us_stride=1,
-    mod_name='td_mod_4f'
-)
-td_module_4f.share_params(td_module_4b)
+# grow the (14, 14) -> (14, 14) part of network
+td_modules_14x14 = []
+for i in range(depth_14x14):
+    mod_name = 'td_mod_4{}'.format(alphabet[i])
+    new_module = \
+    GenConvGRUModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        rand_chans=nz1,
+        filt_shape=(3,3),
+        use_rand=multi_rand,
+        apply_bn=use_bn,
+        act_func=act_func,
+        us_stride=1,
+        mod_name=mod_name
+    )
+    td_modules_14x14.append(new_module)
+# manual stuff for parameter sharing....
 
 # (14, 14) -> (28, 28)
 td_module_5 = \
@@ -359,7 +186,7 @@ BasicConvModule(
     out_chans=(ngf*1),
     apply_bn=use_bn,
     stride='half',
-    act_func='lrelu',
+    act_func=act_func,
     mod_name='td_mod_5'
 )
 
@@ -377,8 +204,11 @@ BasicConvModule(
 )
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1, td_module_2a, td_module_2b, td_module_2c, td_module_2d, td_module_2e, td_module_2f, td_module_3,
-              td_module_4a, td_module_4b, td_module_4c, td_module_4d, td_module_4e, td_module_4f, td_module_5, td_module_6]
+td_modules = [td_module_1] + \
+             td_modules_7x7 + \
+             [td_module_3] + \
+             td_modules_14x14 + \
+             [td_module_5, td_module_6]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -392,99 +222,23 @@ InfTopModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_1'
 )
 
 # (7, 7) -> (7, 7)
-bu_module_2a = \
-BasicConvPertModule(
+bu_module_2 = \
+BasicConvModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2a'
+    act_func='relu',
+    mod_name='bu_mod_2'
 )
-
-# (7, 7) -> (7, 7)
-bu_module_2b = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2b'
-)
-#bu_module_2b.share_params(bu_module_2a)
-
-# (7, 7) -> (7, 7)
-bu_module_2c = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2c'
-)
-#bu_module_2c.share_params(bu_module_2a)
-
-# (7, 7) -> (7, 7)
-bu_module_2d = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2d'
-)
-#bu_module_2d.share_params(bu_module_2a)
-
-# (7, 7) -> (7, 7)
-bu_module_2e = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2e'
-)
-#bu_module_2e.share_params(bu_module_2a)
-
-# (7, 7) -> (7, 7)
-bu_module_2f = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_2f'
-)
-#bu_module_2f.share_params(bu_module_2a)
 
 # (14, 14) -> (7, 7)
 bu_module_3 = \
@@ -494,127 +248,49 @@ BasicConvModule(
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_3'
 )
 
 # (14, 14) -> (14, 14)
-bu_module_4a = \
-BasicConvPertModule(
+bu_module_4 = \
+BasicConvModule(
     in_chans=(ngf*2),
     out_chans=(ngf*2),
-    conv_chans=(ngf*2),
     filt_shape=(3,3),
-    use_conv=use_conv,
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4a'
+    act_func='relu',
+    mod_name='bu_mod_4'
 )
-
-# (14, 14) -> (14, 14)
-bu_module_4b = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4b'
-)
-#bu_module_4b.share_params(bu_module_4a)
-
-# (14, 14) -> (14, 14)
-bu_module_4c = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4c'
-)
-#bu_module_4c.share_params(bu_module_4a)
-
-# (14, 14) -> (14, 14)
-bu_module_4d = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4d'
-)
-#bu_module_4d.share_params(bu_module_4a)
-
-# (14, 14) -> (14, 14)
-bu_module_4e = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4e'
-)
-#bu_module_4e.share_params(bu_module_4a)
-
-# (14, 14) -> (14, 14)
-bu_module_4f = \
-BasicConvPertModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    conv_chans=(ngf*2),
-    filt_shape=(3,3),
-    use_conv=use_conv,
-    apply_bn=use_bn,
-    stride='single',
-    act_func='lrelu',
-    mod_name='bu_mod_4f'
-)
-#bu_module_4f.share_params(bu_module_4a)
 
 # (28, 28) -> (14, 14)
 bu_module_5 = \
 BasicConvModule(
-    filt_shape=(3,3),
     in_chans=(ngf*1),
     out_chans=(ngf*2),
+    filt_shape=(3,3),
     apply_bn=use_bn,
     stride='double',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_5'
 )
 
 # (28, 28) -> (28, 28)
 bu_module_6 = \
 BasicConvModule(
-    filt_shape=(3,3),
     in_chans=nc,
     out_chans=(ngf*1),
+    filt_shape=(3,3),
     apply_bn=use_bn,
     stride='single',
-    act_func='lrelu',
+    act_func='relu',
     mod_name='bu_mod_6'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5, bu_module_4f, bu_module_4e, bu_module_4d, bu_module_4c, bu_module_4b, bu_module_4a,
-              bu_module_3, bu_module_2f, bu_module_2e, bu_module_2d, bu_module_2c, bu_module_2b, bu_module_2a, bu_module_1]
-
+bu_modules = [bu_module_6, bu_module_5, bu_module_4,
+              bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -627,105 +303,28 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=True,
     apply_bn=use_bn,
-    act_func='tanh',
+    act_func=act_func,
     mod_name='im_mod_1'
 )
 
-im_module_2a = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2a'
-)
-
-im_module_2b = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2b'
-)
-#im_module_2b.share_params(im_module_2a)
-
-im_module_2c = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2c'
-)
-im_module_2c.share_params(im_module_2a)
-
-im_module_2d = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2d'
-)
-im_module_2d.share_params(im_module_2b)
-
-im_module_2e = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2e'
-)
-im_module_2e.share_params(im_module_2a)
-
-im_module_2f = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_2f'
-)
-im_module_2f.share_params(im_module_2b)
+# grow the (7, 7) -> (7, 7) part of network
+im_modules_7x7 = []
+for i in range(depth_7x7):
+    mod_name = 'im_mod_2{}'.format(alphabet[i])
+    new_module = \
+    InfConvGRUModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        rand_chans=nz1,
+        use_td_cond=use_td_cond,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    im_modules_7x7.append(new_module)
 
 # (7, 7) -> (14, 14)
 im_module_3 = \
@@ -735,109 +334,31 @@ BasicConvModule(
     filt_shape=(3,3),
     apply_bn=use_bn,
     stride='half',
-    act_func='tanh',
+    act_func=act_func,
     mod_name='im_mod_3'
 )
 
-im_module_4a = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4a'
-)
+# grow the (14, 14) -> (14, 14) part of network
+im_modules_14x14 = []
+for i in range(depth_14x14):
+    mod_name = 'im_mod_4{}'.format(alphabet[i])
+    new_module = \
+    InfConvGRUModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        rand_chans=nz1,
+        use_td_cond=use_td_cond,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    im_modules_14x14.append(new_module)
 
-im_module_4b = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4b'
-)
-#im_module_4b.share_params(im_module_4a)
-
-im_module_4c = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4c'
-)
-im_module_4c.share_params(im_module_4a)
-
-im_module_4d = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4d'
-)
-im_module_4d.share_params(im_module_4b)
-
-im_module_4e = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4e'
-)
-im_module_4e.share_params(im_module_4a)
-
-im_module_4f = \
-InfConvGRUModuleIMS(
-    td_chans=(ngf*2),
-    bu_chans=(ngf*2),
-    im_chans=(ngf*2),
-    rand_chans=nz1,
-    conv_chans=(ngf*2),
-    use_conv=True,
-    use_td_cond=use_td_cond,
-    apply_bn=use_bn,
-    mod_type=inf_mt,
-    act_func='tanh',
-    mod_name='im_mod_4f'
-)
-im_module_4f.share_params(im_module_4b)
-
-im_modules = [im_module_1,
-              im_module_2a, im_module_2b, im_module_2c, im_module_2d, im_module_2e, im_module_2f,
-              im_module_3,
-              im_module_4a, im_module_4b, im_module_4c, im_module_4d, im_module_4e, im_module_4f]
+im_modules = [im_module_1] + \
+             im_modules_7x7 + \
+             [im_module_3] + \
+             im_modules_14x14
 
 #
 # Setup a description for where to get conditional distributions from.
@@ -846,34 +367,8 @@ merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
-    'td_mod_2a': {'td_type': 'cond', 'im_module': 'im_mod_2a',
-                  'bu_source': 'bu_mod_2b', 'im_source': 'im_mod_1'},
-    'td_mod_2b': {'td_type': 'cond', 'im_module': 'im_mod_2b',
-                  'bu_source': 'bu_mod_2c', 'im_source': 'im_mod_2a'},
-    'td_mod_2c': {'td_type': 'cond', 'im_module': 'im_mod_2c',
-                  'bu_source': 'bu_mod_2d', 'im_source': 'im_mod_2b'},
-    'td_mod_2d': {'td_type': 'cond', 'im_module': 'im_mod_2d',
-                  'bu_source': 'bu_mod_2e', 'im_source': 'im_mod_2c'},
-    'td_mod_2e': {'td_type': 'cond', 'im_module': 'im_mod_2e',
-                  'bu_source': 'bu_mod_2f', 'im_source': 'im_mod_2d'},
-    'td_mod_2f': {'td_type': 'cond', 'im_module': 'im_mod_2f',
-                  'bu_source': 'bu_mod_3', 'im_source': 'im_mod_2e'},
-
     'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
-                 'bu_source': None, 'im_source': 'im_mod_2e'},
-
-    'td_mod_4a': {'td_type': 'cond', 'im_module': 'im_mod_4a',
-                  'bu_source': 'bu_mod_4b', 'im_source': 'im_mod_3'},
-    'td_mod_4b': {'td_type': 'cond', 'im_module': 'im_mod_4b',
-                  'bu_source': 'bu_mod_4c', 'im_source': 'im_mod_4a'},
-    'td_mod_4c': {'td_type': 'cond', 'im_module': 'im_mod_4c',
-                  'bu_source': 'bu_mod_4d', 'im_source': 'im_mod_4b'},
-    'td_mod_4d': {'td_type': 'cond', 'im_module': 'im_mod_4d',
-                  'bu_source': 'bu_mod_4e', 'im_source': 'im_mod_4c'},
-    'td_mod_4e': {'td_type': 'cond', 'im_module': 'im_mod_4e',
-                  'bu_source': 'bu_mod_4f', 'im_source': 'im_mod_4d'},
-    'td_mod_4f': {'td_type': 'cond', 'im_module': 'im_mod_4f',
-                  'bu_source': 'bu_mod_5', 'im_source': 'im_mod_4e'},
+                 'bu_source': None, 'im_source': im_modules_7x7[-1].mod_name},
 
     'td_mod_5': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
@@ -881,14 +376,44 @@ merge_info = {
                  'bu_source': None, 'im_source': None}
 }
 
+# add merge_info entries for the modules with latent variables
+for i in range(depth_7x7):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
+    im_src_name = 'im_mod_1'
+    bu_src_name = 'bu_mod_3'
+    if i > 0:
+        im_src_name = 'im_mod_2{}'.format(alphabet[i-1]) s
+    # add entry for this TD module
+    merge_info[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+for i in range(depth_14x14):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_4{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_4{}'.format(alphabet[i])
+    im_src_name = 'im_mod_3'
+    bu_src_name = 'bu_mod_5'
+    if i > 0:
+        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
+    # add entry for this TD module
+    merge_info[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
+    sc_modules=[],
     merge_info=merge_info,
-    output_transform=output_transform
+    output_transform=output_transform,
+    use_sc=False
 )
 
 #inf_gen_model.load_params(inf_gen_param_file)
@@ -916,91 +441,43 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
-if iwae_samples == 1:
-    # run an inference and reconstruction pass through the generative stuff
-    im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_res_dict['td_output']
-    kld_dict = im_res_dict['kld_dict']
-    log_p_z = sum(im_res_dict['log_p_z'])
-    log_q_z = sum(im_res_dict['log_q_z'])
 
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                    do_sum=False), axis=1)
+# run an inference and reconstruction pass through the generative stuff
+im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+Xg_recon = im_res_dict['td_output']
+kld_dict = im_res_dict['kld_dict']
+log_p_z = sum(im_res_dict['log_p_z'])
+log_q_z = sum(im_res_dict['log_q_z'])
 
-    # compute reconstruction error part of free-energy
-    vae_obs_nlls = -1.0 * log_p_x
-    vae_nll_cost = T.mean(vae_obs_nlls)
+log_p_x = T.sum(log_prob_bernoulli( \
+                T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                do_sum=False), axis=1)
 
-    # compute per-layer KL-divergence part of cost
-    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-    # compute total per-observation KL-divergence part of cost
-    vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-    vae_kld_cost = T.mean(vae_obs_klds)
+# compute reconstruction error part of free-energy
+vae_obs_nlls = -1.0 * log_p_x
+vae_nll_cost = T.mean(vae_obs_nlls)
 
-    # compute per-layer KL-divergence part of cost
-    alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
-    alt_kld_cost = T.mean(sum(alt_layer_klds))
+# compute per-layer KL-divergence part of cost
+kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
+vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+# compute total per-observation KL-divergence part of cost
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_kld_cost = T.mean(vae_obs_klds)
 
-    # compute the KLd cost to use for optimization
-    opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+# compute per-layer KL-divergence part of cost
+alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+alt_kld_cost = T.mean(sum(alt_layer_klds))
 
-    # combined cost for generator stuff
-    vae_cost = vae_nll_cost + vae_kld_cost
-    vae_obs_costs = vae_obs_nlls + vae_obs_klds
-    # cost used by the optimizer
-    full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
-    full_cost_inf = full_cost_gen
-else:
-    # run an inference and reconstruction pass through the generative stuff
-    batch_size = Xg.shape[0]
-    Xg_rep = T.extra_ops.repeat(Xg, iwae_samples, axis=0)
-    im_res_dict = inf_gen_model.apply_im(Xg_rep, noise=noise)
-    Xg_rep_recon = im_res_dict['td_output']
-    kld_dict = im_res_dict['kld_dict']
-    log_p_z = sum(im_res_dict['log_p_z'])
-    log_q_z = sum(im_res_dict['log_q_z'])
+# compute the KLd cost to use for optimization
+opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 
-    log_p_x = T.sum(log_prob_bernoulli( \
-                    T.flatten(Xg_rep,2), T.flatten(Xg_rep_recon,2),
-                    do_sum=False), axis=1)
-
-    # compute quantities used in the IWAE bound
-    log_ws_vec = log_p_x + log_p_z - log_q_z
-    log_ws_mat = log_ws_vec.reshape((batch_size, iwae_samples))
-    ws_mat = log_ws_mat - T.max(log_ws_mat, axis=1, keepdims=True)
-    ws_mat = T.exp(ws_mat)
-    nis_weights = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-    nis_weights = theano.gradient.disconnected_grad(nis_weights)
-
-    vae_obs_costs = -1.0 * T.sum((nis_weights * log_ws_mat), axis=1)
-
-    # free-energy log likelihood bound...
-    vae_cost = -1.0 * T.mean(log_mean_exp(log_ws_mat, axis=1))
-
-    # compute a VAE-style reconstruction cost averaged over IWAE samples
-    vae_obs_nlls = -1.0 * T.mean(log_p_x.reshape((batch_size, iwae_samples)), axis=1)
-    vae_nll_cost = T.mean(vae_obs_nlls)
-    # compute per-layer KL-divergence part of cost
-    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
-    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
-    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-    # compute total per-observation KL-divergence part of cost
-    vae_obs_klds = sum([T.mean(mod_kld.reshape((batch_size, iwae_samples)), axis=1) \
-                         for mod_name, mod_kld in kld_tuples])
-    vae_kld_cost = T.mean(vae_obs_klds)
-
-    # costs used by the optimizer -- train on combined VAE/IWAE costs
-    full_cost_gen = ((1.0 - lam_vae[0]) * T.mean(vae_obs_costs)) + \
-                    (lam_vae[0] * (vae_nll_cost + vae_kld_cost)) + \
-                    vae_reg_cost
-    full_cost_inf = full_cost_gen
-
-    # get simple reconstruction, for other purposes
-    im_rd = inf_gen_model.apply_im(Xg, noise=noise)
-    Xg_recon = im_rd['td_output']
+# combined cost for generator stuff
+vae_cost = vae_nll_cost + vae_kld_cost
+vae_obs_costs = vae_obs_nlls + vae_obs_klds
+# cost used by the optimizer
+full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
+full_cost_inf = full_cost_gen
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -1099,9 +576,10 @@ for epoch in range(1, niter+niter_decay+1):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        i_result = i_train_func(smb_img)
-        i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 5:
+            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+            i_result = i_train_func(smb_img)
+            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
@@ -1193,10 +671,6 @@ for epoch in range(1, niter+niter_decay+1):
         # draw images...
         grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
         grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
-
-
-
-
 
 
 
