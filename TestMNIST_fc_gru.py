@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_fc_dyn_bin_gru_draw_depth_15'
+desc = 'test_fc_dyn_bin_gru_draw_depth_10_long_train'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -69,7 +69,7 @@ ngfc = 64         # number of filters in top-most fc layer
 scf = 256
 nx = npx*npx*nc   # # of dimensions in X
 niter = 500       # # of iter at starting learning rate
-niter_decay = 1500 # # of iter to linearly decay learning rate to zero
+niter_decay = 2500 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_fc = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -78,7 +78,7 @@ iwae_samples = 1  # number of samples to use in MEN bound
 noise_std = 0.1   # amount of noise to inject in BU and IM modules
 use_td_noise = True # whether to use noise in TD pass
 use_bu_noise = True # whether to use noise in BU pass
-gen_depth = 15
+gen_depth = 10
 use_ims = True
 inf_mt = 0
 
@@ -357,7 +357,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # parameter regularization part of cost
-vae_reg_cost = 2e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 4e-5 * sum([T.sum(p**2.0) for p in g_params])
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
 Xg_recon = im_res_dict['td_output']
