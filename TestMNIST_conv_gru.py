@@ -64,7 +64,7 @@ nbatch = 100      # # of examples in batch
 npx = 28          # # of pixels width/height of images
 nz0 = 32          # # of dim for Z0
 nz1 = 4           # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
+ngf = 40          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 200       # # of iter at starting learning rate
@@ -77,8 +77,8 @@ noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 use_td_cond = False
-depth_7x7 = 6
-depth_14x14 = 6
+depth_7x7 = 5
+depth_14x14 = 5
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 

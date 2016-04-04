@@ -41,7 +41,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_flippy_fp01_fm02'
+desc = 'test_conv_flippy_fp002_fm020'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -83,9 +83,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 1
 use_td_cond = False
-depth_7x7 = 2
-depth_14x14 = 2
-flip_prob = 0.1
+depth_7x7 = 3
+depth_14x14 = 3
+flip_prob = 0.02
 flip_mean = 0.2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
