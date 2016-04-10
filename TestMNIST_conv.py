@@ -41,7 +41,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_direct_gen_pert_5deep_1'
+desc = 'test_conv_direct_gen_pert_alt_inf'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -81,7 +81,7 @@ act_func = 'lrelu' # activation func to use where they can be selected
 noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
-inf_mt = 1
+inf_mt = 0
 use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
@@ -126,6 +126,7 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
@@ -229,6 +230,7 @@ InfTopModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
@@ -327,6 +329,7 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_1'

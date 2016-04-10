@@ -38,7 +38,7 @@ from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep_2'
+desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -83,6 +83,8 @@ inf_mt = 1
 use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
+
+fine_tune_inf_net = True
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -482,6 +484,123 @@ inf_gen_model = InfGenModel(
 ###################
 inf_gen_model.load_params(inf_gen_param_file)
 
+#################################################
+#################################################
+##                                             ##
+## FINE TUNE THE INFERENCE NETWORK ON TEST SET ##
+##                                             ##
+#################################################
+#################################################
+if fine_tune_inf_net:
+    ####################################
+    # Setup the optimization objective #
+    ####################################
+    lam_kld = sharedX(floatX([1.0]))
+    noise = sharedX(floatX([noise_std]))
+    inf_params = inf_gen_model.inf_params
+
+    ##########################################################
+    # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
+    ##########################################################
+    Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+    # parameter regularization part of cost
+    vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
+
+    # run an inference and reconstruction pass through the generative stuff
+    im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+    Xg_recon = im_res_dict['td_output']
+    kld_dict = im_res_dict['kld_dict']
+    log_p_z = sum(im_res_dict['log_p_z'])
+    log_q_z = sum(im_res_dict['log_q_z'])
+
+    log_p_x = T.sum(log_prob_bernoulli( \
+                    T.flatten(Xg,2), T.flatten(Xg_recon,2),
+                    do_sum=False), axis=1)
+
+    # compute reconstruction error part of free-energy
+    vae_obs_nlls = -1.0 * log_p_x
+    vae_nll_cost = T.mean(vae_obs_nlls)
+
+    # compute per-layer KL-divergence part of cost
+    kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
+    vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
+    vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+    # compute total per-observation KL-divergence part of cost
+    vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+    vae_kld_cost = T.mean(vae_obs_klds)
+
+    # compute per-layer KL-divergence part of cost
+    alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+    alt_kld_cost = T.mean(sum(alt_layer_klds))
+
+    # compute the KLd cost to use for optimization
+    opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+
+    # combined cost for generator stuff
+    vae_cost = vae_nll_cost + vae_kld_cost
+    vae_obs_costs = vae_obs_nlls + vae_obs_klds
+    # cost used by the optimizer
+    full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
+    full_cost_inf = full_cost_gen
+
+    #################################################################
+    # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
+    #################################################################
+
+    # stuff for performing updates
+    lrt = sharedX(0.0001)
+    b1t = sharedX(0.8)
+    inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+
+    # build training cost and update functions
+    t = time()
+    print("Computing gradients...")
+    inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
+    print("Compiling training functions...")
+    # collect costs for generator parameters
+    g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
+                     vae_kld_cost]
+    g_bc_idx = range(0, len(g_basic_costs))
+    g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
+                  'vae_kld_cost']
+    g_cost_outputs = g_basic_costs
+    # compile function for computing generator costs and updates
+    i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)
+    print "{0:.2f} seconds to compile theano functions".format(time()-t)
+
+    # make file for recording test progress
+    log_name = "{}/FINE-TUNE.txt".format(result_dir)
+    out_file = open(log_name, 'wb')
+
+    print("EXPERIMENT: {}".format(desc.upper()))
+    n_check = 0
+    n_updates = 0
+    t = time()
+    for epoch in range(1, 100):
+        Xva = shuffle(Xva)
+        # initialize cost arrays
+        g_epoch_costs = [0. for gco in g_cost_outputs]
+        g_batch_count = 0.
+        for imb in tqdm(iter_data(Xva, size=100), total=ntrain/100):
+            # transform training batch to "image format"
+            imb_img = train_transform(imb)
+            # train vae on training batch
+            noise.set_value(floatX([noise_std]))
+            g_result = i_train_func(floatX(imb_img))
+            g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
+            g_batch_count += 1
+        # report quantitative diagnostics
+        g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+        str1 = "Epoch {}: ({})".format(epoch, desc.upper())
+        g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
+                     for (c_idx, c_name) in zip(g_bc_idx, g_bc_names)]
+        str2 = " ".join(g_bc_strs)
+        joint_str = "\n".join([str1, str2])
+        print(joint_str)
+        out_file.write(joint_str+"\n")
+        out_file.flush()
+
+
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
@@ -572,8 +691,8 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-Xva_blocks = np.split(Xva, 10, axis=0)
-for epoch in range(3):
+Xva_blocks = np.split(Xva, 4, axis=0)
+for epoch in range(5):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
     for block_num, Xva_block in enumerate(Xva_blocks):
@@ -587,7 +706,7 @@ for epoch in range(3):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 10,
+            iwae_bounds = iwae_multi_eval(imb_img, 500,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
