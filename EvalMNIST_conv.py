@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep'
+desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep_2'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -85,7 +85,7 @@ fine_tune_inf_net = True
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
-ntrain = Xtr.shape[0]
+ntrain = Xva.shape[0]
 
 
 def np_log_mean_exp(x, axis=None):
@@ -499,7 +499,7 @@ if fine_tune_inf_net:
     ##########################################################
     Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
     # parameter regularization part of cost
-    vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
+    vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in inf_params])
 
     # run an inference and reconstruction pass through the generative stuff
     im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
