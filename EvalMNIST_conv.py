@@ -27,12 +27,10 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import BasicConvModule, GenConvResModule, \
-                              GenTopModule, InfConvMergeModule, \
-                              InfTopModule, BasicConvResModule, \
+from MatryoshkaModules import BasicConvModule, GenTopModule, InfTopModule, \
                               GenConvPertModule, BasicConvPertModule, \
-                              GenConvGRUModule, InfConvMergeModuleIMS
-from MatryoshkaNetworks import InfGenModel, DiscNetworkGAN, GenNetworkGAN
+                              InfConvMergeModuleIMS
+from MatryoshkaNetworks import InfGenModel
 
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./mnist"
