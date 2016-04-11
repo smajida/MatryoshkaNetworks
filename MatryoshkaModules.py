@@ -690,8 +690,7 @@ class BasicConvPertModule(object):
         else:
             h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
             h3 = add_noise(h3, noise=noise)
-        #output = self.act_func(h3)
-        output = h3
+        output = self.act_func(h3)
         if rand_shapes:
             result = [output, input.shape]
         else:
@@ -1497,7 +1496,7 @@ class GenConvPertModule(object):
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
         # derp a derp parameterrrrr
-        self.wx = weight_ifn((self.in_chans, self.rand_chans, 3, 3),
+        self.wx = weight_ifn((self.conv_chans, self.rand_chans, 3, 3),
                              "{}_wx".format(self.mod_name))
         self.wy = weight_ifn((self.in_chans, self.conv_chans, 3, 3),
                              "{}_wy".format(self.mod_name))

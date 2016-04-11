@@ -81,7 +81,7 @@ use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
 
-fine_tune_inf_net = True
+fine_tune_inf_net = False
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -151,6 +151,7 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='td_mod_1'
@@ -254,6 +255,7 @@ InfTopModule(
     fc_chans=ngfc,
     rand_chans=nz0,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='bu_mod_1'
@@ -352,6 +354,7 @@ GenTopModule(
     out_shape=(ngf*2, 7, 7),
     fc_dim=ngfc,
     use_fc=True,
+    use_sc=False,
     apply_bn=use_bn,
     act_func=act_func,
     mod_name='im_mod_1'
@@ -584,6 +587,7 @@ if fine_tune_inf_net:
             g_result = i_train_func(floatX(imb_img))
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             g_batch_count += 1
+            break
         # report quantitative diagnostics
         g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
         str1 = "Epoch {}: ({})".format(epoch, desc.upper())
@@ -701,7 +705,7 @@ for epoch in range(5):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 500,
+            iwae_bounds = iwae_multi_eval(imb_img, 5,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
