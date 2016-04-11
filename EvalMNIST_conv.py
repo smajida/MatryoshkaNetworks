@@ -579,12 +579,10 @@ if fine_tune_inf_net:
         # initialize cost arrays
         g_epoch_costs = [0. for gco in g_cost_outputs]
         g_batch_count = 0.
-        if (epoch < 5):
+        if (epoch < 25):
             lrt.set_value(floatX(0.00001))
-        elif (epoch < 10):
+        elif (epoch < 50):
             lrt.set_value(floatX(0.00003))
-        elif (epoch < 15):
-            lrt.set_value(floatX(0.0001))
         for imb in tqdm(iter_data(Xva, size=100), total=ntrain/100):
             # transform training batch to "image format"
             imb_img = train_transform(imb)
