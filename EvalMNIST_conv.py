@@ -574,11 +574,17 @@ if fine_tune_inf_net:
     n_check = 0
     n_updates = 0
     t = time()
-    for epoch in range(1, 100):
+    for epoch in range(1, 200):
         Xva = shuffle(Xva)
         # initialize cost arrays
         g_epoch_costs = [0. for gco in g_cost_outputs]
         g_batch_count = 0.
+        if (epoch < 5):
+            lrt.set_value(floatX(0.00001))
+        elif (epoch < 10):
+            lrt.set_value(floatX(0.00003))
+        elif (epoch < 15):
+            lrt.set_value(floatX(0.0001))
         for imb in tqdm(iter_data(Xva, size=100), total=ntrain/100):
             # transform training batch to "image format"
             imb_img = train_transform(imb)
@@ -587,6 +593,10 @@ if fine_tune_inf_net:
             g_result = i_train_func(floatX(imb_img))
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             g_batch_count += 1
+        if (epoch == 75) or (epoch == 150):
+            lr = lrt.get_value(borrow=False)
+            lr = lr / 2.0
+            lrt.set_value(floatX(lr))
         # report quantitative diagnostics
         g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
         str1 = "Epoch {}: ({})".format(epoch, desc.upper())
