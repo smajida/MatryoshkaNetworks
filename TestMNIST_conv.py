@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_direct_gen_pert_alt_inf'
+desc = 'test_conv_inf_mt_0_5deep_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -457,7 +457,6 @@ inf_gen_model = InfGenModel(
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_vae = sharedX(floatX([1.0]))
 lam_kld = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
@@ -567,7 +566,6 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-lam_vae.set_value(floatX([0.5]))
 kld_weights = np.linspace(0.0,1.0,10)
 sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
 for epoch in range(1, niter+niter_decay+1):
@@ -631,9 +629,6 @@ for epoch in range(1, niter+niter_decay+1):
         b1 = b1t.get_value(borrow=False)
         b1 = b1 + ((0.95 - b1) / 2.0)
         b1t.set_value(floatX(b1))
-        lv = lam_vae.get_value(borrow=False)
-        lv = lv / 2.0
-        lam_vae.set_value(floatX(lv))
     if epoch > niter:
         # linearly decay learning rate
         lr = lrt.get_value(borrow=False)
