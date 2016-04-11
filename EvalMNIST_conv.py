@@ -81,7 +81,7 @@ use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
 
-fine_tune_inf_net = False
+fine_tune_inf_net = True
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -587,7 +587,6 @@ if fine_tune_inf_net:
             g_result = i_train_func(floatX(imb_img))
             g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result, g_epoch_costs)]
             g_batch_count += 1
-            break
         # report quantitative diagnostics
         g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
         str1 = "Epoch {}: ({})".format(epoch, desc.upper())
@@ -690,7 +689,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-Xva_blocks = np.split(Xva, 4, axis=0)
+Xva_blocks = np.split(Xva, 5, axis=0)
 for epoch in range(5):
     epoch_vae_cost = 0.0
     epoch_iwae_cost = 0.0
@@ -705,7 +704,7 @@ for epoch in range(5):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 5,
+            iwae_bounds = iwae_multi_eval(imb_img, 500,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
