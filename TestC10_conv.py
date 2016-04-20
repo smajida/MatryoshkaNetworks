@@ -16,7 +16,7 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.ops import log_mean_exp, binarize_data
+from lib.ops import log_mean_exp, binarize_data, fuzz_data
 from lib.costs import log_prob_bernoulli, log_prob_gaussian
 from lib.vis import grayscale_grid_vis, color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
@@ -65,7 +65,7 @@ niter = 150       # # of iter at starting learning rate
 niter_decay = 150 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -80,8 +80,10 @@ alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
 ntrain = Xtr.shape[0]
 
-def train_transform(X):
+def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
+    if add_fuzz:
+        X = fuzz_data(X, scale=(1./256.), rand_type='uniform')
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 def draw_transform(X):
@@ -566,7 +568,7 @@ inf_gen_model = InfGenModel(
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-log_var = sharedX(floatX([1.0]))
+log_var = sharedX(floatX([0.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params + [log_var]
 inf_params = inf_gen_model.inf_params
@@ -635,8 +637,8 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 lrt = sharedX(0.001)
 #lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
-gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()

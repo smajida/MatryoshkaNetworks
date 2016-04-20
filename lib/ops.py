@@ -28,6 +28,20 @@ def flip_bits(X, flip_prob=0.1, flip_mean=0.5):
     X_flip = ((1. - flip_mask) * X) + (flip_mask * new_bits)
     return X_flip.astype(theano.config.floatX)
 
+def fuzz_data(X, scale=0.1, rand_type='normal'):
+    """
+    Add scaled uniform or gaussian noise to X.
+    """
+    X_shape = X.shape
+    if rand_type == 'normal':
+        fuzz = scale * np_rng.randn(*X_shape)
+    elif rand_type == 'uniform':
+        fuzz = scale * np_rng.rand(*X_shape)
+    else:
+        raise Exception('unknown rand type')
+    X_fuzz = X + fuzz
+    return X_fuzz.astype(theano.config.floatX)
+
 def mean_pool_rows(input, pool_count=None, pool_size=None):
     """Apply mean pooling over rows of the matrix input."""
     pooled_rows = []

@@ -355,7 +355,7 @@ def _load_batch_cifar10(batch_dir, batch_name, dtype='float32'):
     '''
     path = os.path.join(batch_dir, batch_name)
     batch = np.load(path)
-    data = batch['data'] / 255.0             # scale between [0, 1]
+    data = batch['data'] / 256.0             # scale between [0, 255/256]
     labels = one_hot(batch['labels'], n=10)  # convert labels to one-hot
     return data.astype(dtype), labels.astype(dtype)
 
