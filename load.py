@@ -333,3 +333,54 @@ def load_udm_ss(dataset, sup_count, im_dim=28):
                  'Xva': Xva, 'Yva': Yva,
                  'Xte': Xte, 'Yte': Yte}
     return data_dict
+
+
+
+def one_hot(x, n):
+    '''
+    convert index representation to one-hot representation
+    '''
+    x = np.array(x)
+    assert x.ndim == 1
+    return np.eye(n)[x]
+
+
+def _grayscale(a):
+    return a.reshape(a.shape[0], 3, 32, 32).mean(1).reshape(a.shape[0], -1)
+
+
+def _load_batch_cifar10(batch_dir, batch_name, dtype='float32'):
+    '''
+    load a batch in the CIFAR-10 format
+    '''
+    path = os.path.join(batch_dir, batch_name)
+    batch = np.load(path)
+    data = batch['data'] / 255.0             # scale between [0, 1]
+    labels = one_hot(batch['labels'], n=10)  # convert labels to one-hot
+    return data.astype(dtype), labels.astype(dtype)
+
+
+def cifar10(data_dir, dtype='float32', grayscale=False):
+    dir_cifar10 = os.path.join(data_dir, 'cifar-10-batches-py')
+    #class_names_cifar10 = np.load(os.path.join(dir_cifar10, 'batches.meta'))
+
+    # train
+    x_train = []
+    t_train = []
+    for k in xrange(5):
+        x, t = _load_batch_cifar10(dir_cifar10, 'data_batch_{}'.format(k + 1),
+                                   dtype=dtype)
+        x_train.append(x)
+        t_train.append(t)
+
+    x_train = np.concatenate(x_train, axis=0)
+    t_train = np.concatenate(t_train, axis=0)
+
+    # test
+    x_test, t_test = _load_batch_cifar10(dir_cifar10, 'test_batch', dtype=dtype)
+
+    if grayscale:
+        x_train = _grayscale(x_train)
+        x_test = _grayscale(x_test)
+
+    return x_train, t_train, x_test, t_test
