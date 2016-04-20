@@ -36,7 +36,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_new_matnet_ims_im_res_late_cond_5deep_2'
+desc = 'test_conv_inf_mt_0_5deep_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -76,7 +76,7 @@ noise_std = 0.0    # amount of noise to inject in BU and IM modules
 iwae_samples = 10
 use_bu_noise = False
 use_td_noise = False
-inf_mt = 1
+inf_mt = 0
 use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
@@ -464,6 +464,7 @@ for i in range(depth_14x14):
         'td_type': td_type, 'im_module': im_mod_name,
         'bu_source': bu_src_name, 'im_source': im_src_name
     }
+
 
 # construct the "wrapper" object for managing all our modules
 output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
