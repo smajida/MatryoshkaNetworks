@@ -360,7 +360,7 @@ def _load_batch_cifar10(batch_dir, batch_name, dtype='float32'):
     return data.astype(dtype), labels.astype(dtype)
 
 
-def cifar10(data_dir, dtype='float32', grayscale=False):
+def load_cifar10(data_dir, dtype='float32', grayscale=False):
     dir_cifar10 = os.path.join(data_dir, 'cifar-10-batches-py')
     #class_names_cifar10 = np.load(os.path.join(dir_cifar10, 'batches.meta'))
 
