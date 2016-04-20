@@ -360,7 +360,7 @@ def _load_batch_cifar10(batch_dir, batch_name, dtype='float32'):
     return data.astype(dtype), labels.astype(dtype)
 
 
-def load_cifar10(data_dir, dtype='float32', grayscale=False):
+def load_cifar10(data_dir, va_split=5000, dtype='float32', grayscale=False):
     dir_cifar10 = os.path.join(data_dir, 'cifar-10-batches-py')
     #class_names_cifar10 = np.load(os.path.join(dir_cifar10, 'batches.meta'))
 
@@ -382,5 +382,13 @@ def load_cifar10(data_dir, dtype='float32', grayscale=False):
     if grayscale:
         x_train = _grayscale(x_train)
         x_test = _grayscale(x_test)
+
+    if (va_split is not None) and (va_split > 0):
+        x_src = x_train.copy()
+        t_src = t_train.copy()
+        x_train = x_src[va_split:]
+        t_train = t_src[va_split:]
+        x_test = x_src[:va_split]
+        t_test = x_src[:va_split]
 
     return x_train, t_train, x_test, t_test
