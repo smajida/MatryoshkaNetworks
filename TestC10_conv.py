@@ -82,8 +82,6 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
-    if not fixed_binarization:
-        X = binarize_data(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 def draw_transform(X):
