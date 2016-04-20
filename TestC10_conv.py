@@ -22,7 +22,7 @@ from lib.vis import grayscale_grid_vis, color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
-from load import load_binarized_mnist, load_udm
+from load import load_binarized_mnist, load_udm, load_cifar10
 
 #
 # Phil's business
