@@ -40,7 +40,7 @@ from MatryoshkaNetworks import InfGenModel
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_inf_mt_0_5deep_1'
+desc = 'test_conv_bn_inf_mt_0_5deep_1'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -72,10 +72,10 @@ ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
+niter_decay = 350 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
