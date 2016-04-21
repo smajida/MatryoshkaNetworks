@@ -636,7 +636,7 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-Xg_whitened = whiten_data(T.flatten(Xg, 2))
+Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
 
 log_p_x = T.sum(log_prob_gaussian(
                 Xg_whitened, T.flatten(Xg_recon, 2),
