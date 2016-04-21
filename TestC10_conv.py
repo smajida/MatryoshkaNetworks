@@ -65,16 +65,16 @@ niter = 150       # # of iter at starting learning rate
 niter_decay = 250 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = False     # whether to use batch normalization throughout the model
+use_bn = True     # whether to use batch normalization throughout the model
 act_func = 'lrelu' # activation func to use where they can be selected
 noise_std = 0.0    # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 2
-depth_8x8 = 2
-depth_16x16 = 2
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -553,7 +553,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: 256. * sigmoid(T.clip(x, -15.., 15.))
+output_transform = lambda x: (258. * sigmoid(T.clip(x, -15., 15.))) - 1.
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
