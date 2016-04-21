@@ -82,8 +82,9 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
+    X = X * 255.  # scale X to be in [0, 255]
     if add_fuzz:
-        X = fuzz_data(X, scale=(1./256.), rand_type='uniform')
+        X = fuzz_data(X, scale=1., rand_type='uniform')
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 def draw_transform(X):
@@ -551,7 +552,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
+output_transform = lambda x: (256. * sigmoid(T.clip(x, -15.0, 15.0)))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -568,7 +569,7 @@ inf_gen_model = InfGenModel(
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-log_var = sharedX(floatX([0.0]))
+log_var = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params + [log_var]
 inf_params = inf_gen_model.inf_params
@@ -674,6 +675,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
+nats2bpp = lambda nats: (nats / (npx*npx*nc)) / np.log(2.)
 n_check = 0
 n_updates = 0
 t = time()
@@ -779,8 +781,8 @@ for epoch in range(1, niter+niter_decay+1):
             kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
+    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, bpp: {2:.2f}, vfe/iwae: {3:.2f}".format( \
+            v_epoch_costs[3], v_epoch_costs[4], nats2bpp(v_epoch_costs[2]), v_epoch_costs[2])
     joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str+"\n")
