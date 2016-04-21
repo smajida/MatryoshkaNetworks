@@ -62,7 +62,7 @@ ngf = 32          # base # of filters for conv layers in generative stuff
 ngfc = 128        # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc   # # of dimensions in X
 niter = 150       # # of iter at starting learning rate
-niter_decay = 150 # # of iter to linearly decay learning rate to zero
+niter_decay = 250 # # of iter to linearly decay learning rate to zero
 multi_rand = True # whether to use stochastic variables at multiple scales
 use_conv = True   # whether to use "internal" conv layers in gen/disc networks
 use_bn = True     # whether to use batch normalization throughout the model
@@ -89,7 +89,7 @@ def train_transform(X, add_fuzz=True):
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
-    X = X * 255.0
+    X = X * 1. #255.0
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 def rand_gen(size, noise_type='normal'):
