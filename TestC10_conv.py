@@ -610,6 +610,7 @@ mu = sharedX(mu)
 
 def whiten_data(X_sym, W_sym, mu_sym):
     # apply whitening transform to data in X
+    mu_sym = T.repeat(mu_sym, X_sym.shape[0], axis=0)
     Xw_sym = X_sym - mu_sym
     Xw_sym = T.dot(Xw_sym, W_sym.T)
     return Xw_sym
