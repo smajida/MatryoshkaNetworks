@@ -101,6 +101,30 @@ def rand_gen(size, noise_type='normal'):
         assert False, "unrecognized noise type!"
     return r_vals
 
+
+def estimate_whitening_transform(X, samples=10):
+    # estimate a whitening transform (mean shift and whitening matrix)
+    # for the data in X, with added 'dequantization' noise.
+
+    # compute data mean
+    mu = np.mean(X, axis=0, keepdims=True) + 0.5
+    Xc = X - mu
+
+    # compute data covariance
+    C = np.zeros((X.shape[1], X.shape[1]))
+    for i in range(samples):
+        Xc_i = fuzz_data(Xc, scale=1., rand_type='uniform')
+        C = C + (np.dot(Xc_i.T, Xc_i) / Xc_i.shape[0])
+    C = C / float(samples)
+
+    # get eigenvalues and eigenvectors of covariance
+    U, S, V = np.linalg.svd(C)
+    # compute whitening matrix
+    D = np.dot(U, np.diag(1. / np.sqrt(S + 1e-5)))
+    W = np.dot(D, U.T)
+    return W, mu
+
+
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
@@ -553,7 +577,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: (258. * sigmoid(T.clip(x, -15., 15.))) - 1.
+output_transform = lambda x: x  # sigmoid(T.clip(x, -15., 15.))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -576,6 +600,20 @@ gen_params = inf_gen_model.gen_params + [log_var]
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
+###########################################################
+# Get parameters for whitening transform of training data #
+###########################################################
+W, mu = estimate_whitening_transform(Xtr, samples=10)
+W = sharedX(W)
+mu = sharedX(mu)
+
+
+def whiten_data(X_sym, W_sym, mu_sym):
+    # apply whitening transform to data in X
+    Xw_sym = X_sym - mu_sym
+    Xw_sym = T.dot(Xw_sym, W_sym.T)
+    return Xw_sym
+
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
@@ -597,8 +635,10 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-log_p_x = T.sum(log_prob_gaussian( \
-                T.flatten(Xg,2), T.flatten(Xg_recon,2),
+Xg_whitened = whiten_data(T.flatten(Xg, 2))
+
+log_p_x = T.sum(log_prob_gaussian(
+                Xg_whitened, T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
