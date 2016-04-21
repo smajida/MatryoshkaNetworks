@@ -553,7 +553,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: T.clip(x + 128., 0., 256.)
+output_transform = lambda x: 256. * sigmoid(T.clip(x, -15.., 15.))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
