@@ -125,6 +125,33 @@ def estimate_whitening_transform(X, samples=10):
     return W, mu
 
 
+def nats2bpp(nats):
+    bpp = (nats / (npx*npx*nc)) / np.log(2.)
+    return bpp
+
+
+def check_gauss_bpp(x):
+    from scipy import stats
+    print('Estimating data ll with Gaussian...')
+    # compute data mean
+    mu = np.mean(x, axis=0, keepdims=True) + 0.5
+    x = x - mu
+
+    # compute data covariance
+    sigma = np.zeros((x.shape[1], x.shape[1]))
+    for i in range(10):
+        x_i = fuzz_data(x, scale=1., rand_type='uniform')
+        sigma = sigma + (np.dot(x_i.T, x_i) / x_i.shape[0])
+    sigma = sigma / float(samples)
+
+    # get some data and compute its log likelihood
+    x_f = fuzz_data(x, scale=1., rand_type='uniform')
+    ll = stats.multivariate_normal.logpdf(x_f, mu, sigma)
+    mean_ll = np.mean(ll)
+
+    print('  -- gauss ll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_ll, nats2bpp(mean_ll)))
+    return
+
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
@@ -604,6 +631,9 @@ g_params = gen_params + inf_params
 # Get parameters for whitening transform of training data #
 ###########################################################
 W, mu = estimate_whitening_transform(Xtr, samples=10)
+
+# quick test of log-likelihood for a basic Gaussian model...
+
 W = sharedX(W)
 mu = sharedX(mu)
 
@@ -717,7 +747,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-nats2bpp = lambda nats: (nats / (npx*npx*nc)) / np.log(2.)
+
 n_check = 0
 n_updates = 0
 t = time()
