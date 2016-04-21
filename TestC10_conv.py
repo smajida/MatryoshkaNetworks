@@ -130,7 +130,7 @@ def nats2bpp(nats):
     return bpp
 
 
-def check_gauss_bpp(x):
+def check_gauss_bpp(x, x_te):
     from scipy import stats
     print('Estimating data ll with Gaussian...')
     # compute data mean
@@ -142,15 +142,22 @@ def check_gauss_bpp(x):
     for i in range(10):
         x_i = fuzz_data(x, scale=1., rand_type='uniform')
         sigma = sigma + (np.dot(x_i.T, x_i) / x_i.shape[0])
-    sigma = sigma / float(samples)
+    sigma = sigma / 10.
 
-    # get some data and compute its log likelihood
+    # evaluate on "train" set
     x_f = fuzz_data(x, scale=1., rand_type='uniform')
-    ll = stats.multivariate_normal.logpdf(x_f, mu, sigma)
-    mean_ll = np.mean(ll)
+    ll = stats.multivariate_normal.logpdf(x_f, mu.ravel(), sigma)
+    mean_nll = -1. * np.mean(ll)
+    print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
 
-    print('  -- gauss ll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_ll, nats2bpp(mean_ll)))
+    # evaluate on "test" set
+    x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
+    ll = stats.multivariate_normal.logpdf(x_f, mu.ravel(), sigma)
+    mean_nll = -1. * np.mean(ll)
+    print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
     return
+
+check_gauss_bpp((255. * Xtr), (255. * Xva))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
