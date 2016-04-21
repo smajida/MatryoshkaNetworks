@@ -229,6 +229,7 @@ BasicConvModule(
     in_chans=(ngf*1),
     out_chans=nc,
     apply_bn=False,
+    rescale_output=True,
     use_noise=False,
     stride='single',
     act_func='ident',
@@ -552,7 +553,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: (256. * sigmoid(T.clip(x, -15.0, 15.0)))
+output_transform = lambda x: T.clip(x + 128., 0., 256.)
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,

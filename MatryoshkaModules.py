@@ -721,7 +721,7 @@ class BasicConvModule(object):
     def __init__(self, filt_shape, in_chans, out_chans,
                  stride='single', apply_bn=True, act_func='ident',
                  unif_drop=0.0, chan_drop=0.0,
-                 use_bn_params=True,
+                 use_bn_params=True, rescale_output=False,
                  use_noise=True,
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
@@ -734,6 +734,7 @@ class BasicConvModule(object):
         self.out_chans = out_chans
         self.stride = stride
         self.apply_bn = apply_bn
+        self.rescale_output = rescale_output
         self.act_func = act_func
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
@@ -810,7 +811,9 @@ class BasicConvModule(object):
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            if self.rescale_output:
+                h1 = h1 * self.g1.dimshuffle('x',0,'x','x')
+                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
