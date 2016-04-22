@@ -87,10 +87,12 @@ def train_transform(X, add_fuzz=True):
         X = fuzz_data(X, scale=1., rand_type='uniform')
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
+
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
     X = X * 1. #255.0
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
+
 
 def rand_gen(size, noise_type='normal'):
     if noise_type == 'normal':
@@ -102,10 +104,7 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 
-def estimate_whitening_transform(X, samples=10):
-    # estimate a whitening transform (mean shift and whitening matrix)
-    # for the data in X, with added 'dequantization' noise.
-
+def estimate_gauss_params(X, samples=10):
     # compute data mean
     mu = np.mean(X, axis=0, keepdims=True) + 0.5
     Xc = X - mu
@@ -116,6 +115,13 @@ def estimate_whitening_transform(X, samples=10):
         Xc_i = fuzz_data(Xc, scale=1., rand_type='uniform')
         C = C + (np.dot(Xc_i.T, Xc_i) / Xc_i.shape[0])
     C = C / float(samples)
+    return mu, C
+
+
+def estimate_whitening_transform(X, samples=10):
+    # estimate a whitening transform (mean shift and whitening matrix)
+    # for the data in X, with added 'dequantization' noise.
+    mu, C = estimate_gauss_params(X, samples=samples)
 
     # get eigenvalues and eigenvectors of covariance
     U, S, V = np.linalg.svd(C)
@@ -133,16 +139,7 @@ def nats2bpp(nats):
 def check_gauss_bpp(x, x_te):
     from scipy import stats
     print('Estimating data ll with Gaussian...')
-    # compute data mean
-    mu = np.mean(x, axis=0, keepdims=True) + 0.5
-    x = x - mu
-
-    # compute data covariance
-    sigma = np.zeros((x.shape[1], x.shape[1]))
-    for i in range(10):
-        x_i = fuzz_data(x, scale=1., rand_type='uniform')
-        sigma = sigma + (np.dot(x_i.T, x_i) / x_i.shape[0])
-    sigma = sigma / 10.
+    mu, sigma = estimate_gauss_params(x, samples=10)
 
     # evaluate on "train" set
     x_f = fuzz_data(x, scale=1., rand_type='uniform')
@@ -156,7 +153,6 @@ def check_gauss_bpp(x, x_te):
     mean_nll = -1. * np.mean(ll)
     print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
 
-
     # test with shrinking error
     alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
     for alpha in alphas:
@@ -167,7 +163,6 @@ def check_gauss_bpp(x, x_te):
             ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), (beta * sigma))
             mean_nll = -1. * np.mean(ll)
             print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
-
     return
 
 check_gauss_bpp((255. * Xtr), (255. * Xva))
@@ -650,13 +645,17 @@ g_params = gen_params + inf_params
 ###########################################################
 # Get parameters for whitening transform of training data #
 ###########################################################
-W, mu = estimate_whitening_transform(Xtr, samples=10)
+from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
+print('computing Gauss params and log-det for fuzzy images')
+mu, sigma = estimate_gauss_params(255. * Xtr)
+U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
+print('computing whitening transform for fuzzy images')
+W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
 
 # quick test of log-likelihood for a basic Gaussian model...
 
 W = sharedX(W)
 mu = sharedX(mu)
-
 
 def whiten_data(X_sym, W_sym, mu_sym):
     # apply whitening transform to data in X
@@ -664,6 +663,8 @@ def whiten_data(X_sym, W_sym, mu_sym):
     Xw_sym = X_sym - mu_sym
     Xw_sym = T.dot(Xw_sym, W_sym.T)
     return Xw_sym
+
+
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
