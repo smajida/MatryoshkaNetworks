@@ -156,14 +156,17 @@ def check_gauss_bpp(x, x_te):
     mean_nll = -1. * np.mean(ll)
     print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
 
+
     # test with shrinking error
-    alphas = [0.9, 0.75, 0.50, 0.25]
+    alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
     for alpha in alphas:
         x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
         x_f = alpha * x_f
-        ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
-        mean_nll = -1. * np.mean(ll)
-        print('  -- test a={0:.2f}, gauss nll: {1:.2f}, gauss bpp: {2:.2f}'.format(alpha, mean_nll, nats2bpp(mean_nll)))
+        # test with shrinking covariance
+        for beta in [0.6, 0.4, 0.2, 0.1]:
+            ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), (beta * sigma))
+            mean_nll = -1. * np.mean(ll)
+            print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
 
     return
 
