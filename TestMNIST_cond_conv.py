@@ -84,8 +84,8 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 1
+depth_14x14 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -173,7 +173,7 @@ for i in range(depth_14x14):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
     new_module = \
         GenConvPertModule(
-            in_chans=(ng * 2),
+            in_chans=(ngf * 2),
             out_chans=(ngf * 2),
             conv_chans=(ngf * 2),
             rand_chans=nz1,
@@ -442,10 +442,8 @@ inf_gen_model = CondInfGenModel(
     im_modules_gen=im_modules,
     bu_modules_inf=bu_modules,
     im_modules_inf=im_modules,
-    sc_modules=[],
     merge_info=merge_info,
-    output_transform=output_transform,
-    use_sc=False)
+    output_transform=output_transform) 
 
 # inf_gen_model.load_params(inf_gen_param_file)
 
@@ -473,7 +471,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+im_res_dict = inf_gen_model.apply_im(Xg)
 Xg_recon = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])

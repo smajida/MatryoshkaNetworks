@@ -1076,9 +1076,6 @@ class CondInfGenModel(object):
                     td_info = td_acts[-1]               # info from TD pass
                     bu_info = bu_res_dict[bu_src_name]  # info from BU pass
                     im_info = im_res_dict[im_src_name]  # info from IM pass
-                    if self.use_sc:
-                        # add shortcut info to bottom-up info
-                        bu_info = T.concatenate([bu_info, sc_info], axis=1)
                     # get the conditional distribution SSs (Sufficient Stat s)
                     cond_mean_im, cond_logvar_im, im_act_i = \
                         im_module.apply_im(td_input=td_info,
