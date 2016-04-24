@@ -5,8 +5,6 @@ import numpy.random as npr
 from tqdm import tqdm
 
 import sys
-sys.setrecursionlimit(100000)
-
 import theano
 import theano.tensor as T
 
@@ -32,6 +30,8 @@ from MatryoshkaModules import BasicConvModule, GenTopModule, InfTopModule, \
                               GenConvGRUModule, InfConvMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel
 
+sys.setrecursionlimit(100000)
+
 #
 # Whoa!, What's happening?
 #
@@ -52,22 +52,22 @@ Xtr, Ytr, Xva, Yva = load_cifar10(data_path, va_split=5000, dtype='float32',
                                   grayscale=False)
 
 
-set_seed(123)      # seed for shared rngs
-nc = 3            # # of channels in image
-nbatch = 100      # # of examples in batch
-npx = 32          # # of pixels width/height of images
-nz0 = 32          # # of dim for Z0
-nz1 = 4           # # of dim for Z1
-ngf = 32          # base # of filters for conv layers in generative stuff
-ngfc = 128        # # of filters in fully connected layers of generative stuff
-nx = npx*npx*nc   # # of dimensions in X
-niter = 150       # # of iter at starting learning rate
-niter_decay = 250 # # of iter to linearly decay learning rate to zero
-multi_rand = True # whether to use stochastic variables at multiple scales
-use_conv = True   # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
-act_func = 'lrelu' # activation func to use where they can be selected
-noise_std = 0.0    # amount of noise to inject in BU and IM modules
+set_seed(123)       # seed for shared rngs
+nc = 3              # # of channels in image
+nbatch = 100        # # of examples in batch
+npx = 32            # # of pixels width/height of images
+nz0 = 32            # # of dim for Z0
+nz1 = 4             # # of dim for Z1
+ngf = 32            # base # of filters for conv layers in generative stuff
+ngfc = 128          # # of filters in fully connected layers of generative stuff
+nx = npx * npx * nc   # # of dimensions in X
+niter = 150         # # of iter at starting learning rate
+niter_decay = 250   # # of iter to linearly decay learning rate to zero
+multi_rand = True   # whether to use stochastic variables at multiple scales
+use_conv = True     # whether to use "internal" conv layers in gen/disc networks
+use_bn = True       # whether to use batch normalization throughout the model
+act_func = 'lrelu'  # activation func to use where they can be selected
+noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
@@ -80,6 +80,7 @@ alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
 ntrain = Xtr.shape[0]
 
+
 def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
     X = X * 255.  # scale X to be in [0, 255]
@@ -90,7 +91,7 @@ def train_transform(X, add_fuzz=True):
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
-    X = X * 1. #255.0
+    X = X * 1.  # 255.0
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
