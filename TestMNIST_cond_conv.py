@@ -461,7 +461,8 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg_gen = T.tensor4()  # symbolic var for inputs to inference network
+Xg_inf = T.tensor4()  # symbolic var for inputs to generator network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -471,12 +472,12 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict_inf = inf_gen_model.apply_im(Xg, mode='inf')
+im_res_dict_inf = inf_gen_model.apply_im(Xg_inf, mode='inf')
 td_output_inf = im_res_dict_inf['td_output']
 z_vals_inf = im_res_dict_inf['z_dict']
 logz_dict_inf = im_res_dict_inf['logz_dict']
 
-im_res_dict_gen = inf_gen_model.apply_im(Xg, mode='gen', z_vals=z_vals_inf)
+im_res_dict_gen = inf_gen_model.apply_im(Xg_gen, mode='gen', z_vals=z_vals_inf)
 td_output_gen = im_res_dict_gen['td_output']
 z_vals_gen = im_res_dict_gen['z_dict']
 logz_dict_gen = im_res_dict_gen['logz_dict']
@@ -485,7 +486,7 @@ td_mod_klds = {td_mod_name: (logz_dict_inf[td_mod_name] - logz_dict_gen[td_mod_n
                td_mod_name in logz_dict_inf.keys()}
 kld_z = sum(td_mod_klds.values())
 
-inputs = [Xg]
+inputs = [Xg_inf, Xg_gen]
 outputs = [td_output_inf, td_output_gen, kld_z]
 
 print('Compiling test function...')
