@@ -42,7 +42,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best'
+desc = 'test_conv_goof_net'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -66,7 +66,7 @@ else:
 
 set_seed(123)      # seed for shared rngs
 nc = 1             # # of channels in image
-nbatch = 100       # # of examples in batch
+nbatch = 50        # # of examples in batch
 npx = 28           # # of pixels width/height of images
 nz0 = 32           # # of dim for Z0
 nz1 = 4            # # of dim for Z1
@@ -74,18 +74,19 @@ ngf = 32           # base # of filters for conv layers in generative stuff
 ngfc = 128         # # of filters in fully connected layers of generative stuff
 nx = npx*npx*nc    # # of dimensions in X
 niter = 150        # # of iter at starting learning rate
-niter_decay = 150   # # of iter to linearly decay learning rate to zero
+niter_decay = 150  # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
 use_bn = False      # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
+resample_count = 10
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -113,6 +114,7 @@ def rand_gen(size, noise_type='normal'):
     else:
         assert False, "unrecognized noise type!"
     return r_vals
+
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -489,9 +491,23 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-log_p_x = T.sum(log_prob_bernoulli( \
-                T.flatten(Xg,2), T.flatten(Xg_recon,2),
-                do_sum=False), axis=1)
+# feed output of generator back into inference net (WTF!? so wacky!)
+Xg_repeat = T.repeat(Xg, resample_count, axis=0)
+Xr_repeat = T.repeat(Xg_recon, resample_count, axis=0)
+im_res_dict_2 = inf_gen_model.apply_im(Xr_repeat, noise=noise)
+Xr_recon = im_res_dict_2['td_output']
+
+# compute log reconstruction costs from both generative passes
+log_p_x_1 = T.sum(log_prob_bernoulli(
+                  T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
+                  do_sum=False), axis=1, keepdims=True)
+log_p_x_2 = T.sum(log_prob_bernoulli(
+                  T.flatten(Xg_repeat, 2), T.flatten(Xr_recon, 2),
+                  do_sum=False), axis=1, keepdims=True)
+# reshape costs and group so each row is for an observation in Xg
+log_p_x_2 = T.reshape(log_p_x_2, (log_p_x_1.shape[0], resample_count))
+log_p_x = T.concatenate([log_p_x_1, log_p_x_2], axis=1)
+log_p_x = T.max(log_p_x, axis=1)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
@@ -529,7 +545,6 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 
 # stuff for performing updates
 lrt = sharedX(0.001)
-#lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -545,7 +560,7 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100, :]))  # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -557,9 +572,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
 print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress

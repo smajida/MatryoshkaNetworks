@@ -1243,7 +1243,7 @@ class DiscConvResModule(object):
                 h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+                h4 = h4 + self.b3.dimshuffle('x', 0, 'x', 'x')
                 h4 = add_noise(h4, noise=noise)
             output = self.act_func(h4)
         else:
@@ -1253,7 +1253,7 @@ class DiscConvResModule(object):
                 h3 = switchy_bn(h3, g=self.g3, b=self.b3, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
+                h3 = h3 + self.b3.dimshuffle('x', 0, 'x', 'x')
                 h3 = add_noise(h3, noise=noise)
             output = self.act_func(h3)
 

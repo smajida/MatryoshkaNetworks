@@ -3,6 +3,7 @@ from sklearn import utils as skutils
 
 from rng import np_rng, py_rng
 
+
 def center_crop(x, ph, pw=None):
     if pw is None:
         pw = ph
@@ -10,6 +11,7 @@ def center_crop(x, ph, pw=None):
     j = int(round((h - ph)/2.))
     i = int(round((w - pw)/2.))
     return x[j:j+ph, i:i+pw]
+
 
 def patch(x, ph, pw=None):
     if pw is None:
@@ -20,6 +22,7 @@ def patch(x, ph, pw=None):
     x = x[j:j+ph, i:i+pw]
     return x
 
+
 def list_shuffle(*data):
     idxs = np_rng.permutation(np.arange(len(data[0])))
     if len(data) == 1:
@@ -27,11 +30,13 @@ def list_shuffle(*data):
     else:
         return [[d[idx] for idx in idxs] for d in data]
 
+
 def shuffle(*arrays, **options):
     if isinstance(arrays[0][0], basestring):
         return list_shuffle(*arrays)
     else:
         return skutils.shuffle(*arrays, random_state=np_rng)
+
 
 def OneHot(X, n=None, negative_class=0.):
     X = np.asarray(X).flatten()
@@ -40,6 +45,7 @@ def OneHot(X, n=None, negative_class=0.):
     Xoh = np.ones((len(X), n)) * negative_class
     Xoh[np.arange(len(X)), X] = 1.
     return Xoh
+
 
 def iter_data(*data, **kwargs):
     size = kwargs.get('size', 128)
