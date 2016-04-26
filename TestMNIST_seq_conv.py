@@ -435,6 +435,10 @@ def output_transform(x):
     output = sigmoid(T.clip(x, -15.0, 15.0))
     return output
 
+def output_noop(x):
+    output = x
+    return output
+
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = CondInfGenModel(
     td_modules=td_modules,
@@ -443,7 +447,7 @@ inf_gen_model = CondInfGenModel(
     bu_modules_inf=bu_modules,
     im_modules_inf=im_modules,
     merge_info=merge_info,
-    output_transform=output_transform)
+    output_transform=output_noop)
 
 # inf_gen_model.load_params(inf_gen_param_file)
 
@@ -481,17 +485,21 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
-for step in range(3):
+for step in range(4):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
-    Xi_inf = T.concatenate([X_step[-1], Xg], axis=1)
-    im_res_dict_inf = inf_gen_model.apply_im(Xi_inf, mode='inf')
+    x_from = sigmoid(X_step[-1])
+    x_to = Xg
+    x_inf = T.concatenate([x_from, x_to], axis=1)
+    im_res_dict_inf = inf_gen_model.apply_im(x_inf, mode='inf')
     z_inf = im_res_dict_inf['z_dict']
     logz_inf = im_res_dict_inf['logz_dict']
     if step > 0:
         # run the generator conditioned on things
-        Xi_gen = T.concatenate([X_step[-2], X_step[-1]], axis=1)
-        im_res_dict_gen = inf_gen_model.apply_im(Xi_gen, mode='inf', z_vals=z_inf)
+        x_from = sigmoid(X_step[-2])
+        x_to = sigmoid(X_step[-1])
+        x_gen = T.concatenate([x_from, x_to], axis=1)
+        im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='inf', z_vals=z_inf)
         logz_gen = im_res_dict_gen['logz_dict']
     else:
         logz_gen = im_res_dict_inf['logy_dict']
@@ -500,9 +508,10 @@ for step in range(3):
            td_mod_name in logz_inf.keys()}
     kl_step.append(kls)
     # record variational reconstruction for this step
-    X_step.append(im_res_dict_inf['td_output'])
+    x_new = X_step[-1] + im_res_dict_inf['td_output']
+    X_step.append(x_new)
 # final step output is the reconstruction
-Xg_recon = X_step[-1]
+Xg_recon = sigmoid(T.clip(X_step[-1], -15., 15.))
 
 # compute reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
