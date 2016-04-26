@@ -42,7 +42,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_conv'
+desc = 'test_cond_conv_split_inf'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -219,7 +219,101 @@ td_modules = [td_module_1] + \
 
 ##########################################
 # Setup the bottom-up processing modules #
-# -- these do inference                  #
+# -- these do generation inference       #
+##########################################
+
+# (7, 7) -> FC
+bu_module_1 = \
+    InfTopModule(
+        bu_chans=(ngf * 2 * 7 * 7),
+        fc_chans=ngfc,
+        rand_chans=nz0,
+        use_fc=True,
+        use_sc=False,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name='bu_mod_1')
+
+# grow the (7, 7) -> (7, 7) part of network
+bu_modules_7x7 = []
+for i in range(depth_7x7):
+    mod_name = 'bu_mod_2{}'.format(alphabet[i])
+    new_module = \
+        BasicConvPertModule(
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 2),
+            conv_chans=(ngf * 2),
+            filt_shape=(3, 3),
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=mod_name)
+    bu_modules_7x7.append(new_module)
+bu_modules_7x7.reverse()  # reverse, to match "evaluation order"
+
+# (14, 14) -> (7, 7)
+bu_module_3 = \
+    BasicConvModule(
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_3')
+
+# grow the (14, 14) -> (14, 14) part of network
+bu_modules_14x14 = []
+for i in range(depth_14x14):
+    mod_name = 'bu_mod_4{}'.format(alphabet[i])
+    new_module = \
+        BasicConvPertModule(
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 2),
+            conv_chans=(ngf * 2),
+            filt_shape=(3, 3),
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=mod_name)
+    bu_modules_14x14.append(new_module)
+bu_modules_14x14.reverse()  # reverse, to match "evaluation order"
+
+# (28, 28) -> (14, 14)
+bu_module_5 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 1),
+        out_chans=(ngf * 2),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_5')
+
+# (28, 28) -> (28, 28)
+bu_module_6 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(1 * nc),
+        out_chans=(ngf * 1),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='bu_mod_6')
+
+# modules must be listed in "evaluation order"
+bu_modules_gen = [bu_module_6, bu_module_5] + \
+                 bu_modules_14x14 + \
+                 [bu_module_3] + \
+                 bu_modules_7x7 + \
+                 [bu_module_1]
+
+
+##########################################
+# Setup the bottom-up processing modules #
+# -- these do inference inference        #
 ##########################################
 
 # (7, 7) -> FC
@@ -304,11 +398,11 @@ bu_module_6 = \
         mod_name='bu_mod_6')
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5] + \
-             bu_modules_14x14 + \
-             [bu_module_3] + \
-             bu_modules_7x7 + \
-             [bu_module_1]
+bu_modules_inf = [bu_module_6, bu_module_5] + \
+                 bu_modules_14x14 + \
+                 [bu_module_3] + \
+                 bu_modules_7x7 + \
+                 [bu_module_1]
 
 
 #########################################
@@ -430,21 +524,23 @@ for i in range(depth_14x14):
     }
 
 
-# transform to apply to generator outputs
+# transforms to apply to generator outputs
 def output_transform(x):
     output = sigmoid(T.clip(x, -15.0, 15.0))
     return output
+
 
 def output_noop(x):
     output = x
     return output
 
+
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = CondInfGenModel(
     td_modules=td_modules,
-    bu_modules_gen=bu_modules,
+    bu_modules_gen=bu_modules_gen,
     im_modules_gen=im_modules,
-    bu_modules_inf=bu_modules,
+    bu_modules_inf=bu_modules_inf,
     im_modules_inf=im_modules,
     merge_info=merge_info,
     output_transform=output_noop)
@@ -498,8 +594,8 @@ for step in range(4):
         # run the generator conditioned on things
         x_from = sigmoid(X_step[-2])
         x_to = sigmoid(X_step[-1])
-        x_gen = T.concatenate([x_from, x_to], axis=1)
-        im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='inf', z_vals=z_inf)
+        x_gen = x_to  # T.concatenate([x_from, x_to], axis=1)
+        im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='gen', z_vals=z_inf)
         logz_gen = im_res_dict_gen['logz_dict']
     else:
         logz_gen = im_res_dict_inf['logy_dict']
