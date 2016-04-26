@@ -496,7 +496,7 @@ for step in range(3):
     else:
         logz_gen = im_res_dict_inf['logy_dict']
     # gather Monte Carlo KLd estimates for this step
-    kls = {td_mod_name: (logz_gen[td_mod_name] - logz_inf[td_mod_name]) for
+    kls = {td_mod_name: (logz_inf[td_mod_name] - logz_gen[td_mod_name]) for
            td_mod_name in logz_inf.keys()}
     kl_step.append(kls)
     # record variational reconstruction for this step
