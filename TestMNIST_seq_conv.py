@@ -455,7 +455,7 @@ X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))  # default "initial state"
 noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
-g_params = inf_gen_model.all_params + [X_init]
+all_params = inf_gen_model.all_params + [X_init]
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
@@ -477,7 +477,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
 # parameter regularization part of cost
-vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
