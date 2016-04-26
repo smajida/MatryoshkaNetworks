@@ -466,8 +466,8 @@ Xg_gen = T.tensor4()  # symbolic var for inputs to inference network
 Xm_gen = T.tensor4()
 Xg_inf = T.tensor4()  # symbolic var for inputs to generator network
 Xm_inf = T.tensor4()
-Xa_gen = T.concatenate([Xg_gen, Xm_unk])
-Xa_inf = T.concatenate([Xg_gen, Xm_unk, Xg_tru, Xm_tru], axis=1)
+Xa_gen = T.concatenate([Xg_gen, Xm_gen])
+Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 
 Xg = T.tensor4()
 
