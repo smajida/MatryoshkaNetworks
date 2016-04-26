@@ -525,7 +525,7 @@ vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # compute per-layer KL-divergence part of cost
-alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_tuples]
 alt_kld_cost = T.mean(sum(alt_layer_klds))
 
 # compute the KLd cost to use for optimization
