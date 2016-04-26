@@ -1013,6 +1013,7 @@ class CondInfGenModel(object):
         # samples from a conditional distribution over the latent variables.
         z_dict = {}
         logz_dict = {}
+        logy_dict = {}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input=input, mode=mode)
         # dict for storing IM state information
@@ -1089,8 +1090,14 @@ class CondInfGenModel(object):
                                                T.flatten(cond_mean_im, 2),
                                                log_vars=T.flatten(cond_logvar_im, 2),
                                                do_sum=True)
+                # get the log likelihood of z under a default prior.
+                log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                               (0. * T.flatten(cond_mean_im, 2)),
+                                               log_vars=(0. * T.flatten(cond_logvar_im, 2)),
+                                               do_sum=True)
                 # record latent samples and loglikelihood for current TD module
                 logz_dict[td_mod_name] = log_prob_z
+                logy_dict[td_mod_name] = log_prob_y
                 z_dict[td_mod_name] = cond_rvs
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
@@ -1115,6 +1122,7 @@ class CondInfGenModel(object):
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict
         im_res_dict['logz_dict'] = logz_dict
+        im_res_dict['logy_dict'] = logy_dict
         return im_res_dict
 
     # def _construct_generate_samples(self):
