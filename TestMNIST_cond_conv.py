@@ -42,7 +42,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_bn_inf_mt_0_5deep_1'
+desc = 'test_cond_conv'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -462,7 +462,11 @@ g_params = gen_params + inf_params
 
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg_gen = T.tensor4()  # symbolic var for inputs to inference network
+Xm_gen = T.tensor4()
 Xg_inf = T.tensor4()  # symbolic var for inputs to generator network
+Xm_inf = T.tensor4()
+Xa_gen = T.concatenate([Xg_gen, Xm_unk])
+Xa_inf = T.concatenate([Xg_gen, Xm_unk, Xg_tru, Xm_tru], axis=1)
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -482,9 +486,13 @@ td_output_gen = im_res_dict_gen['td_output']
 z_vals_gen = im_res_dict_gen['z_dict']
 logz_dict_gen = im_res_dict_gen['logz_dict']
 
+# compute one-sample Monte Carlo estimate for the generative step
+# described by each TD module involving sampling.
 td_mod_klds = {td_mod_name: (logz_dict_inf[td_mod_name] - logz_dict_gen[td_mod_name]) for
                td_mod_name in logz_dict_inf.keys()}
 kld_z = sum(td_mod_klds.values())
+
+# compute reconstruction error restricted to a subset of Xg_inf
 
 inputs = [Xg_inf, Xg_gen]
 outputs = [td_output_inf, td_output_gen, kld_z]
