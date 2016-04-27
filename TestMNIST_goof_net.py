@@ -611,9 +611,9 @@ for epoch in range(1, niter+niter_decay+1):
         # grab a validation batch, if required
         if v_batch_count < 50:
             start_idx = int(v_batch_count)*nbatch
-            vmb = Xva[start_idx:(start_idx+nbatch),:]
+            vmb = Xva[start_idx:(start_idx + nbatch), :]
         else:
-            vmb = Xva[0:nbatch,:]
+            vmb = Xva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)

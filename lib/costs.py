@@ -3,14 +3,18 @@ import theano.tensor as T
 import numpy as np
 from theano_utils import floatX
 
+
 def CategoricalCrossEntropy(y_true, y_pred):
     return T.nnet.categorical_crossentropy(y_pred, y_true).mean()
+
 
 def BinaryCrossEntropy(y_true, y_pred):
     return T.nnet.binary_crossentropy(y_pred, y_true).mean()
 
+
 def MeanSquaredError(y_true, y_pred):
     return T.sqr(y_pred - y_true).mean()
+
 
 def MeanAbsoluteError(y_true, y_pred):
     return T.abs_(y_pred - y_true).mean()
