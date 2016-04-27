@@ -10,18 +10,18 @@ def center_crop(x, ph, pw=None):
     if pw is None:
         pw = ph
     h, w = x.shape[:2]
-    j = int(round((h - ph)/2.))
-    i = int(round((w - pw)/2.))
-    return x[j:j+ph, i:i+pw]
+    j = int(round((h - ph) / 2.))
+    i = int(round((w - pw) / 2.))
+    return x[j:(j + ph), i:(i + pw)]
 
 
 def patch(x, ph, pw=None):
     if pw is None:
         pw = ph
     h, w = x.shape[:2]
-    j = py_rng.randint(0, h-ph)
-    i = py_rng.randint(0, w-pw)
-    x = x[j:j+ph, i:i+pw]
+    j = py_rng.randint(0, (h - ph))
+    i = py_rng.randint(0, (w - pw))
+    x = x[j:(j + ph), i:(i + pw)]
     return x
 
 

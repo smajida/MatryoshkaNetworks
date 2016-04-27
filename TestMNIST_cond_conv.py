@@ -55,6 +55,7 @@ if fixed_binarization:
     Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
     Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
     Xva = Xte
+    Xmu = np.mean(Xtr, axis=0)
 else:
     dataset = load_udm("{}mnist.pkl.gz".format(data_path), to_01=True)
     Xtr = dataset[0][0]
@@ -62,6 +63,7 @@ else:
     Xte = dataset[2][0]
     Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
     Xva = Xte
+    Xmu = np.mean(Xtr, axis=0)
 
 
 set_seed(123)      # seed for shared rngs
@@ -631,8 +633,15 @@ inputs = [Xg_gen, Xm_gen, Xg_inf, Xm_inf]
 outputs = [full_cost]
 print('Compiling test function...')
 test_func = theano.function(inputs, outputs)
+
+# grab data to feed into the model
 x_test = train_transform(Xtr[0:100, :])
-test_out = test_func(x_test, x_test, x_test, x_test)
+xg_gen, xg_inf, xm_gen = \
+    construct_masked_data(x_test, drop_prob=0.0, occ_dim=8,
+                          occ_count=1, data_mean=Xmu)
+xm_inf = 1. - xm_gen
+# test the model implementation
+test_out = test_func(xg_gen, xm_gen, xg_inf, xm_inf)
 print('DONE.')
 
 # #################################################################

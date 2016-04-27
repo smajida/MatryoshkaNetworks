@@ -62,9 +62,10 @@ def laplace(x, mean, logvar):
 # v>0 is degrees of freedom
 # See: http://en.wikipedia.org/wiki/Student's_t-distribution
 def studentt(x, v):
-	gamma1 = log_gamma_lanczos((v+1)/2.)
-	gamma2 = log_gamma_lanczos(0.5*v)
-	return gamma1 - 0.5 * T.log(v * PI) - gamma2 - (v+1)/2. * T.log(1 + (x*x)/v)
+    gamma1 = log_gamma_lanczos((v + 1) / 2.)
+    gamma2 = log_gamma_lanczos(0.5 * v)
+    return gamma1 - 0.5 * T.log(v * PI) - gamma2 - (v + 1) / 2. * T.log(1 + (x * x) / v)
+
 
 ################################################################
 # Funcs for temporary backwards compatibilit while refactoring #
@@ -78,16 +79,17 @@ def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
     """
     if mask is None:
         mask = T.ones((1, p_approx.shape[1]))
-    log_prob_1 = p_true * T.log(p_approx+1e-8)
-    log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx)+1e-8)
-    #log_prob_1 = p_true * T.log(p_approx)
-    #log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx))
+    log_prob_1 = p_true * T.log(p_approx + 1e-8)
+    log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx) + 1e-8)
+    # log_prob_1 = p_true * T.log(p_approx)
+    # log_prob_0 = (1.0 - p_true) * T.log((1.0 - p_approx))
     log_prob_01 = log_prob_1 + log_prob_0
     if do_sum:
         result = T.sum((log_prob_01 * mask), axis=1, keepdims=False)
     else:
         result = log_prob_01 * mask
     return T.cast(result, 'floatX')
+
 
 def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
                       use_huber=False, mask=None):
@@ -105,16 +107,17 @@ def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
         part_2 = Huber(mu_true, mu_approx, t=use_huber)
         part_3 = 2.0 * T.exp(log_vars)
         ind_log_probs = part_1 - (part_2 / part_3)
-        #ind_log_probs = C - (0.5 * log_vars)  - \
-        #        (Huber(mu_true, mu_approx, t=use_huber) / (2.0 * T.exp(log_vars)))
+        # ind_log_probs = C - (0.5 * log_vars)  - \
+        #         (Huber(mu_true, mu_approx, t=use_huber) / (2.0 * T.exp(log_vars)))
     else:
-        ind_log_probs = C - (0.5 * log_vars)  - \
-                ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
+        ind_log_probs = C - (0.5 * log_vars) - \
+            ((mu_true - mu_approx)**2.0 / (2.0 * T.exp(log_vars)))
     if do_sum:
         result = T.sum((ind_log_probs * mask), axis=1, keepdims=False)
     else:
         result = ind_log_probs * mask
     return T.cast(result, 'floatX')
+
 
 def gaussian_kld(mu_left, logvar_left, mu_right, logvar_right):
     """
@@ -122,17 +125,18 @@ def gaussian_kld(mu_left, logvar_left, mu_right, logvar_right):
     with the given means and log-variances.
     We do KL(N(mu_left, logvar_left) || N(mu_right, logvar_right)).
     """
-    gauss_klds = 0.5 * (logvar_right - logvar_left + \
-            (T.exp(logvar_left) / T.exp(logvar_right)) + \
-            ((mu_left - mu_right)**2.0 / T.exp(logvar_right)) - 1.0)
+    gauss_klds = 0.5 * (logvar_right - logvar_left +
+                        (T.exp(logvar_left) / T.exp(logvar_right)) +
+                        ((mu_left - mu_right)**2.0 / T.exp(logvar_right)) - 1.0)
     return T.cast(gauss_klds, 'floatX')
 
+
 def gaussian_ent(mu, logvar):
-	"""
-	Entropy of independent univariate gaussians.
-	"""
-	ent = (0.5 * logvar) + 17.0795
-	return ent
+    """
+    Entropy of independent univariate gaussians.
+    """
+    ent = (0.5 * logvar) + 17.0795
+    return ent
 
 
 #################################
