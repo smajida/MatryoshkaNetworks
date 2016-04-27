@@ -20,7 +20,8 @@ from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
-from lib.data_utils import shuffle, iter_data, construct_masked_data
+from lib.data_utils import \
+    shuffle, iter_data, get_masked_data, get_downsampling_masks
 from load import load_binarized_mnist, load_udm
 
 #
@@ -42,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_impute'
+desc = 'test_cond_impute_2x_upsampling'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -639,8 +640,10 @@ test_func = theano.function(inputs, outputs)
 # grab data to feed into the model
 def make_model_input(x_in):
     xg_gen, xg_inf, xm_gen = \
-        construct_masked_data(x_in, drop_prob=0.5, occ_dim=None,
-                              occ_count=1, data_mean=Xmu)
+        get_downsampling_masks(x_in, im_shape=(28, 28),
+                               im_chans=1, data_mean=Xmu)
+    # construct_masked_data(x_in, drop_prob=0.5, occ_dim=None,
+    #                       occ_count=1, data_mean=Xmu)
     xm_inf = 1. - xm_gen
     xg_gen = train_transform(xg_gen)
     xm_gen = train_transform(xm_gen)

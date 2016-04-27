@@ -129,11 +129,11 @@ def sample_patch_masks(X, im_shape, patch_shape, patch_count=1):
     return mask.astype(theano.config.floatX)
 
 
-def construct_masked_data(xi,
-                          drop_prob=0.0,
-                          occ_dim=None,
-                          occ_count=1,
-                          data_mean=None):
+def get_masked_data(xi,
+                    drop_prob=0.0,
+                    occ_dim=None,
+                    occ_count=1,
+                    data_mean=None):
     """
     Construct randomly masked data from xi.
     """
@@ -189,6 +189,63 @@ def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
     xm = xm_rand * xm_patch
     xm = to_fX(xm)
     return xm
+
+
+# def construct_autoreg_data(xi,
+#                            occ_dim=None,
+#                            occ_count=1,
+#                            data_mean=None):
+#     '''
+#     Construct randomly masked data from xi.
+#     '''
+#     if data_mean is None:
+#         data_mean = np.zeros((xi.shape[1],))
+#     im_dim = int(xi.shape[1]**0.5)  # images should be square
+#     xo = xi.copy()
+#     if occ_dim is None:
+#         # don't apply rectangular occlusion
+#         xm_patch = np.ones(xi.shape)
+#     else:
+#         # apply rectangular occlusion
+#         xm_patch = \
+#             sample_patch_masks(xi,
+#                                (im_dim, im_dim),
+#                                (occ_dim, occ_dim),
+#                                patch_count=occ_count)
+#     xm = xm_patch
+#     xi = (xm * xi) + ((1.0 - xm) * data_mean)
+#     xi = to_fX(xi)
+#     xo = to_fX(xo)
+#     xm = to_fX(xm)
+#     return xi, xo, xm
+
+
+def get_downsampling_masks(
+        xi,
+        im_shape,
+        im_chans=1,
+        data_mean=None):
+    '''
+    Get masked data that imitates downsampling.
+    '''
+    if data_mean is None:
+        data_mean = np.zeros((xi.shape[1],))
+    rows = im_shape[0]
+    cols = im_shape[1]
+    xo = xi.copy()
+    # construct 2x "downsampling" mask
+    img_mask = np.zeros((im_chans, rows, cols))
+    for r in rows:
+        for c in cols:
+            if (r % 2 == 0) and (c % 2 == 0):
+                img_mask[:, r, c] = 1.
+    img_mask = img_mask.flatten()[np.newaxis, :]
+    xm = np.repeat(img_mask, xi.shape[0], axis=0)
+    xi = (xm * xi) + ((1.0 - xm) * data_mean)
+    xi = to_fX(xi)
+    xo = to_fX(xo)
+    xm = to_fX(xm)
+    return xi, xo, xm
 
 
 def shift_and_scale_into_01(X):
