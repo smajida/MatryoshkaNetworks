@@ -635,11 +635,16 @@ print('Compiling test function...')
 test_func = theano.function(inputs, outputs)
 
 # grab data to feed into the model
-x_test = train_transform(Xtr[0:100, :])
+x_test = Xtr[0:100, :]
 xg_gen, xg_inf, xm_gen = \
     construct_masked_data(x_test, drop_prob=0.0, occ_dim=8,
                           occ_count=1, data_mean=Xmu)
 xm_inf = 1. - xm_gen
+xg_gen = train_transform(xg_gen)
+xm_gen = train_transform(xm_gen)
+xg_inf = train_transform(xg_inf)
+xm_inf = train_transform(xm_inf)
+
 # test the model implementation
 test_out = test_func(xg_gen, xm_gen, xg_inf, xm_inf)
 print('DONE.')
