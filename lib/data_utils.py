@@ -248,7 +248,6 @@ def get_downsampling_masks(
     for i in range(xm.shape[0]):
         idx = npr.randint(0, 4)
         xm[i, :] = img_masks[idx]
-    xm = np.repeat(img_mask, xi.shape[0], axis=0)
     xi = (xm * xi) + ((1.0 - xm) * data_mean)
     xi = to_fX(xi)
     xo = to_fX(xo)
