@@ -191,39 +191,11 @@ def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
     return xm
 
 
-# def construct_autoreg_data(xi,
-#                            occ_dim=None,
-#                            occ_count=1,
-#                            data_mean=None):
-#     '''
-#     Construct randomly masked data from xi.
-#     '''
-#     if data_mean is None:
-#         data_mean = np.zeros((xi.shape[1],))
-#     im_dim = int(xi.shape[1]**0.5)  # images should be square
-#     xo = xi.copy()
-#     if occ_dim is None:
-#         # don't apply rectangular occlusion
-#         xm_patch = np.ones(xi.shape)
-#     else:
-#         # apply rectangular occlusion
-#         xm_patch = \
-#             sample_patch_masks(xi,
-#                                (im_dim, im_dim),
-#                                (occ_dim, occ_dim),
-#                                patch_count=occ_count)
-#     xm = xm_patch
-#     xi = (xm * xi) + ((1.0 - xm) * data_mean)
-#     xi = to_fX(xi)
-#     xo = to_fX(xo)
-#     xm = to_fX(xm)
-#     return xi, xo, xm
-
-
 def get_downsampling_masks(
         xi,
         im_shape,
         im_chans=1,
+        fixed_mask=True,
         data_mean=None):
     '''
     Get masked data that imitates downsampling.
@@ -235,7 +207,8 @@ def get_downsampling_masks(
     xo = xi.copy()
     # construct 2x "downsampling" mask
     img_masks = []
-    for doot in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+    doots = [(0, 0)] if fixed_mask else [(0, 0), (0, 1), (1, 0), (1, 1)]
+    for doot in doots:
         img_mask = np.zeros((im_chans, rows, cols))
         for r in range(rows):
             for c in range(cols):
@@ -246,13 +219,49 @@ def get_downsampling_masks(
         img_masks.append(img_mask)
     xm = np.zeros(xi.shape)
     for i in range(xm.shape[0]):
-        idx = npr.randint(0, 4)
+        if fixed_mask:
+            idx = 0
+        else:
+            idx = npr.randint(0, 4)
         xm[i, :] = img_masks[idx]
     xi = (xm * xi) + ((1.0 - xm) * data_mean)
     xi = to_fX(xi)
     xo = to_fX(xo)
     xm = to_fX(xm)
     return xi, xo, xm
+
+
+def get_downsampled_data(
+        xi,
+        im_shape,
+        im_chans=1,
+        fixed_mask=True):
+    '''
+    Get masked data that imitates downsampling.
+    '''
+    rows = im_shape[0]
+    cols = im_shape[1]
+    # construct 2x "downsampling" masks
+    img_masks = []
+    doots = [(0, 0)] if fixed_mask else [(0, 0), (0, 1), (1, 0), (1, 1)]
+    for doot in doots:
+        img_mask = np.zeros((im_chans, rows, cols), dtype=np.int32)
+        for r in range(rows):
+            for c in range(cols):
+                if ((r + doot[0]) % 2 == 0) and \
+                        ((c + doot[1]) % 2 == 0):
+                    img_mask[:, r, c] = 1
+        img_mask = img_mask.flatten().astype(np.bool)
+        img_masks.append(img_mask)
+    # downsample each image in xi
+    xi_ds = np.zeros(xi.shape[0], np.sum(img_masks[0]))
+    for i in range(xi.shape[0]):
+        if fixed_mask:
+            idx = 0
+        else:
+            idx = npr.randint(0, 4)
+        xi_ds[i, :] = xi[i, img_masks[idx]]
+    return xi_ds
 
 
 def shift_and_scale_into_01(X):
