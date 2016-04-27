@@ -42,7 +42,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_conv_split_inf'
+desc = 'test_cond_conv_deeper_model_1_step'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -84,8 +84,8 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -538,7 +538,7 @@ def output_noop(x):
 # construct the "wrapper" object for managing all our modules
 inf_gen_model = CondInfGenModel(
     td_modules=td_modules,
-    bu_modules_gen=bu_modules_gen,
+    bu_modules_gen=bu_modules_inf,
     im_modules_gen=im_modules,
     bu_modules_inf=bu_modules_inf,
     im_modules_inf=im_modules,
@@ -581,7 +581,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
-for step in range(4):
+for step in range(1):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
     x_from = sigmoid(X_step[-1])
@@ -594,7 +594,7 @@ for step in range(4):
         # run the generator conditioned on things
         x_from = sigmoid(X_step[-2])
         x_to = sigmoid(X_step[-1])
-        x_gen = x_to  # T.concatenate([x_from, x_to], axis=1)
+        x_gen = T.concatenate([x_from, x_to], axis=1)
         im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='gen', z_vals=z_inf)
         logz_gen = im_res_dict_gen['logz_dict']
     else:
