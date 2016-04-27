@@ -234,12 +234,20 @@ def get_downsampling_masks(
     cols = im_shape[1]
     xo = xi.copy()
     # construct 2x "downsampling" mask
-    img_mask = np.zeros((im_chans, rows, cols))
-    for r in range(rows):
-        for c in range(cols):
-            if (r % 2 == 0) and (c % 2 == 0):
-                img_mask[:, r, c] = 1.
-    img_mask = img_mask.flatten()[np.newaxis, :]
+    img_masks = []
+    for doot in [(0, 0), (0, 1), (1, 0), (1, 1)]:
+        img_mask = np.zeros((im_chans, rows, cols))
+        for r in range(rows):
+            for c in range(cols):
+                if ((r + doot[0]) % 2 == 0) and \
+                        ((c + doot[1]) % 2 == 0):
+                    img_mask[:, r, c] = 1.
+        img_mask = img_mask.flatten()
+        img_masks.append(img_mask)
+    xm = np.zeros(xi.shape)
+    for i in range(xm.shape[0]):
+        idx = npr.randint(0, 4)
+        xm[i, :] = img_masks[idx]
     xm = np.repeat(img_mask, xi.shape[0], axis=0)
     xi = (xm * xi) + ((1.0 - xm) * data_mean)
     xi = to_fX(xi)
