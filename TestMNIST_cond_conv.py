@@ -583,13 +583,13 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 im_res_dict_inf = inf_gen_model.apply_im(Xa_inf, mode='inf')
 z_inf = im_res_dict_inf['z_dict']
 logz_inf = im_res_dict_inf['logz_dict']
+Xg_recon = sigmoid(T.clip(im_res_dict_inf['td_output'], -15., 15.))
 
-# feed restricted masked inputs through the generator network
+# evaluate log-likelihood of latent samples under the conditonal prior
 im_res_dict_gen = inf_gen_model.apply_im(Xa_gen, mode='gen', z_vals=z_inf)
 logz_gen = im_res_dict_gen['logz_dict']
-
-# get reconstruction output by inference network
-Xg_recon = sigmoid(T.clip(im_res_dict_inf['td_output'], -15., 15.))
+# sample freely from conditional prior
+im_res_dict_gen = inf_gen_model.apply_im(Xa_gen, mode='gen')
 Xg_sampl = sigmoid(T.clip(im_res_dict_gen['td_output'], -15., 15.))
 
 # compute masked reconstruction error from final step.
