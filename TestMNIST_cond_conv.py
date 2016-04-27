@@ -585,7 +585,7 @@ z_inf = im_res_dict_inf['z_dict']
 logz_inf = im_res_dict_inf['logz_dict']
 
 # feed restricted masked inputs through the generator network
-im_res_dict_gen = inf_gen_model.apply_im(Xa_gen, mode='gen')
+im_res_dict_gen = inf_gen_model.apply_im(Xa_gen, mode='gen', z_vals=z_inf)
 logz_gen = im_res_dict_gen['logz_dict']
 
 # get reconstruction output by inference network
@@ -672,7 +672,7 @@ recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon)
 sampl_func = theano.function([Xg_gen, Xm_gen], Xg_sampl)
 model_input = make_model_input(Xtr[0:100, :])
 test_recons = recon_func(*model_input)  # cheeky model implementation test
-test_sampls = recon_func(model_input[0], model_input[1])
+test_sampls = sampl_func(model_input[0], model_input[1])
 
 print("Compiling training functions...")
 # collect costs for generator parameters
