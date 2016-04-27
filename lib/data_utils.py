@@ -235,8 +235,8 @@ def get_downsampling_masks(
     xo = xi.copy()
     # construct 2x "downsampling" mask
     img_mask = np.zeros((im_chans, rows, cols))
-    for r in rows:
-        for c in cols:
+    for r in range(rows):
+        for c in range(cols):
             if (r % 2 == 0) and (c % 2 == 0):
                 img_mask[:, r, c] = 1.
     img_mask = img_mask.flatten()[np.newaxis, :]
