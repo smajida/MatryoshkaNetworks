@@ -260,10 +260,7 @@ def get_downsampled_data(
             idx = 0
         else:
             idx = npr.randint(0, 4)
-        print('xi_ds.shape: {}'.format(xi_ds.shape))
-        print('img_masks[idx].shape: {}'.format(img_masks[idx].shape))
         xi_ds[i, :] = xi[i, img_masks[idx]]
-        break
     return xi_ds
 
 
