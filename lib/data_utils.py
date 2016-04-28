@@ -254,13 +254,16 @@ def get_downsampled_data(
         img_mask = img_mask.flatten().astype(np.bool)
         img_masks.append(img_mask)
     # downsample each image in xi
-    xi_ds = np.zeros(xi.shape[0], np.sum(img_masks[0]))
+    xi_ds = np.zeros((xi.shape[0], np.sum(img_masks[0])))
     for i in range(xi.shape[0]):
         if fixed_mask:
             idx = 0
         else:
             idx = npr.randint(0, 4)
+        print('xi_ds.shape: {}'.format(xi_ds.shape))
+        print('img_masks[idx].shape: {}'.format(img_masks[idx].shape))
         xi_ds[i, :] = xi[i, img_masks[idx]]
+        break
     return xi_ds
 
 

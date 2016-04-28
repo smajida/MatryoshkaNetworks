@@ -71,7 +71,7 @@ else:
 set_seed(123)      # seed for shared rngs
 nc = 1             # # of channels in image
 nbatch = 100       # # of examples in batch
-npx = 28           # # of pixels width/height of images
+npx = 14           # # of pixels width/height of images
 nz0 = 32           # # of dim for Z0
 nz1 = 4            # # of dim for Z1
 ngf = 32           # base # of filters for conv layers in generative stuff
@@ -641,12 +641,15 @@ test_func = theano.function(inputs, outputs)
 # grab data to feed into the model
 def make_model_input(x_in):
     # downsample from (28, 28) -> (14, 14)
+    x_in = np.concatenate([x_in, Xmu[np.newaxis,:]], axis=0)
     x_in = get_downsampled_data(x_in, im_shape=(28, 28), im_chans=1,
                                 fixed_mask=True)
+    x_mu = x_in[-1, :]
+    x_in = x_in[:-1, :]
     # construct "imputational upsampling" masks
     xg_gen, xg_inf, xm_gen = \
-        get_downsampling_masks(x_in, im_shape=(28, 28), im_chans=1,
-                               fixed_mask=True, data_mean=Xmu)
+        get_downsampling_masks(x_in, im_shape=(14, 14), im_chans=1,
+                               fixed_mask=True, data_mean=x_mu)
     # reshape and process data for use as model input
     xm_inf = 1. - xm_gen
     xg_gen = train_transform(xg_gen)
