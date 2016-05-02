@@ -50,6 +50,7 @@ if not os.path.exists(result_dir):
 data_path = '{}/data/'.format(EXP_DIR)
 Xtr, Ytr, Xva, Yva = load_cifar10(data_path, va_split=5000, dtype='float32',
                                   grayscale=False)
+print('np.max(Xtr)={0:.4f}, np.max(255. * Xtr)={1:.4f}'.format(np.max(Xtr), np.max(Xtr * 255.)))
 
 
 set_seed(123)       # seed for shared rngs
@@ -83,15 +84,17 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
-    X = X * 255.  # scale X to be in [0, 255]
+    # X = X * 255.  # scale X to be in [0, 255]
+    X = X * 1.
     if add_fuzz:
-        X = fuzz_data(X, scale=1., rand_type='uniform')
+        # X = fuzz_data(X, scale=1., rand_type='uniform')
+        X = fuzz_data(X, scale=(1. / 256.), rand_type='uniform')
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
-    X = X * 1.  # 255.0
+    X = X * 255.
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
@@ -133,7 +136,7 @@ def estimate_whitening_transform(X, samples=10):
 
 
 def nats2bpp(nats):
-    bpp = (nats / (npx*npx*nc)) / np.log(2.)
+    bpp = (nats / (npx * npx * nc)) / np.log(2.)
     return bpp
 
 
@@ -620,7 +623,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: x  # sigmoid(T.clip(x, -15., 15.))
+output_transform = lambda x: sigmoid(T.clip(x, -15., 15.))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -648,17 +651,16 @@ g_params = gen_params + inf_params
 ###########################################################
 from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
-mu, sigma = estimate_gauss_params(255. * Xtr)
+mu, sigma = estimate_gauss_params(1. * Xtr)
 U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
 print('computing whitening transform for fuzzy images')
-W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
-
-WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
+W, mu = estimate_whitening_transform((1. * Xtr), samples=10)
 
 # quick test of log-likelihood for a basic Gaussian model...
-
+WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
 W = sharedX(W)
 mu = sharedX(mu)
+
 
 def whiten_data(X_sym, W_sym, mu_sym):
     # apply whitening transform to data in X
@@ -666,7 +668,6 @@ def whiten_data(X_sym, W_sym, mu_sym):
     Xw_sym = X_sym - mu_sym
     Xw_sym = T.dot(Xw_sym, W_sym.T)
     return Xw_sym
-
 
 
 ######################################################
@@ -693,7 +694,7 @@ log_q_z = sum(im_res_dict['log_q_z'])
 Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
 
 log_p_x = T.sum(log_prob_gaussian(
-                Xg_whitened, T.flatten(Xg_recon, 2),
+                Xg, T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
@@ -731,8 +732,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.0005)
-#lrt = sharedX(0.0005)
+lrt = sharedX(0.001)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
@@ -748,7 +748,7 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -760,10 +760,10 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
-print "{0:.2f} seconds to compile theano functions".format(time()-t)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
+print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
@@ -775,15 +775,15 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0,1.0,25)
-sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
-for epoch in range(1, niter+niter_decay+1):
+kld_weights = np.linspace(0.0, 1.0, 25)
+sample_z0mb = rand_gen(size=(200, nz0))  # root noise for visualizing samples
+for epoch in range(1, niter + niter_decay + 1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    #lam_kld.set_value(floatX([1.0]))
+    if ((epoch - 1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
