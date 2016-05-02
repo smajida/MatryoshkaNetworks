@@ -50,7 +50,9 @@ if not os.path.exists(result_dir):
 data_path = '{}/data/'.format(EXP_DIR)
 Xtr, Ytr, Xva, Yva = load_cifar10(data_path, va_split=5000, dtype='float32',
                                   grayscale=False)
-print('np.max(Xtr)={0:.4f}, np.max(255. * Xtr)={1:.4f}'.format(np.max(Xtr), np.max(Xtr * 255.)))
+Xtr = (255. / 256.) * Xtr
+Xva = (255. / 256.) * Xva
+print('np.max(Xtr)={0:.4f}, np.max(256. * Xtr)={1:.4f}'.format(np.max(Xtr), np.max(Xtr * 256.)))
 
 
 set_seed(123)       # seed for shared rngs
@@ -84,17 +86,17 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
-    # X = X * 255.  # scale X to be in [0, 255]
-    X = X * 1.
+    # X = X * 255.  # scale X to be in (0, 255)
+    X = X * 1.  # data is in range (0, 255/256)
     if add_fuzz:
         # X = fuzz_data(X, scale=1., rand_type='uniform')
-        X = fuzz_data(X, scale=(1. / 256.), rand_type='uniform')
+        X = fuzz_data(X, scale=(1. / 256.), rand_type='uniform')  # data is in range (0, 1)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
-    X = X * 255.
+    X = X * 256.
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
@@ -110,13 +112,13 @@ def rand_gen(size, noise_type='normal'):
 
 def estimate_gauss_params(X, samples=10):
     # compute data mean
-    mu = np.mean(X, axis=0, keepdims=True) + 0.5
+    mu = np.mean(X, axis=0, keepdims=True) + (1. / 512.)
     Xc = X - mu
 
     # compute data covariance
     C = np.zeros((X.shape[1], X.shape[1]))
     for i in range(samples):
-        Xc_i = fuzz_data(Xc, scale=1., rand_type='uniform')
+        Xc_i = fuzz_data(Xc, scale=(1. / 256.), rand_type='uniform')
         C = C + (np.dot(Xc_i.T, Xc_i) / Xc_i.shape[0])
     C = C / float(samples)
     return mu, C
@@ -146,13 +148,13 @@ def check_gauss_bpp(x, x_te):
     mu, sigma = estimate_gauss_params(x, samples=10)
 
     # evaluate on "train" set
-    x_f = fuzz_data(x, scale=1., rand_type='uniform')
+    x_f = fuzz_data(x, scale=(1. / 256.), rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
     print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
 
     # evaluate on "test" set
-    x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
+    x_f = fuzz_data(x_te, scale=(1. / 256.), rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
     print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
@@ -160,7 +162,7 @@ def check_gauss_bpp(x, x_te):
     # test with shrinking error
     alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
     for alpha in alphas:
-        x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
+        x_f = fuzz_data(x_te, scale=(1. / 256.), rand_type='uniform')
         x_f = alpha * x_f
         # test with shrinking covariance
         for beta in [0.6, 0.4, 0.2, 0.1]:
@@ -169,7 +171,7 @@ def check_gauss_bpp(x, x_te):
             print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
     return
 
-check_gauss_bpp((255. * Xtr), (255. * Xva))
+check_gauss_bpp(Xtr, Xva)
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
