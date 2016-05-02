@@ -696,7 +696,7 @@ log_q_z = sum(im_res_dict['log_q_z'])
 Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
 
 log_p_x = T.sum(log_prob_gaussian(
-                Xg, T.flatten(Xg_recon, 2),
+                T.flatten(Xg), T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
