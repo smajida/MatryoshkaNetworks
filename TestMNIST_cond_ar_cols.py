@@ -664,7 +664,7 @@ for xm, tag in zip([xm_gen, xm_inf], ['gen', 'inf']):
     print('========================================')
     print('XM - {}'.format(tag))
     for i in range(28):
-        print(''.join(['{}'.format(xm[0, i, j]) for j in range(28)]))
+        print(''.join(['{}'.format(int(xm[0, i, j])) for j in range(28)]))
     print('========================================')
 
 #################################################################
