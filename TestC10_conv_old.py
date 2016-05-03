@@ -891,34 +891,34 @@ for epoch in range(1, niter + niter_decay + 1):
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
-    #################################
-    # QUALITATIVE DIAGNOSTICS STUFF #
-    #################################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
-        # generate some samples from the model prior
-        samples = np.asarray(sample_func(sample_z0mb))
-        color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
-        # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100, :]
-        va_rb = Xva[0:100, :]
-        # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
-        tr_recons = recon_func(tr_rb)
-        va_recons = recon_func(va_rb)
-        # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
-        for rec_pair in range(100):
-            idx_in = 2 * rec_pair
-            idx_out = 2 * rec_pair + 1
-            tr_vis_batch[idx_in, :, :, :] = tr_rb[rec_pair, :, :, :]
-            tr_vis_batch[idx_out, :, :, :] = tr_recons[rec_pair, :, :, :]
-            va_vis_batch[idx_in, :, :, :] = va_rb[rec_pair, :, :, :]
-            va_vis_batch[idx_out, :, :, :] = va_recons[rec_pair, :, :, :]
-        # draw images...
-        color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
-        color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+    # #################################
+    # # QUALITATIVE DIAGNOSTICS STUFF #
+    # #################################
+    # if (epoch < 20) or (((epoch - 1) % 20) == 0):
+    #     # generate some samples from the model prior
+    #     samples = np.asarray(sample_func(sample_z0mb))
+    #     color_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+    #     # test reconstruction performance (inference + generation)
+    #     tr_rb = Xtr[0:100, :]
+    #     va_rb = Xva[0:100, :]
+    #     # get the model reconstructions
+    #     tr_rb = train_transform(tr_rb)
+    #     va_rb = train_transform(va_rb)
+    #     tr_recons = recon_func(tr_rb)
+    #     va_recons = recon_func(va_rb)
+    #     # stripe data for nice display (each reconstruction next to its target)
+    #     tr_vis_batch = np.zeros((200, nc, npx, npx))
+    #     va_vis_batch = np.zeros((200, nc, npx, npx))
+    #     for rec_pair in range(100):
+    #         idx_in = 2 * rec_pair
+    #         idx_out = 2 * rec_pair + 1
+    #         tr_vis_batch[idx_in, :, :, :] = tr_rb[rec_pair, :, :, :]
+    #         tr_vis_batch[idx_out, :, :, :] = tr_recons[rec_pair, :, :, :]
+    #         va_vis_batch[idx_in, :, :, :] = va_rb[rec_pair, :, :, :]
+    #         va_vis_batch[idx_out, :, :, :] = va_recons[rec_pair, :, :, :]
+    #     # draw images...
+    #     color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
+    #     color_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
 
 
 
