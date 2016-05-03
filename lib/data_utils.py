@@ -212,7 +212,7 @@ def get_autoregression_masks(x_in, im_shape=(28, 28), im_chans=1,
     for col in range(cols):
         # construct masks that say to predict the "first" missing column
         xm_gen_templates[col, :, :, col:] = 0.  # zero for missing pixels
-        xm_inf_templates[col, :, :, col] = 1.   # one for pixels to predict
+        xm_inf_templates[col, :, :, col:] = 1.   # one for pixels to predict
     # sample gen/inf mask pairs for the examples in x_in
     xm_gen = np.zeros(x_in.shape)
     xm_inf = np.zeros(x_in.shape)
