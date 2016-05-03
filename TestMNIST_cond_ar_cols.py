@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_impute_2x_upsampling'
+desc = 'test_cond_ar_cols'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -711,14 +711,14 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 10)
+kld_weights = np.linspace(0.0, 1.0, 25)
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    # if ((epoch-1) < len(kld_weights)):
-    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch - 1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
