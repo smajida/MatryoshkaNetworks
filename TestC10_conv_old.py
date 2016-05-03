@@ -697,8 +697,9 @@ inf_gen_model = InfGenModel(
 ####################################
 lam_kld = sharedX(floatX([1.0]))
 log_var = sharedX(floatX([0.0]))
+log_scl = sharedX(floatX([0.0]))
 noise = sharedX(floatX([noise_std]))
-gen_params = inf_gen_model.gen_params + [log_var]
+gen_params = inf_gen_model.gen_params + [log_var, log_scl]
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
@@ -723,9 +724,14 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
+Xg_scl = Xg * T.exp(log_scl[0])
+Xg_recon_scl = Xg_recon_scl * T.exp(log_scl[0])
+
 log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
+                T.flatten(Xg_scl, 2), T.flatten(Xg_recon_scl, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
+base_scl = np.log(256.)
+log_p_x = log_p_x + (3072. * (log_scl[0] - base_scl))
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
