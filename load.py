@@ -362,7 +362,7 @@ def _load_batch_cifar10(batch_dir, batch_name, dtype='float32'):
 
 def load_cifar10(data_dir, va_split=5000, dtype='float32', grayscale=False):
     dir_cifar10 = os.path.join(data_dir, 'cifar-10-batches-py')
-    #class_names_cifar10 = np.load(os.path.join(dir_cifar10, 'batches.meta'))
+    # class_names_cifar10 = np.load(os.path.join(dir_cifar10, 'batches.meta'))
 
     # train
     x_train = []
