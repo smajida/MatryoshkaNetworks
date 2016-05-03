@@ -229,7 +229,7 @@ def get_autoregression_masks(x_in, im_shape=(28, 28), im_chans=1,
     xg_inf = to_fX(xg_inf)
     xm_gen = to_fX(xm_gen)
     xm_inf = to_fX(xm_inf)
-    return xg_gen, xg_inf, xm_gen, xm_inf
+    return xg_gen, xm_gen, xg_inf, xm_inf
 
 
 def get_downsampling_masks(

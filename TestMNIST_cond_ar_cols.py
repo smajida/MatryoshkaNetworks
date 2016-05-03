@@ -641,12 +641,11 @@ test_func = theano.function(inputs, outputs)
 # grab data to feed into the model
 def make_model_input(x_in):
     # construct "imputational upsampling" masks
-    xg_gen, xg_inf, xm_gen, xm_inf = \
+    xg_gen, xm_gen, xg_inf, xm_inf = \
         get_autoregression_masks(x_in, im_shape=(28, 28), im_chans=1,
                                  order='cols', data_mean=Xmu)
     # reshape and process data for use as model input
-    xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
-    xm_inf = xm_gen       # mask is 1 for pixels to predict
+    xm_gen = 1. - xm_gen  # flip mask to be 1 for unobserved pixels
     xg_gen = train_transform(xg_gen)  # observable input to generator
     xm_gen = train_transform(xm_gen)  # mask for which pixels generator can see
     xg_inf = train_transform(xg_inf)  # observable input to inference (all pix)
@@ -657,6 +656,16 @@ def make_model_input(x_in):
 model_input = make_model_input(Xtr[0:100, :])
 test_out = test_func(*model_input)
 print('DONE.')
+
+# draw masks in ascii, for sanity check
+xm_gen = model_input[1][0, :].reshape((1, 28, 28))
+xm_inf = model_input[3][0, :].reshape((1, 28, 28))
+for xm, tag in zip([xm_gen, xm_inf], ['gen', 'inf']):
+    print('========================================')
+    print('XM - {}'.format(tag))
+    for i in range(28):
+        print(''.join(['{}'.format(xm[0, i, j]) for j in range(28)]))
+    print('========================================')
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
@@ -676,18 +685,7 @@ print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon)
 sampl_func = theano.function([Xg_gen, Xm_gen], Xg_sampl)
 model_input = make_model_input(Xtr[0:100, :])
-# draw masks in ascii, for sanity check
-xm_gen = model_input[2][0, :].reshape((1, 28, 28))
-xm_inf = model_input[3][0, :].reshape((1, 28, 28))
-for xm, tag in zip([xm_gen, xm_inf], ['gen', 'inf']):
-    print('========================================')
-    print('XM - {}'.format(tag))
-    for i in range(28):
-        print(''.join(['{}'.format(xm[0, i, j]) for j in range(28)]))
-    print('========================================')
-
-
-test_recons = recon_func(*model_input)  # cheeky model implementation test
+test_recons = recon_func(*model_input)
 test_sampls = sampl_func(model_input[0], model_input[1])
 
 print("Compiling training functions...")
