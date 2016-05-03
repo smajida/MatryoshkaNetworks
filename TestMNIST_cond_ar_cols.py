@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_ar_cols'
+desc = 'test_cond_ar_cols_kl_anneal'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -621,7 +621,7 @@ alt_layer_klds = [mod_kld**2.0 for mod_name, mod_kld in kld_tuples]
 alt_kld_cost = T.mean(sum(alt_layer_klds))
 
 # compute the KLd cost to use for optimization
-opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+opt_kld_cost = (lam_kld[0] * vae_kld_cost)  # + ((1.0 - lam_kld[0]) * alt_kld_cost)
 
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
@@ -711,7 +711,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 100)
+kld_weights = np.linspace(0.001, 1.0, 100)
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
