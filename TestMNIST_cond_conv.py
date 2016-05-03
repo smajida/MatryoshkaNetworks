@@ -644,7 +644,8 @@ def make_model_input(x_in):
                                im_chans=1, data_mean=Xmu)
     # construct_masked_data(x_in, drop_prob=0.5, occ_dim=None,
     #                       occ_count=1, data_mean=Xmu)
-    xm_inf = 1. - xm_gen
+    xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
+    xm_inf = xm_gen       # mask is 1 for pixels to predict
     xg_gen = train_transform(xg_gen)
     xm_gen = train_transform(xm_gen)
     xg_inf = train_transform(xg_inf)

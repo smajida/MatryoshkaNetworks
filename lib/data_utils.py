@@ -191,6 +191,47 @@ def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
     return xm
 
 
+def get_autoregression_masks(x_in, im_shape=(28, 28), im_chans=1,
+                             order='cols', data_mean=None):
+    '''
+    Get masks for autoregression by progressive imputation.
+    '''
+    assert (order in ['cols']), \
+        'unknown autoregression order: {}'.format(order)
+    if data_mean is None:
+        data_mean = np.zeros(x_in.shape)
+    else:
+        data_mean = np.repeat(data_mean[np.newaxis, :], x_in.shape[0], axis=0)
+    rows = im_shape[0]
+    cols = im_shape[1]
+    chans = im_chans
+    # init arrays to hold the generator (i.e. visibility) masks and the
+    # inference (i.e. pixels to predict) masks.
+    xm_gen_templates = np.ones((cols, chans, rows, cols))
+    xm_inf_templates = np.zeros((cols, chans, rows, cols))
+    for col in range(cols):
+        # construct masks that say to predict the "first" missing column
+        xm_gen_templates[col, :, :, col:] = 0.  # zero for missing pixels
+        xm_inf_templates[col, :, :, col] = 1.   # one for pixels to predict
+    # sample gen/inf mask pairs for the examples in x_in
+    xm_gen = np.zeros(x_in.shape)
+    xm_inf = np.zeros(x_in.shape)
+    mask_idx = npr.randint(0, high=cols, size=(x_in.shape[0],))
+    for i in range(x_in.shape[0]):
+        m_idx = mask_idx[i]
+        xm_gen[i, :] = xm_gen_templates[m_idx, :, :, :].flatten()
+        xm_inf[i, :] = xm_inf_templates[m_idx, :, :, :].flatten()
+    # construct "data" inputs to the model
+    xg_gen = (xm_gen * x_in) + ((1. - xm_gen) * data_mean)
+    xg_inf = x_in
+    # make sure everthing's fine for the gpu
+    xg_gen = to_fX(xg_gen)
+    xg_inf = to_fX(xg_inf)
+    xm_gen = to_fX(xm_gen)
+    xm_inf = to_fX(xm_inf)
+    return xg_gen, xg_inf, xm_gen, xm_inf
+
+
 def get_downsampling_masks(
         xi,
         im_shape,

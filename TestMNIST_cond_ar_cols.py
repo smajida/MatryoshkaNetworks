@@ -21,7 +21,8 @@ from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import \
-    shuffle, iter_data, get_masked_data, get_downsampling_masks
+    shuffle, iter_data, get_masked_data, get_downsampling_masks, \
+    get_autoregression_masks
 from load import load_binarized_mnist, load_udm
 
 #
@@ -81,7 +82,7 @@ niter_decay = 250  # # of iter to linearly decay learning rate to zero
 multi_rand = True  # whether to use stochastic variables at multiple scales
 use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = True      # whether to use batch normalization throughout the model
-act_func = 'lrelu'  # activation func to use where they can be selected
+act_func = 'elu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
@@ -596,7 +597,7 @@ Xg_sampl = sigmoid(T.clip(im_res_dict_gen['td_output'], -15., 15.))
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
-                mask=T.flatten((1. - Xm_gen), 2), do_sum=False),
+                mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)
 
 # compute reconstruction error part of free-energy
@@ -640,16 +641,16 @@ test_func = theano.function(inputs, outputs)
 # grab data to feed into the model
 def make_model_input(x_in):
     # construct "imputational upsampling" masks
-    xg_gen, xg_inf, xm_gen = \
-        get_downsampling_masks(x_in, im_shape=(28, 28), im_chans=1,
-                               fixed_mask=True, data_mean=Xmu)
+    xg_gen, xg_inf, xm_gen, xm_inf = \
+        get_autoregression_masks(x_in, im_shape=(28, 28), im_chans=1,
+                                 order='cols', data_mean=Xmu)
     # reshape and process data for use as model input
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
-    xg_gen = train_transform(xg_gen)
-    xm_gen = train_transform(xm_gen)
-    xg_inf = train_transform(xg_inf)
-    xm_inf = train_transform(xm_inf)
+    xg_gen = train_transform(xg_gen)  # observable input to generator
+    xm_gen = train_transform(xm_gen)  # mask for which pixels generator can see
+    xg_inf = train_transform(xg_inf)  # observable input to inference (all pix)
+    xm_inf = train_transform(xm_inf)  # mask on which pixels to predict
     return xg_gen, xm_gen, xg_inf, xm_inf
 
 # test the model implementation
@@ -675,6 +676,17 @@ print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon)
 sampl_func = theano.function([Xg_gen, Xm_gen], Xg_sampl)
 model_input = make_model_input(Xtr[0:100, :])
+# draw masks in ascii, for sanity check
+xm_gen = model_input[2][0, :].reshape((1, 28, 28))
+xm_inf = model_input[3][0, :].reshape((1, 28, 28))
+for xm, tag in zip([xm_gen, xm_inf], ['gen', 'inf']):
+    print('========================================')
+    print('XM - {}'.format(tag))
+    for i in range(28):
+        print(''.join(['{}'.format(xm[0, i, j]) for j in range(28)]))
+    print('========================================')
+
+
 test_recons = recon_func(*model_input)  # cheeky model implementation test
 test_sampls = sampl_func(model_input[0], model_input[1])
 

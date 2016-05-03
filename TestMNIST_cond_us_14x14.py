@@ -641,7 +641,7 @@ test_func = theano.function(inputs, outputs)
 # grab data to feed into the model
 def make_model_input(x_in):
     # downsample from (28, 28) -> (14, 14)
-    x_in = np.concatenate([x_in, Xmu[np.newaxis,:]], axis=0)
+    x_in = np.concatenate([x_in, Xmu[np.newaxis, :]], axis=0)
     x_in = get_downsampled_data(x_in, im_shape=(28, 28), im_chans=1,
                                 fixed_mask=True)
     x_mu = x_in[-1, :]
@@ -651,7 +651,8 @@ def make_model_input(x_in):
         get_downsampling_masks(x_in, im_shape=(14, 14), im_chans=1,
                                fixed_mask=True, data_mean=x_mu)
     # reshape and process data for use as model input
-    xm_inf = 1. - xm_gen
+    xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
+    xm_inf = xm_gen       # mask is 1 for pixels to predict
     xg_gen = train_transform(xg_gen)
     xm_gen = train_transform(xm_gen)
     xg_inf = train_transform(xg_inf)
