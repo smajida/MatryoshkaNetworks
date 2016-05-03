@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_cond_ar_cols_pred_all'
+desc = 'test_cond_ar_cols'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -82,7 +82,7 @@ niter_decay = 250  # # of iter to linearly decay learning rate to zero
 multi_rand = True  # whether to use stochastic variables at multiple scales
 use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = True      # whether to use batch normalization throughout the model
-act_func = 'elu'  # activation func to use where they can be selected
+act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
