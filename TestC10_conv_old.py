@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps'
+desc = 'test_conv_baby_steps_full_res'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -73,6 +73,7 @@ use_td_cond = False
 depth_4x4 = 1
 depth_8x8 = 1
 depth_16x16 = 1
+depth_32x32 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -221,15 +222,48 @@ td_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*2),
-    out_chans=(ngf*1),
+    out_chans=(ngf*2),
     apply_bn=use_bn,
     stride='half',
     act_func=act_func,
     mod_name='td_mod_7'
 )
 
+# grow the (32, 32) -> (32, 32) part of network
+td_modules_32x32 = []
+for i in range(depth_32x32):
+    mod_name = 'td_mod_8{}'.format(alphabet[i])
+    new_module = \
+    GenConvPertModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        conv_chans=(ngf*2),
+        rand_chans=nz1,
+        filt_shape=(3,3),
+        use_rand=multi_rand,
+        use_conv=use_conv,
+        apply_bn=use_bn,
+        act_func=act_func,
+        us_stride=1,
+        mod_name=mod_name
+    )
+    td_modules_32x32.append(new_module)
+# manual stuff for parameter sharing....
+
 # (32, 32) -> (32, 32)
-td_module_8 = \
+td_module_9 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*2),
+    out_chans=(ngf*1),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='td_mod_9'
+)
+
+# (32, 32) -> (32, 32)
+td_module_10 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=(ngf*1),
@@ -238,7 +272,7 @@ BasicConvModule(
     use_noise=False,
     stride='single',
     act_func='ident',
-    mod_name='td_mod_8'
+    mod_name='td_mod_10'
 )
 
 # modules must be listed in "evaluation order"
@@ -248,7 +282,9 @@ td_modules = [td_module_1] + \
              td_modules_8x8 + \
              [td_module_5] + \
              td_modules_16x16 + \
-             [td_module_7, td_module_8]
+             [td_module_7] + \
+             td_modules_32x32 + \
+             [td_module_9, td_module_10]
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -353,7 +389,7 @@ bu_modules_16x16.reverse() # reverse, to match "evaluation order"
 bu_module_7 = \
 BasicConvModule(
     filt_shape=(3,3),
-    in_chans=(ngf*1),
+    in_chans=(ngf*2),
     out_chans=(ngf*2),
     apply_bn=use_bn,
     stride='double',
@@ -361,8 +397,39 @@ BasicConvModule(
     mod_name='bu_mod_7'
 )
 
+# grow the (32, 32) -> (32, 32) part of network
+bu_modules_32x32 = []
+for i in range(depth_32x32):
+    mod_name = 'bu_mod_8{}'.format(alphabet[i])
+    new_module = \
+    BasicConvPertModule(
+        in_chans=(ngf*2),
+        out_chans=(ngf*2),
+        conv_chans=(ngf*2),
+        filt_shape=(3,3),
+        use_conv=use_conv,
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    bu_modules_32x32.append(new_module)
+bu_modules_32x32.reverse() # reverse, to match "evaluation order"
+
 # (32, 32) -> (32, 32)
-bu_module_8 = \
+bu_module_9 = \
+BasicConvModule(
+    filt_shape=(3,3),
+    in_chans=(ngf*1),
+    out_chans=(ngf*2),
+    apply_bn=use_bn,
+    stride='single',
+    act_func=act_func,
+    mod_name='bu_mod_9'
+)
+
+# (32, 32) -> (32, 32)
+bu_module_10 = \
 BasicConvModule(
     filt_shape=(3,3),
     in_chans=nc,
@@ -370,11 +437,13 @@ BasicConvModule(
     apply_bn=use_bn,
     stride='single',
     act_func=act_func,
-    mod_name='bu_mod_8'
+    mod_name='bu_mod_10'
 )
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_8, bu_module_7] + \
+bu_modules = [bu_module_10, bu_module_9] + \
+             bu_modules_32x32 + \
+             [bu_module_7] + \
              bu_modules_16x16 + \
              [bu_module_5] + \
              bu_modules_8x8 + \
@@ -389,16 +458,15 @@ bu_modules = [bu_module_8, bu_module_7] + \
 
 # FC -> (4, 4)
 im_module_1 = \
-GenTopModule(
-    rand_dim=nz0,
-    out_shape=(ngf*2, 4, 4),
-    fc_dim=ngfc,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_1'
-)
+    GenTopModule(
+        rand_dim=nz0,
+        out_shape=(ngf * 2, 4, 4),
+        fc_dim=ngfc,
+        use_fc=True,
+        use_sc=False,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name='im_mod_1')
 
 # grow the (4, 4) -> (4, 4) part of network
 im_modules_4x4 = []
@@ -484,12 +552,46 @@ for i in range(depth_16x16):
     )
     im_modules_16x16.append(new_module)
 
+# (16, 16) -> (32, 32)
+im_module_7 = \
+BasicConvModule(
+    in_chans=(ngf*2),
+    out_chans=(ngf*2),
+    filt_shape=(3,3),
+    apply_bn=use_bn,
+    stride='half',
+    act_func=act_func,
+    mod_name='im_mod_7'
+)
+
+# grow the (32, 32) -> (32, 32) part of network
+im_modules_32x32 = []
+for i in range(depth_32x32):
+    mod_name = 'im_mod_8{}'.format(alphabet[i])
+    new_module = \
+    InfConvMergeModuleIMS(
+        td_chans=(ngf*2),
+        bu_chans=(ngf*2),
+        im_chans=(ngf*2),
+        rand_chans=nz1,
+        conv_chans=(ngf*2),
+        use_conv=True,
+        use_td_cond=use_td_cond,
+        apply_bn=use_bn,
+        mod_type=inf_mt,
+        act_func=act_func,
+        mod_name=mod_name
+    )
+    im_modules_32x32.append(new_module)
+
 im_modules = [im_module_1] + \
              im_modules_4x4 + \
              [im_module_3] + \
              im_modules_8x8 + \
              [im_module_5] + \
-             im_modules_16x16
+             im_modules_16x16 + \
+             [im_module_7] + \
+             im_modules_32x32
 
 #
 # Setup a description for where to get conditional distributions from.
@@ -504,10 +606,13 @@ merge_info = {
     'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
                  'bu_source': None, 'im_source': im_modules_8x8[-1].mod_name},
 
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
+    'td_mod_7': {'td_type': 'pass', 'im_module': 'im_mod_7',
+                 'bu_source': None, 'im_source': im_modules_16x16[-1].mod_name},
+
+    'td_mod_9': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
-    'td_mod_8': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None}
+    'td_mod_10': {'td_type': 'pass', 'im_module': None,
+                  'bu_source': None, 'im_source': None}
 }
 
 # add merge_info entries for the modules with latent variables
@@ -551,6 +656,22 @@ for i in range(depth_16x16):
         im_src_name = 'im_mod_6{}'.format(alphabet[i - 1])
     if i < (depth_16x16 - 1):
         bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
+    # add entry for this TD module
+    merge_info[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
+
+for i in range(depth_32x32):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_8{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_8{}'.format(alphabet[i])
+    im_src_name = 'im_mod_7'
+    bu_src_name = 'bu_mod_9'
+    if i > 0:
+        im_src_name = 'im_mod_8{}'.format(alphabet[i - 1])
+    if i < (depth_32x32 - 1):
+        bu_src_name = 'bu_mod_8{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
