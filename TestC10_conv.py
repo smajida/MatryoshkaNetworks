@@ -653,12 +653,13 @@ U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
 print('computing whitening transform for fuzzy images')
 W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
 
-WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
+WU, log_pdet_W = psd_pinv_decomposed_log_pdet(W)
 
 # quick test of log-likelihood for a basic Gaussian model...
 
 W = sharedX(W)
 mu = sharedX(mu)
+
 
 def whiten_data(X_sym, W_sym, mu_sym):
     # apply whitening transform to data in X

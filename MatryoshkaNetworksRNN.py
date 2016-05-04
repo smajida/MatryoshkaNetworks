@@ -182,26 +182,18 @@ class DeepSeqCondGen(object):
 
         -- this does all the heavy lifting --
         '''
-        assert (mode in {'gen', 'inf'}), "mode must be in {'gen', 'inf'}"
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
-        z_dict = {}
-        logz_dict = {}
-        logz_dict = {}
+        z_dict = {}       # latent samples used in each TD module
+        kld_dict = {}     # KL(inf || gen) in each TD module
+        log_pz_dict = {}  # log p(z | x) for each TD module
+        log_qz_dict = {}  # log q(z | x) for each TD module
         # first, run the bottom-up passes for generator and inferencer
         bu_res_dict_gen = self.apply_mlp(input=input, modules=self.bu_modules_gen)
         bu_res_dict_inf = self.apply_mlp(input=input, modules=self.bu_modules_inf)
         # dict for storing IM state information
-        im_res_dict = {None: None}
-        # grab the appropriate sets of BU and IM modules...
-        if mode == 'gen':
-            bu_modules = self.bu_modules_gen
-            im_modules = self.im_modules_gen
-            im_modules_dict = self.im_modules_gen_dict
-        else:
-            bu_modules = self.bu_modules_inf
-            im_modules = self.im_modules_inf
-            im_modules_dict = self.im_modules_inf_dict
+        im_res_dict_gen = {None: None}
+        im_res_dict_inf = {None: None}
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
