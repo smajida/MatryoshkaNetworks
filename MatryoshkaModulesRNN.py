@@ -23,11 +23,13 @@ class BasicConvGRUModuleRNN(object):
     Convolutional GRU, takes a recurrent input and an exogenous input.
     '''
     def __init__(self, state_chans, in_chans, filt_shape,
-                 act_func='tanh', mod_name='gm_conv'):
+                 act_func='tanh', mod_name='no_name'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
+        assert not (name == 'no_name'), \
+            'module name is required.'
         self.state_chans = state_chans
         self.in_chans = in_chans
         self.filt_dim = filt_shape[0]
@@ -112,6 +114,23 @@ class BasicConvGRUModuleRNN(object):
         param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
+    def get_s0_for_batch(self, batch_shape):
+        '''
+        Get initial state for this module, shaped/repeated appropriately to
+        match a batch with shape `batch_shape`. The 'feature dimension' is not
+        included in `batch_shape`.
+
+        -- batch_shape[0] is nbatch
+        -- batch_shape[1] is spatial dim 1
+        -- batch_shape[2] is spatial dim 2
+        '''
+        # broadcast self.s0 into the right shape for this batch
+        s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
+        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
+                          batch_shape[1], batch_shape[2])
+        s0_batch = s0_init + s0_zero
+        return s0_batch
+
     def apply(self, state, input, rand_vals=None):
         '''
         Apply this GRU to an input and a previous state.
@@ -144,11 +163,13 @@ class GenConvGRUModuleRNN(object):
     '''
     def __init__(self,
                  state_chans, in_chans, rand_chans, filt_shape,
-                 act_func='relu', mod_name='gm_conv'):
+                 act_func='relu', mod_name='no_name'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
+        assert not (name == 'no_name'), \
+            'module name is required.'
         self.state_chans = state_chans
         self.in_chans = in_chans
         self.rand_chans = rand_chans
@@ -173,7 +194,6 @@ class GenConvGRUModuleRNN(object):
         '''
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
-        gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         full_in_chans = self.state_chans + self.in_chans + self.rand_chans
@@ -235,6 +255,23 @@ class GenConvGRUModuleRNN(object):
         param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
+    def get_s0_for_batch(self, batch_shape):
+        '''
+        Get initial state for this module, shaped/repeated appropriately to
+        match a batch with shape `batch_shape`. The 'feature dimension' is not
+        included in `batch_shape`.
+
+        -- batch_shape[0] is nbatch
+        -- batch_shape[1] is spatial dim 1
+        -- batch_shape[2] is spatial dim 2
+        '''
+        # broadcast self.s0 into the right shape for this batch
+        s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
+        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
+                          batch_shape[1], batch_shape[2])
+        s0_batch = s0_init + s0_zero
+        return s0_batch
+
     def apply(self, state, input, rand_vals):
         '''
         Apply this GRU to an input and a previous state.
@@ -278,7 +315,7 @@ class InfConvGRUModuleRNN(object):
     def __init__(self,
                  state_chans, td_chans, bu_chans, rand_chans,
                  act_func='tanh', use_td_cond=False,
-                 mod_name='gm_conv'):
+                 mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         self.state_chans = state_chans
@@ -327,8 +364,8 @@ class InfConvGRUModuleRNN(object):
         self.b3_im = bias_ifn((2 * self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
         # initialize trainable initial state
-        self.s0_im = bias_ifn((self.state_chans), "{}_s0_im".format(self.mod_name))
-        self.params.extend([self.s0_im])
+        self.s0 = bias_ifn((self.state_chans), "{}_s0".format(self.mod_name))
+        self.params.extend([self.s0])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = weight_ifn((2 * self.rand_chans, self.td_chans, 3, 3),
@@ -358,8 +395,8 @@ class InfConvGRUModuleRNN(object):
         self.b3_im = source_module.b3_im
         self.params.extend([self.w3_im, self.b3_im])
         # share initial state
-        self.s0_im = source_module.s0_im
-        self.params.extend([self.s0_im])
+        self.s0 = source_module.s0
+        self.params.extend([self.s0])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = source_module.w1_td
@@ -378,7 +415,7 @@ class InfConvGRUModuleRNN(object):
         self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
-        self.s0_im.set_value(floatX(param_dict['s0_im']))
+        self.s0.set_value(floatX(param_dict['s0']))
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
             self.b1_td.set_value(floatX(param_dict['b1_td']))
@@ -396,11 +433,28 @@ class InfConvGRUModuleRNN(object):
         param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
-        param_dict['s0_im'] = self.s0_im.get_value(borrow=False)
+        param_dict['s0'] = self.s0.get_value(borrow=False)
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
         return param_dict
+
+    def get_s0_for_batch(self, batch_shape):
+        '''
+        Get initial state for this module, shaped/repeated appropriately to
+        match a batch with shape `batch_shape`. The 'feature dimension' is not
+        included in `batch_shape`.
+
+        -- batch_shape[0] is nbatch
+        -- batch_shape[1] is spatial dim 1
+        -- batch_shape[2] is spatial dim 2
+        '''
+        # broadcast self.s0 into the right shape for this batch
+        s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
+        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
+                          batch_shape[1], batch_shape[2])
+        s0_batch = s0_init + s0_zero
+        return s0_batch
 
     def apply_td(self, td_input):
         '''

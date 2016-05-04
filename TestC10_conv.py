@@ -50,9 +50,6 @@ if not os.path.exists(result_dir):
 data_path = '{}/data/'.format(EXP_DIR)
 Xtr, Ytr, Xva, Yva = load_cifar10(data_path, va_split=5000, dtype='float32',
                                   grayscale=False)
-Xtr = (255. / 256.) * Xtr
-Xva = (255. / 256.) * Xva
-print('np.max(Xtr)={0:.4f}, np.max(256. * Xtr)={1:.4f}'.format(np.max(Xtr), np.max(Xtr * 256.)))
 
 
 set_seed(123)       # seed for shared rngs
@@ -68,7 +65,7 @@ niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = True       # whether to use batch normalization throughout the model
+use_bn = False       # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -86,17 +83,15 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs
-    # X = X * 255.  # scale X to be in (0, 255)
-    X = X * 1.  # data is in range (0, 255/256)
+    X = X * 255.  # scale X to be in [0, 255]
     if add_fuzz:
-        # X = fuzz_data(X, scale=1., rand_type='uniform')
-        X = fuzz_data(X, scale=(1. / 256.), rand_type='uniform')  # data is in range (0, 1)
+        X = fuzz_data(X, scale=1., rand_type='uniform')
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
 def draw_transform(X):
     # transform vectorized observations into drawable greyscale images
-    X = X * 256.
+    X = X * 1.  # 255.0
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
@@ -112,13 +107,13 @@ def rand_gen(size, noise_type='normal'):
 
 def estimate_gauss_params(X, samples=10):
     # compute data mean
-    mu = np.mean(X, axis=0, keepdims=True) + (1. / 512.)
+    mu = np.mean(X, axis=0, keepdims=True) + 0.5
     Xc = X - mu
 
     # compute data covariance
     C = np.zeros((X.shape[1], X.shape[1]))
     for i in range(samples):
-        Xc_i = fuzz_data(Xc, scale=(1. / 256.), rand_type='uniform')
+        Xc_i = fuzz_data(Xc, scale=1., rand_type='uniform')
         C = C + (np.dot(Xc_i.T, Xc_i) / Xc_i.shape[0])
     C = C / float(samples)
     return mu, C
@@ -148,13 +143,13 @@ def check_gauss_bpp(x, x_te):
     mu, sigma = estimate_gauss_params(x, samples=10)
 
     # evaluate on "train" set
-    x_f = fuzz_data(x, scale=(1. / 256.), rand_type='uniform')
+    x_f = fuzz_data(x, scale=1., rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
     print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
 
     # evaluate on "test" set
-    x_f = fuzz_data(x_te, scale=(1. / 256.), rand_type='uniform')
+    x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
     print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
@@ -162,7 +157,7 @@ def check_gauss_bpp(x, x_te):
     # test with shrinking error
     alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
     for alpha in alphas:
-        x_f = fuzz_data(x_te, scale=(1. / 256.), rand_type='uniform')
+        x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
         x_f = alpha * x_f
         # test with shrinking covariance
         for beta in [0.6, 0.4, 0.2, 0.1]:
@@ -171,7 +166,7 @@ def check_gauss_bpp(x, x_te):
             print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
     return
 
-check_gauss_bpp(Xtr, Xva)
+check_gauss_bpp((255. * Xtr), (255. * Xva))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -585,9 +580,9 @@ for i in range(depth_4x4):
     im_src_name = 'im_mod_1'
     bu_src_name = 'bu_mod_3'
     if i > 0:
-        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
+        im_src_name = 'im_mod_2{}'.format(alphabet[i - 1])
     if i < (depth_4x4 - 1):
-        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -600,9 +595,9 @@ for i in range(depth_8x8):
     im_src_name = 'im_mod_3'
     bu_src_name = 'bu_mod_5'
     if i > 0:
-        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
+        im_src_name = 'im_mod_4{}'.format(alphabet[i - 1])
     if i < (depth_8x8 - 1):
-        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
+        bu_src_name = 'bu_mod_4{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -615,9 +610,9 @@ for i in range(depth_16x16):
     im_src_name = 'im_mod_5'
     bu_src_name = 'bu_mod_7'
     if i > 0:
-        im_src_name = 'im_mod_6{}'.format(alphabet[i-1])
+        im_src_name = 'im_mod_6{}'.format(alphabet[i - 1])
     if i < (depth_16x16 - 1):
-        bu_src_name = 'bu_mod_6{}'.format(alphabet[i+1])
+        bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -625,7 +620,7 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: sigmoid(T.clip(x, -15., 15.))
+output_transform = lambda x: x  # sigmoid(T.clip(x, -15., 15.))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
@@ -653,13 +648,15 @@ g_params = gen_params + inf_params
 ###########################################################
 from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
-mu, sigma = estimate_gauss_params(1. * Xtr)
+mu, sigma = estimate_gauss_params(255. * Xtr)
 U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
 print('computing whitening transform for fuzzy images')
-W, mu = estimate_whitening_transform((1. * Xtr), samples=10)
+W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
+
+WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
 
 # quick test of log-likelihood for a basic Gaussian model...
-WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
+
 W = sharedX(W)
 mu = sharedX(mu)
 
@@ -696,7 +693,7 @@ log_q_z = sum(im_res_dict['log_q_z'])
 Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
 
 log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
+                Xg_whitened, T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
@@ -734,7 +731,7 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.001)
+lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
@@ -778,8 +775,8 @@ n_check = 0
 n_updates = 0
 t = time()
 kld_weights = np.linspace(0.0, 1.0, 25)
-sample_z0mb = rand_gen(size=(200, nz0))  # root noise for visualizing samples
-for epoch in range(1, niter + niter_decay + 1):
+sample_z0mb = rand_gen(size=(200, nz0))
+for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
@@ -798,13 +795,13 @@ for epoch in range(1, niter + niter_decay + 1):
     g_batch_count = 0.
     i_batch_count = 0.
     v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
         # grab a validation batch, if required
         if v_batch_count < 50:
-            start_idx = int(v_batch_count)*nbatch
-            vmb = Xva[start_idx:(start_idx+nbatch),:]
+            start_idx = int(v_batch_count) * nbatch
+            vmb = Xva[start_idx:(start_idx + nbatch), :]
         else:
-            vmb = Xva[0:nbatch,:]
+            vmb = Xva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
@@ -812,10 +809,10 @@ for epoch in range(1, niter + niter_decay + 1):
         noise.set_value(floatX([noise_std]))
         g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1.*g_result[3])
-        vae_klds.append(1.*g_result[4])
-        gen_grad_norms.append(1.*g_result[5])
-        inf_grad_norms.append(1.*g_result[6])
+        vae_nlls.append(1. * g_result[3])
+        vae_klds.append(1. * g_result[4])
+        gen_grad_norms.append(1. * g_result[5])
+        inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
