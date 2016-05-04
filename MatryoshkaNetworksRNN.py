@@ -173,124 +173,126 @@ class DeepSeqCondGen(object):
         return res_dict
 
     def apply_im(self,
-                 input_gen, input_inf,
-                 td_states_gen=None, im_states_gen=None,
-                 td_states_inf=None, im_states_inf=None):
+                 input_gen,
+                 input_inf,
+                 td_states=None,
+                 im_states_gen=None,
+                 im_states_inf=None):
         '''
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
 
         -- this does all the heavy lifting --
         '''
+        # gather initial states for stateful modules if none were given
+        if td_states is None:
+            td_states = {tdm.mod_name: None for tdm in self.td_modules}
+        if im_states_gen is None:
+            im_states_gen = {imm.mod_name: None for imm in self.im_modules_gen}
+        if im_states_inf is None:
+            im_states_inf = {imm.mod_name: None for imm in self.im_modules_inf}
+
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
-        z_dict = {}       # latent samples used in each TD module
-        kld_dict = {}     # KL(inf || gen) in each TD module
-        log_pz_dict = {}  # log p(z | x) for each TD module
-        log_qz_dict = {}  # log q(z | x) for each TD module
+        z_dict = {}        # latent samples used in each TD module
+        kld_dict = {}      # KL(inf || gen) in each TD module
+        log_pz_dict = {}   # log p(z | x) for each TD module
+        log_qz_dict = {}   # log q(z | x) for each TD module
         # first, run the bottom-up passes for generator and inferencer
         bu_res_dict_gen = self.apply_mlp(input=input, modules=self.bu_modules_gen)
         bu_res_dict_inf = self.apply_mlp(input=input, modules=self.bu_modules_inf)
-        # dict for storing IM state information
-        im_res_dict_gen = {None: None}
-        im_res_dict_inf = {None: None}
+        # dicts for storing updated module states
+        td_states_new = {}
+        im_states_gen_new = {}
+        im_states_inf_new = {}
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
-        td_acts = []
+        td_outs = []
         for i, td_module in enumerate(self.td_modules):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
             im_mod_name = self.merge_info[td_mod_name]['im_module']
-            bu_src_name = self.merge_info[td_mod_name]['bu_source']
-            im_src_name = self.merge_info[td_mod_name]['im_source']
-            im_module = im_modules_dict[im_mod_name]  # this might be None
-            if td_mod_type in ['top', 'cond']:
-                if td_mod_type == 'top':
-                    # top TD conditionals are based purely on BU info
-                    cond_mean_im = bu_res_dict[bu_src_name][0]
-                    cond_logvar_im = bu_res_dict[bu_src_name][1]
-                    cond_mean_im = self.dist_scale[0] * cond_mean_im
-                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
-                    # feedforward through the current TD module
-                    td_act_i = td_module.apply(rand_vals=cond_rvs)
-                    # compute initial state for IM pass, maybe...
-                    im_act_i = None
-                    if not (im_module is None):
-                        im_act_i = im_module.apply(rand_vals=cond_rvs)
-                else:
-                    # handle conditionals based on merging BU and TD info
-                    td_info = td_acts[-1]               # info from TD pass
-                    bu_info = bu_res_dict[bu_src_name]  # info from BU pass
-                    im_info = im_res_dict[im_src_name]  # info from IM pass
-                    # get the conditional distribution SSs (Sufficient Stat s)
-                    cond_mean_im, cond_logvar_im, im_act_i = \
-                        im_module.apply_im(td_input=td_info,
-                                           bu_input=bu_info,
-                                           im_input=im_info)
-                    cond_mean_im = self.dist_scale[0] * cond_mean_im
-                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
-                    # feedforward through the current TD module
-                    td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=cond_rvs)
-                # record top-down activations produced by IM and TD modules
-                td_acts.append(td_act_i)
-                im_res_dict[im_mod_name] = im_act_i
-                # get the log likelihood of the current latent samples under
-                # both the proposal distribution q(z | x) and the prior p(z).
-                # -- these are used when computing the IWAE bound.
-                log_prob_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               T.flatten(cond_mean_im, 2),
-                                               log_vars=T.flatten(cond_logvar_im, 2),
-                                               do_sum=True)
-                # get the log likelihood of z under a default prior.
-                log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               (0. * T.flatten(cond_mean_im, 2)),
-                                               log_vars=(0. * T.flatten(cond_logvar_im, 2)),
-                                               do_sum=True)
-                # record latent samples and loglikelihood for current TD module
-                logz_dict[td_mod_name] = log_prob_z
-                logy_dict[td_mod_name] = log_prob_y
-                z_dict[td_mod_name] = cond_rvs
-            elif td_mod_type == 'pass':
-                # handle computation for a TD module that only requires
-                # information from preceding TD modules
-                td_info = td_acts[-1]  # incoming info from TD pass
-                td_act_i = td_module.apply(input=td_info, rand_vals=None)
-                td_acts.append(td_act_i)
-                if not (im_module is None):
-                    # perform an update of the IM state
-                    im_info = im_res_dict[im_src_name]
-                    im_act_i = im_module.apply(input=im_info, rand_vals=None)
-                    im_res_dict[im_mod_name] = im_act_i
+            bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+            assert (td_mod_type in ['top', 'cond'])
+            if td_mod_type == 'top':
+                # use a "dummy" TD input at the top TD module
+                td_input = 0. * td_states[td_mod_name]
             else:
-                assert False, "BAD td_mod_type: {}".format(td_mod_type)
-        # apply output transform (into observation space, presumably), to get
-        # the final "reconstruction" produced by the merged BU/TD pass.
-        td_output = self.output_transform(td_acts[-1])
-        # package results into a handy dictionary
-        im_res_dict = {}
-        im_res_dict['td_output'] = td_output
-        im_res_dict['td_acts'] = td_acts
-        im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
-        im_res_dict['z_dict'] = z_dict
-        im_res_dict['logz_dict'] = logz_dict
-        im_res_dict['logy_dict'] = logy_dict
-        return im_res_dict
+                # use previous TD module output at other TD modules
+                td_input = td_outs[-1]  # from step t
+            td_state = td_states[td_mod_name]            # from step t - 1
+            bu_input_gen = bu_res_dict_gen[bu_mod_name]  # from step t
+            bu_input_inf = bu_res_dict_inf[bu_mod_name]  # from step t
+            im_state_gen = im_res_dict_gen[im_mod_name]  # from step t - 1
+            im_state_inf = im_res_dict_inf[im_mod_name]  # from step t - 1
+            # get IM modules to apply at this step
+            im_module_gen = self.im_modules_gen_dict[im_mod_name]
+            im_module_inf = self.im_modules_inf_dict[im_mod_name]
+            # get conditional Gaussian parameters from generator
+            cond_mean_gen, cond_logvar_gen, im_state_gen = \
+                im_module_gen.apply_im(td_input=td_input,
+                                       bu_input=bu_input_gen,
+                                       im_input=im_state_gen)
+            cond_mean_gen = self.dist_scale[0] * cond_mean_gen
+            cond_logvar_gen = self.dist_scale[0] * cond_logvar_gen
+            # get conditional Gaussian parameters from inferencer
+            cond_mean_inf, cond_logvar_inf, im_state_inf = \
+                im_module_inf.apply_im(td_input=td_input,
+                                       bu_input=bu_input_inf,
+                                       im_input=im_state_inf)
+            cond_mean_inf = self.dist_scale[0] * cond_mean_inf
+            cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
+            # do reparametrization for gen and inf models
+            cond_z_gen = reparametrize(cond_mean_gen, cond_logvar_gen,
+                                       rng=cu_rng)
+            cond_z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
+                                       rng=cu_rng)
+            cond_z = (self.sample_switch[0] * cond_z_inf) + \
+                ((1. - self.sample_switch[0]) * cond_z_gen)
+            # feedforward through the current TD module
+            td_act_i = td_module.apply(input=td_info,
+                                       rand_vals=cond_rvs)
+            # record top-down activations produced by IM and TD modules
+            td_outs.append(td_act_i)
+            im_res_dict[im_mod_name] = im_act_i
+            # get the log likelihood of the current latent samples under
+            # both the proposal distribution q(z | x) and the prior p(z).
+            # -- these are used when computing the IWAE bound.
+            log_prob_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                           T.flatten(cond_mean_im, 2),
+                                           log_vars=T.flatten(cond_logvar_im, 2),
+                                           do_sum=True)
+            # get the log likelihood of z under a default prior.
+            log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                           (0. * T.flatten(cond_mean_im, 2)),
+                                           log_vars=(0. * T.flatten(cond_logvar_im, 2)),
+                                           do_sum=True)
+            # record latent samples and loglikelihood for current TD module
+            z_dict[td_mod_name] = cond_z
+            kld_dict[td_mod_name] = kld_z
+            log_pz_dict[td_mod_name] = log_pz
+            log_qz_dict[td_mod_name] = log_qz
+
+        # apply decoder MLP to output of final TD module, to get the next
+        # update to apply to the canvas
+        dec_res_dict = self.apply_mlp(input=td_outs[-1],
+                                      modules=self.decoder_modules)
+        # We return:
+        #   1. the canvas update generated by this step
+        #   2. the latent samples used in this canvas update
+        #   3. the KL(q || p) for each TD module
+        #   3. the log q(z|x) and log p(z|x) for each TD module
+        res_dict = {}
+        res_dict['output'] = dec_res_dict['acts'][-1]
+        res_dict['td_states'] = td_states_new
+        res_dict['im_states_gen'] = im_states_gen_new
+        res_dict['im_states_inf'] = im_states_inf_new
+        res_dict['z_dict'] = z_dict
+        res_dict['kld_dict'] = kld_dict
+        res_dict['log_pz_dict'] = log_pz_dict
+        res_dict['log_qz_dict'] = log_qz_dict
+        return res_dict
 
 
 

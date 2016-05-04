@@ -162,7 +162,7 @@ class GenConvGRUModuleRNN(object):
     stochastic latent variables.
     '''
     def __init__(self,
-                 state_chans, in_chans, rand_chans, filt_shape,
+                 state_chans, input_chans, rand_chans, filt_shape,
                  act_func='relu', mod_name='no_name'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
@@ -171,7 +171,7 @@ class GenConvGRUModuleRNN(object):
         assert not (name == 'no_name'), \
             'module name is required.'
         self.state_chans = state_chans
-        self.in_chans = in_chans
+        self.input_chans = input_chans
         self.rand_chans = rand_chans
         self.filt_dim = filt_shape[0]
         if act_func == 'ident':
@@ -196,14 +196,14 @@ class GenConvGRUModuleRNN(object):
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
-        full_in_chans = self.state_chans + self.in_chans + self.rand_chans
+        full_input_chans = self.state_chans + self.input_chans + self.rand_chans
         # initialize gate layer parameters
-        self.w1 = weight_ifn((2 * self.state_chans, full_in_chans, fd, fd),
+        self.w1 = weight_ifn((2 * self.state_chans, full_input_chans, fd, fd),
                              "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.b1])
         # initialize gate layer parameters
-        self.w2 = weight_ifn((self.state_chans, full_in_chans, fd, fd),
+        self.w2 = weight_ifn((self.state_chans, full_input_chans, fd, fd),
                              "{}_w2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.b2])
@@ -304,22 +304,26 @@ class InfConvGRUModuleRNN(object):
 
     Params:
         state_chans: number of channels in the "info-merge" inputs to module
-                  -- here, these provide the recurrent state
-        td_chans: number of channels in the "top-down" inputs to module
-        bu_chans: number of channels in the "bottom-up" inputs to module
+                     -- here, these provide the recurrent state
+        td_state_chans: number of channels in recurrent TD state (from time t-1)
+        td_input_chans: number of channels in the TD input (from time t)
+        bu_chans: number of channels in the BU input (from time t)
         rand_chans: number of latent channels for which we we want conditionals
         act_func: ---
         use_td_cond: whether to condition on TD info
         mod_name: text name for identifying module in theano graph
     '''
     def __init__(self,
-                 state_chans, td_chans, bu_chans, rand_chans,
+                 state_chans,
+                 td_state_chans, td_input_chans,
+                 bu_chans, rand_chans,
                  act_func='tanh', use_td_cond=False,
                  mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         self.state_chans = state_chans
-        self.td_chans = td_chans
+        self.td_state_chans = td_state_chans
+        self.td_input_chans = td_input_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
         if act_func == 'ident':
@@ -344,7 +348,8 @@ class InfConvGRUModuleRNN(object):
         self.params = []
         weight_ifn = inits.Normal(loc=0., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
-        full_in_chans = self.state_chans + self.td_chans + self.bu_chans
+        td_in_chans = self.td_state_chans + self.td_input_chans
+        full_in_chans = self.state_chans + td_in_chans + self.bu_chans
         ############################################
         # Initialize "inference" model parameters. #
         ############################################
@@ -368,7 +373,7 @@ class InfConvGRUModuleRNN(object):
         self.params.extend([self.s0])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
-            self.w1_td = weight_ifn((2 * self.rand_chans, self.td_chans, 3, 3),
+            self.w1_td = weight_ifn((2 * self.rand_chans, td_in_chans, 3, 3),
                                     "{}_w1_td".format(self.mod_name))
             self.b1_td = bias_ifn((2 * self.rand_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.b1_td])
@@ -456,13 +461,14 @@ class InfConvGRUModuleRNN(object):
         s0_batch = s0_init + s0_zero
         return s0_batch
 
-    def apply_td(self, td_input):
+    def apply_td(self, td_state, td_input):
         '''
-        Put distributions over stuff based on td_input.
+        Put distributions over stuff based on td_state and td_input.
         '''
         if self.use_td_cond:
-            # simple linear conditioning on top-down state
-            h1 = dnn_conv(td_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
+            # simple conditioning on top-down input and recurrent state
+            cond_input = T.concatenate([td_state, td_input], axis=1)
+            h1 = dnn_conv(cond_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
             h1 = h1 + self.b1_td.dimshuffle('x', 0, 'x', 'x')
             out_mean = h1[:, :self.rand_chans, :, :]
             out_logvar = h1[:, self.rand_chans:, :, :]
@@ -477,13 +483,13 @@ class InfConvGRUModuleRNN(object):
                                        dtype=theano.config.floatX)
         return out_mean, out_logvar
 
-    def apply_im(self, state, td_input, bu_input):
+    def apply_im(self, state, td_state, td_input, bu_input):
         '''
-        Combine prior IM state, td_input, and bu_input to update the IM state
-        and to make a conditional Gaussian distribution.
+        Combine prior IM state, prior TD state, td_input, and bu_input to update
+        the IM state and to make a conditional Gaussian distribution.
         '''
         # compute GRU gates
-        gate_input = T.concatenate([state, td_input, bu_input], axis=1)
+        gate_input = T.concatenate([state, td_state, td_input, bu_input], axis=1)
         h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
         h = h + self.b1_im.dimshuffle('x', 0, 'x', 'x')
         h = sigmoid(h + 1.)
@@ -491,7 +497,7 @@ class InfConvGRUModuleRNN(object):
         r = h[:, self.state_chans:, :, :]  # state recall gate
 
         # compute new GRU state proposal
-        update_input = T.concatenate([(r * state), td_input, bu_input], axis=1)
+        update_input = T.concatenate([(r * state), td_state, td_input, bu_input], axis=1)
         s = dnn_conv(update_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
         s = s + self.b2_im.dimshuffle('x', 0, 'x', 'x')
         s = self.act_func(s)
