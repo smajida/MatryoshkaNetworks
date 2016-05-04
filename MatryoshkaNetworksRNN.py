@@ -42,7 +42,7 @@ class DeepSeqCondGen(object):
         im_modules_inf: modules for merging bottom-up and top-down information
                         to put conditionals over Gaussian latent variables that
                         participate in the top-down computation.
-        decoder_modules: modules to construct canvas update.
+        decoder_modules: modules to construct canvas update from TD state.
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
                     -- gen and inf modules should have matching names.
@@ -60,6 +60,15 @@ class DeepSeqCondGen(object):
         self.im_modules_gen = [m for m in im_modules_gen]
         self.bu_modules_inf = [m for m in bu_modules_inf]
         self.im_modules_inf = [m for m in im_modules_inf]
+        # get dicts for referencing modules by name
+        self.td_modules_dict = {m.mod_name: m for m in td_modules}
+        self.td_modules_dict[None] = None
+        self.decoder_modules_dict = {m.mod_name: m for m in decoder_modules}
+        self.decoder_modules_dict[None] = None
+        self.bu_modules_gen_dict = {m.mod_name: m for m in bu_modules_gen}
+        self.bu_modules_gen_dict[None] = None
+        self.bu_modules_inf_dict = {m.mod_name: m for m in bu_modules_inf}
+        self.bu_modules_inf_dict[None] = None
         self.im_modules_gen_dict = {m.mod_name: m for m in im_modules_gen}
         self.im_modules_gen_dict[None] = None
         self.im_modules_inf_dict = {m.mod_name: m for m in im_modules_inf}
@@ -68,16 +77,14 @@ class DeepSeqCondGen(object):
         self.gen_params = []  # modules that aren't just for inference
         self.inf_params = []  # modules that are just for inference
         # get generator params (these only get to adapt to the training set)
-        generator_modules = [self.td_modules, self.bu_modules_gen,
-                             self.im_modules_gen, self.decoder_modules]
-        for mods in generator_modules:
-            for mod in mods:
-                self.gen_params.extend(mod.params)
+        self.generator_modules = self.td_modules + self.bu_modules_gen + \
+            self.im_modules_gen + self.decoder_modules
+        for mod in self.generator_modules:
+            self.gen_params.extend(mod.params)
         # get inferencer params (these can be fine-tuned at test time)
-        inferencer_modules = [self.bu_modules_inf, self.im_modules_inf]
-        for mods in inferencer_modules:
-            for mod in mods:
-                self.inf_params.extend(mod.params)
+        self.inferencer_modules = self.bu_modules_inf + self.im_modules_inf
+        for mod in self.inferencer_modules:
+            self.inf_params.extend(mod.params)
         # filter redundant parameters, to allow parameter sharing
         p_dict = {}
         for p in self.gen_params:
@@ -87,7 +94,7 @@ class DeepSeqCondGen(object):
         for p in self.inf_params:
             p_dict[p.name] = p
         self.inf_params = p_dict.values()
-        # make dist_scale parameter (add it to generator parameters)
+        # add a distribution scaling parameter to the generator
         self.dist_scale = sharedX(floatX([0.2]))
         self.gen_params.append(self.dist_scale)
         # gather a list of all parameters in this network
@@ -103,13 +110,10 @@ class DeepSeqCondGen(object):
         assert(not (f_name is None))
         f_handle = file(f_name, 'wb')
         # dump the parameter dicts for generator modules
-        generator_modules = self.td_modules + self.bu_modules_gen + \
-            self.im_modules_gen + self.decoder_modules
-        mod_param_dicts = [m.dump_params() for m in generator_modules]
+        mod_param_dicts = [m.dump_params() for m in self.generator_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
         # dump the parameter dicts for inferencer modules
-        inferencer_modules = self.bu_modules_inf + self.im_modules_inf
-        mod_param_dicts = [m.dump_params() for m in inferencer_modules]
+        mod_param_dicts = [m.dump_params() for m in self.inferencer_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
         # dump dist_scale parameter
         ds_ary = self.dist_scale.get_value(borrow=False)
@@ -124,15 +128,12 @@ class DeepSeqCondGen(object):
         assert(not (f_name is None))
         pickle_file = open(f_name)
         # reload the parameter dicts for generator modules
-        generator_modules = self.td_modules + self.bu_modules_gen + \
-            self.im_modules_gen + self.decoder_modules
         mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, generator_modules):
+        for param_dict, mod in zip(mod_param_dicts, self.generator_modules):
             mod.load_params(param_dict=param_dict)
         # reload the parameter dicts for inferencer modules
-        inferencer_modules = self.bu_modules_inf + self.im_modules_inf
         mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, inferencer_modules):
+        for param_dict, mod in zip(mod_param_dicts, self.inferencer_modules):
             mod.load_params(param_dict=param_dict)
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
@@ -140,59 +141,54 @@ class DeepSeqCondGen(object):
         pickle_file.close()
         return
 
-    def apply_bu(self, input, mod_type='gen'):
+    def apply_mlp(self, input, mlp_modules):
         '''
-        Apply this model's bottom-up inference modules to the given input,
-        and return a dict mapping BU module names to their outputs.
+        Apply a sequence of modules to an input -- a quick and dirty MLP.
         '''
-        assert (mod_type in ['gen', 'inf'])
-        if mod_type == 'gen':
-            bu_modules = self.bu_modules_gen
-        else:
-            bu_modules = self.bu_modules_inf
-        bu_acts = []
+        mlp_acts = []
         res_dict = {}
-        for i, bu_mod in enumerate(bu_modules):
+        for i, mod in enumerate(mlp_modules):
             if (i == 0):
-                bu_info = input
+                mlp_info = input
             else:
-                bu_info = bu_acts[i - 1]
-            res = bu_mod.apply(bu_info)
-            bu_acts.append(res)
-            res_dict[bu_mod.mod_name] = res
-        res_dict['bu_acts'] = bu_acts
+                mlp_info = mlp_acts[i - 1]
+            res = mod.apply(mlp_info)
+            mlp_acts.append(res)
+            res_dict[mod.mod_name] = res
+        # res_dict returns MLP layer outputs keyed by module name, and in a
+        # simple ordered list...
+        res_dict['acts'] = mlp_acts
         return res_dict
 
-    def apply_im(self, input, im_states, td_states):
+    def apply_im(self,
+                 input_gen, input_inf,
+                 td_states_gen=None, im_states_gen=None,
+                 td_states_inf=None, im_states_inf=None):
         '''
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
 
         -- this does all the heavy lifting --
-
-        This first computes the full bottom-up pass to collect the output of
-        each BU module, where the output of the final BU module is the means
-        and log variances for a diagonal Gaussian distribution over the latent
-        variables that will be fed as input to the first TD module.
-
-        This then computes the top-down pass using latent variables sampled
-        from distributions determined by merging partial results of the BU pass
-        with results from the partially-completed TD pass. The IM modules feed
-        information to eachother too.
         '''
-        bu_noise = noise if self.use_bu_noise else None
-        td_noise = noise if self.use_td_noise else None
+        assert (mode in {'gen', 'inf'}), "mode must be in {'gen', 'inf'}"
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
-        kld_dict = {}
         z_dict = {}
-        logz_dict = {'log_p_z': [], 'log_q_z': []}
+        logz_dict = {}
+        logz_dict = {}
         # first, run the bottom-up pass
-        sc_info = self.apply_sc(input=input, noise=bu_noise)
-        bu_res_dict = self.apply_bu(input=input, noise=bu_noise,
-                                    sc_info=sc_info)
+        bu_res_dict = self.apply_bu(input=input, mode=mode)
         # dict for storing IM state information
         im_res_dict = {None: None}
+        # grab the appropriate sets of BU and IM modules...
+        if mode == 'gen':
+            bu_modules = self.bu_modules_gen
+            im_modules = self.im_modules_gen
+            im_modules_dict = self.im_modules_gen_dict
+        else:
+            bu_modules = self.bu_modules_inf
+            im_modules = self.im_modules_inf
+            im_modules_dict = self.im_modules_inf_dict
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -203,7 +199,7 @@ class DeepSeqCondGen(object):
             im_mod_name = self.merge_info[td_mod_name]['im_module']
             bu_src_name = self.merge_info[td_mod_name]['bu_source']
             im_src_name = self.merge_info[td_mod_name]['im_source']
-            im_module = self.im_modules_dict[im_mod_name]  # this might be None
+            im_module = im_modules_dict[im_mod_name]  # this might be None
             if td_mod_type in ['top', 'cond']:
                 if td_mod_type == 'top':
                     # top TD conditionals are based purely on BU info
@@ -211,84 +207,70 @@ class DeepSeqCondGen(object):
                     cond_logvar_im = bu_res_dict[bu_src_name][1]
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    cond_mean_td = 0.0 * cond_mean_im
-                    cond_logvar_td = 0.0 * cond_logvar_im
-                    # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if z_vals is not None:
+                        # use previously sampled latent values
+                        cond_rvs = z_vals[td_mod_name]
+                    else:
+                        # generate new latent samples via reparametrization
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
                     # feedforward through the current TD module
-                    td_act_i = td_module.apply(rand_vals=cond_rvs,
-                                               noise=td_noise)
+                    td_act_i = td_module.apply(rand_vals=cond_rvs)
                     # compute initial state for IM pass, maybe...
                     im_act_i = None
                     if not (im_module is None):
-                        im_act_i = im_module.apply(rand_vals=cond_rvs,
-                                                   noise=bu_noise)
+                        im_act_i = im_module.apply(rand_vals=cond_rvs)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]               # info from TD pass
                     bu_info = bu_res_dict[bu_src_name]  # info from BU pass
                     im_info = im_res_dict[im_src_name]  # info from IM pass
-                    if self.use_sc:
-                        # add shortcut info to bottom-up info
-                        bu_info = T.concatenate([bu_info, sc_info], axis=1)
                     # get the conditional distribution SSs (Sufficient Stat s)
                     cond_mean_im, cond_logvar_im, im_act_i = \
                         im_module.apply_im(td_input=td_info,
                                            bu_input=bu_info,
-                                           im_input=im_info,
-                                           noise=bu_noise)
+                                           im_input=im_info)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    cond_mean_td, cond_logvar_td = \
-                        im_module.apply_td(td_input=td_info,
-                                           noise=td_noise)
-                    cond_mean_td = self.dist_scale[0] * cond_mean_td
-                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
-                    # estimate location as an offset from prior
-                    cond_mean_im = cond_mean_im + cond_mean_td
-
-                    # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if z_vals is not None:
+                        # use previously sampled latent values
+                        cond_rvs = z_vals[td_mod_name]
+                    else:
+                        # generate new latent samples via reparametrization
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=cond_rvs,
-                                               noise=td_noise)
+                                               rand_vals=cond_rvs)
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
-                # record KLd info for the conditional distribution
-                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
-                                     T.flatten(cond_logvar_im, 2),
-                                     0.0, 0.0)
-                kld_dict[td_mod_name] = kld_i
                 # get the log likelihood of the current latent samples under
                 # both the proposal distribution q(z | x) and the prior p(z).
                 # -- these are used when computing the IWAE bound.
-                log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_td, 2),
-                                            log_vars=T.flatten(cond_logvar_td, 2),
-                                            do_sum=True)
-                log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_im, 2),
-                                            log_vars=T.flatten(cond_logvar_im, 2),
-                                            do_sum=True)
-                logz_dict['log_p_z'].append(log_p_z)
-                logz_dict['log_q_z'].append(log_q_z)
+                log_prob_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                               T.flatten(cond_mean_im, 2),
+                                               log_vars=T.flatten(cond_logvar_im, 2),
+                                               do_sum=True)
+                # get the log likelihood of z under a default prior.
+                log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                               (0. * T.flatten(cond_mean_im, 2)),
+                                               log_vars=(0. * T.flatten(cond_logvar_im, 2)),
+                                               do_sum=True)
+                # record latent samples and loglikelihood for current TD module
+                logz_dict[td_mod_name] = log_prob_z
+                logy_dict[td_mod_name] = log_prob_y
                 z_dict[td_mod_name] = cond_rvs
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules
                 td_info = td_acts[-1]  # incoming info from TD pass
-                td_act_i = td_module.apply(input=td_info, rand_vals=None,
-                                           noise=td_noise)
+                td_act_i = td_module.apply(input=td_info, rand_vals=None)
                 td_acts.append(td_act_i)
                 if not (im_module is None):
                     # perform an update of the IM state
                     im_info = im_res_dict[im_src_name]
-                    im_act_i = im_module.apply(input=im_info, rand_vals=None,
-                                               noise=bu_noise)
+                    im_act_i = im_module.apply(input=im_info, rand_vals=None)
                     im_res_dict[im_mod_name] = im_act_i
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
@@ -298,12 +280,11 @@ class DeepSeqCondGen(object):
         # package results into a handy dictionary
         im_res_dict = {}
         im_res_dict['td_output'] = td_output
-        im_res_dict['kld_dict'] = kld_dict
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict
-        im_res_dict['log_p_z'] = logz_dict['log_p_z']
-        im_res_dict['log_q_z'] = logz_dict['log_q_z']
+        im_res_dict['logz_dict'] = logz_dict
+        im_res_dict['logy_dict'] = logy_dict
         return im_res_dict
 
 
