@@ -65,7 +65,7 @@ niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False       # whether to use batch normalization throughout the model
+use_bn = True       # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -181,7 +181,7 @@ bce = T.nnet.binary_crossentropy
 td_module_1 = \
 GenTopModule(
     rand_dim=nz0,
-    out_shape=(ngf*2, 4, 4),
+    out_shape=(ngf * 2, 4, 4),
     fc_dim=ngfc,
     use_fc=True,
     use_sc=False,
@@ -196,11 +196,11 @@ for i in range(depth_4x4):
     mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
     GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        conv_chans=(ngf * 2),
         rand_chans=nz1,
-        filt_shape=(3,3),
+        filt_shape=(3, 3),
         use_rand=multi_rand,
         use_conv=use_conv,
         apply_bn=use_bn,
@@ -580,9 +580,9 @@ for i in range(depth_4x4):
     im_src_name = 'im_mod_1'
     bu_src_name = 'bu_mod_3'
     if i > 0:
-        im_src_name = 'im_mod_2{}'.format(alphabet[i - 1])
+        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
     if i < (depth_4x4 - 1):
-        bu_src_name = 'bu_mod_2{}'.format(alphabet[i + 1])
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -595,9 +595,9 @@ for i in range(depth_8x8):
     im_src_name = 'im_mod_3'
     bu_src_name = 'bu_mod_5'
     if i > 0:
-        im_src_name = 'im_mod_4{}'.format(alphabet[i - 1])
+        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
     if i < (depth_8x8 - 1):
-        bu_src_name = 'bu_mod_4{}'.format(alphabet[i + 1])
+        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -610,9 +610,9 @@ for i in range(depth_16x16):
     im_src_name = 'im_mod_5'
     bu_src_name = 'bu_mod_7'
     if i > 0:
-        im_src_name = 'im_mod_6{}'.format(alphabet[i - 1])
+        im_src_name = 'im_mod_6{}'.format(alphabet[i-1])
     if i < (depth_16x16 - 1):
-        bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
+        bu_src_name = 'bu_mod_6{}'.format(alphabet[i+1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -659,7 +659,6 @@ WU, log_pdet_W = psd_pinv_decomposed_log_pdet(sigma)
 
 W = sharedX(W)
 mu = sharedX(mu)
-
 
 def whiten_data(X_sym, W_sym, mu_sym):
     # apply whitening transform to data in X
@@ -747,7 +746,7 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100, :]))
+test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -759,10 +758,10 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
-print "{0:.2f} seconds to compile theano functions".format(time() - t)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
+print "{0:.2f} seconds to compile theano functions".format(time()-t)
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
@@ -774,15 +773,15 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 25)
-sample_z0mb = rand_gen(size=(200, nz0))
-for epoch in range(1, (niter + niter_decay + 1)):
+kld_weights = np.linspace(0.0,1.0,25)
+sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
+for epoch in range(1, niter+niter_decay+1):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch - 1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
-    # lam_kld.set_value(floatX([1.0]))
+    if ((epoch-1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    #lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -795,13 +794,13 @@ for epoch in range(1, (niter + niter_decay + 1)):
     g_batch_count = 0.
     i_batch_count = 0.
     v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
         # grab a validation batch, if required
         if v_batch_count < 50:
-            start_idx = int(v_batch_count) * nbatch
-            vmb = Xva[start_idx:(start_idx + nbatch), :]
+            start_idx = int(v_batch_count)*nbatch
+            vmb = Xva[start_idx:(start_idx+nbatch),:]
         else:
-            vmb = Xva[0:nbatch, :]
+            vmb = Xva[0:nbatch,:]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
@@ -809,10 +808,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         noise.set_value(floatX([noise_std]))
         g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1. * g_result[3])
-        vae_klds.append(1. * g_result[4])
-        gen_grad_norms.append(1. * g_result[5])
-        inf_grad_norms.append(1. * g_result[6])
+        vae_nlls.append(1.*g_result[3])
+        vae_klds.append(1.*g_result[4])
+        gen_grad_norms.append(1.*g_result[5])
+        inf_grad_norms.append(1.*g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]

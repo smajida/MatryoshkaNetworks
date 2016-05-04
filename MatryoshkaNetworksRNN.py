@@ -101,6 +101,18 @@ class DeepSeqCondGen(object):
         self.params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
+        # make a switch for alternating between generator and inferencer
+        # conditionals over the latent variables
+        self.sample_switch = sharedX(floatX([1.0]))
+        return
+
+    def set_sample_switch(self, source='inf'):
+        '''
+        Set the latent sample switch to use samples from the given source.
+        '''
+        assert (source_name in ['inf', 'gen'])
+        switch_val = floatX([1.]) if (source_name == 'inf') else floatX([0.])
+        self.sample_switch.set_value(switch_val)
         return
 
     def dump_params(self, f_name=None):
@@ -141,13 +153,13 @@ class DeepSeqCondGen(object):
         pickle_file.close()
         return
 
-    def apply_mlp(self, input, mlp_modules):
+    def apply_mlp(self, input, modules):
         '''
         Apply a sequence of modules to an input -- a quick and dirty MLP.
         '''
         mlp_acts = []
         res_dict = {}
-        for i, mod in enumerate(mlp_modules):
+        for i, mod in enumerate(modules):
             if (i == 0):
                 mlp_info = input
             else:
@@ -176,8 +188,9 @@ class DeepSeqCondGen(object):
         z_dict = {}
         logz_dict = {}
         logz_dict = {}
-        # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input, mode=mode)
+        # first, run the bottom-up passes for generator and inferencer
+        bu_res_dict_gen = self.apply_mlp(input=input, modules=self.bu_modules_gen)
+        bu_res_dict_inf = self.apply_mlp(input=input, modules=self.bu_modules_inf)
         # dict for storing IM state information
         im_res_dict = {None: None}
         # grab the appropriate sets of BU and IM modules...
