@@ -20,9 +20,19 @@ elu = activations.ELU()
 
 class BasicConvGRUModuleRNN(object):
     '''
-    Convolutional GRU, takes a recurrent input and an exogenous input.
+    Stateful convolutional module for use in various things.
+
+    Parameters:
+        state_chans: dimension of recurrent state in this module
+        in_chans: dimension of input to this module
+        spatial_shape: 2d spatial shape of this convolution
+        filt_shape: 2d shape of the convolutional filters
+        act_func: activation function to apply (should be tanh)
+        mod_name: string name for this module
     '''
-    def __init__(self, state_chans, in_chans, filt_shape,
+    def __init__(self,
+                 state_chans, in_chans,
+                 spatial_shape, filt_shape,
                  act_func='tanh', mod_name='no_name'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
@@ -32,6 +42,7 @@ class BasicConvGRUModuleRNN(object):
             'module name is required.'
         self.state_chans = state_chans
         self.in_chans = in_chans
+        self.spatial_shape = spatial_shape
         self.filt_dim = filt_shape[0]
         if act_func == 'ident':
             self.act_func = lambda x: x
@@ -114,20 +125,14 @@ class BasicConvGRUModuleRNN(object):
         param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
-    def get_s0_for_batch(self, batch_shape):
+    def get_s0_for_batch(self, batch_size):
         '''
-        Get initial state for this module, shaped/repeated appropriately to
-        match a batch with shape `batch_shape`. The 'feature dimension' is not
-        included in `batch_shape`.
-
-        -- batch_shape[0] is nbatch
-        -- batch_shape[1] is spatial dim 1
-        -- batch_shape[2] is spatial dim 2
+        Get initial state for this module, for minibatch of given size.
         '''
         # broadcast self.s0 into the right shape for this batch
         s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
-        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
-                          batch_shape[1], batch_shape[2])
+        s0_zero = T.alloc(0., batch_size, self.state_chans,
+                          self.spatial_shape[0], self.spatial_shape[1])
         s0_batch = s0_init + s0_zero
         return s0_batch
 
@@ -158,11 +163,21 @@ class BasicConvGRUModuleRNN(object):
 
 class GenConvGRUModuleRNN(object):
     '''
-    This model receives a recurrent input, a top-down input, and a set of
-    stochastic latent variables.
+    Module for the top-down portion of a deep sequential conditional
+    generative model.
+
+    Parameters:
+        state_chans: dimension of recurrent state in this module
+        input_chans: dimension of TD inputs to this module
+        rand_chans: dimension of latent variable inputs to this module
+        spatial_shape: 2d spatial shape of this convolution
+        filt_shape: 2d spatial shape of this layer's filters
+        act_func: activation function to apply (should be tanh)
+        mod_name: string name for this module
     '''
     def __init__(self,
-                 state_chans, input_chans, rand_chans, filt_shape,
+                 state_chans, input_chans, rand_chans,
+                 spatial_shape, filt_shape,
                  act_func='relu', mod_name='no_name'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
@@ -173,6 +188,7 @@ class GenConvGRUModuleRNN(object):
         self.state_chans = state_chans
         self.input_chans = input_chans
         self.rand_chans = rand_chans
+        self.spatial_shape = spatial_shape
         self.filt_dim = filt_shape[0]
         if act_func == 'ident':
             self.act_func = lambda x: x
@@ -255,20 +271,14 @@ class GenConvGRUModuleRNN(object):
         param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
-    def get_s0_for_batch(self, batch_shape):
+    def get_s0_for_batch(self, batch_size):
         '''
-        Get initial state for this module, shaped/repeated appropriately to
-        match a batch with shape `batch_shape`. The 'feature dimension' is not
-        included in `batch_shape`.
-
-        -- batch_shape[0] is nbatch
-        -- batch_shape[1] is spatial dim 1
-        -- batch_shape[2] is spatial dim 2
+        Get initial state for this module, for minibatch of given size.
         '''
         # broadcast self.s0 into the right shape for this batch
         s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
-        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
-                          batch_shape[1], batch_shape[2])
+        s0_zero = T.alloc(0., batch_size, self.state_chans,
+                          self.spatial_shape[0], self.spatial_shape[1])
         s0_batch = s0_init + s0_zero
         return s0_batch
 
@@ -309,6 +319,7 @@ class InfConvGRUModuleRNN(object):
         td_input_chans: number of channels in the TD input (from time t)
         bu_chans: number of channels in the BU input (from time t)
         rand_chans: number of latent channels for which we we want conditionals
+        spatial_shape: 2d spatial shape of this conv layer
         act_func: ---
         use_td_cond: whether to condition on TD info
         mod_name: text name for identifying module in theano graph
@@ -317,6 +328,7 @@ class InfConvGRUModuleRNN(object):
                  state_chans,
                  td_state_chans, td_input_chans,
                  bu_chans, rand_chans,
+                 spatial_shape,
                  act_func='tanh', use_td_cond=False,
                  mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
@@ -326,6 +338,7 @@ class InfConvGRUModuleRNN(object):
         self.td_input_chans = td_input_chans
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
+        self.spatial_shape = spatial_shape
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -444,20 +457,14 @@ class InfConvGRUModuleRNN(object):
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
         return param_dict
 
-    def get_s0_for_batch(self, batch_shape):
+    def get_s0_for_batch(self, batch_size):
         '''
-        Get initial state for this module, shaped/repeated appropriately to
-        match a batch with shape `batch_shape`. The 'feature dimension' is not
-        included in `batch_shape`.
-
-        -- batch_shape[0] is nbatch
-        -- batch_shape[1] is spatial dim 1
-        -- batch_shape[2] is spatial dim 2
+        Get initial state for this module, for minibatch of given size.
         '''
         # broadcast self.s0 into the right shape for this batch
         s0_init = self.s0.dimshuffle('x', 0, 'x', 'x')
-        s0_zero = T.alloc(0., batch_shape[0], self.state_chans,
-                          batch_shape[1], batch_shape[2])
+        s0_zero = T.alloc(0., batch_size, self.state_chans,
+                          self.spatial_shape[0], self.spatial_shape[1])
         s0_batch = s0_init + s0_zero
         return s0_batch
 
@@ -513,7 +520,67 @@ class InfConvGRUModuleRNN(object):
         return out_mean, out_logvar, new_state
 
 
+class TDModuleWrapperRNN(object):
+    '''
+    Wrapper around a generative TD module and an optional feedforward
+    sequence of extra "post-processing" modules.
 
+    Params:
+        gen_module: the first module in this TD module to apply. Inputs are
+                    a previous state, a top-down input, and a latent input.
+        mlp_modules: a list of the modules to apply to the output of gen_module.
+    '''
+    def __init__(self, gen_module, mlp_modules=None):
+        self.gen_module = gen_module
+        self.params = [p for p in gen_module.params]
+        if mlp_modules is not None:
+            # use some extra post-processing modules
+            self.mlp_modules = [m for m in mlp_modules]
+            for mlp_mod in self.mlp_modules:
+                self.params.extend(mlp_mod.params)
+        else:
+            # don't use any extra post-processing modules
+            self.mlp_modules = None
+        return
+
+    def dump_params(self):
+        '''
+        Dump params for later reloading by self.load_params.
+        '''
+        mod_param_dicts = [self.gen_module.dump_params()]
+        if self.mlp_modules is not None:
+            mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
+        return mod_param_dicts
+
+    def load_params(self, param_dict=None):
+        '''
+        Load params from the output of self.dump_params.
+        '''
+        self.gen_module.load_params(param_dict=param_dict[0])
+        if self.mlp_modules is not None:
+            for pdict, mod in zip(param_dict[1:], self.mlp_modules):
+                mod.load_params(param_dict=pdict)
+        return
+
+    def apply(self, state, input, rand_vals):
+        '''
+        Process the recurrent gen_module, then apply self.mlp_modules.
+        -- this returns the updated recurrent state and an additional output
+        '''
+        state_new = self.gen_module.apply(state, input, rand_vals)
+        if self.mlp_modules is not None:
+            # feedforward through the MLP modules to get a new output
+            acts = None
+            for mod in self.mlp_modules:
+                if acts is None:
+                    acts = [mod.apply(state_new)]
+                else:
+                    acts.append(mod.apply(acts[-1]))
+            output = acts[-1]
+        else:
+            # use the updated recurrent state as output
+            output = state_new
+        return output, state_new
 
 
 ##############
