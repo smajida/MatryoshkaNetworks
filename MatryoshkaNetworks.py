@@ -1013,7 +1013,7 @@ class CondInfGenModel(object):
         # samples from a conditional distribution over the latent variables.
         z_dict = {}
         logz_dict = {}
-        logy_dict = {}
+        logz_dict = {}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input=input, mode=mode)
         # dict for storing IM state information
@@ -1194,7 +1194,6 @@ class SimpleMLP(object):
             hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
             hs.append(hi)
         return hs[-1]
-
 
 
 class SimpleInfMLP(object):
