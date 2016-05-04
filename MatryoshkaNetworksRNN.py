@@ -27,113 +27,89 @@ tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 
 
-class CondDeepConvGRU(object):
+class DeepSeqCondGen(object):
     '''
-    A deep, hierarchical, convolutional, conditional GRU network.
-    This provides a wrapper around a collection of bottom-up, top-down, and
-    info-merging Matryoshka modules.
+    A deep, hierarchical, conditional generator network. This provides a
+    wrapper around bottom-up, top-down, and info-merging recurrent modules.
 
     Params:
-        td_modules: modules for computing top-down (generative) information.
-                    -- these are all shared between generator and inferencer
+        td_modules: modules for computing top-down information.
         bu_modules_gen: modules for computing bottom-up information.
         im_modules_gen: modules for merging bottom-up and top-down information
-                    to put conditionals over Gaussian latent variables that
-                    participate in the top-down computation.
+                        to put conditionals over Gaussian latent variables that
+                        participate in the top-down computation.
         bu_modules_inf: modules for computing bottom-up information.
         im_modules_inf: modules for merging bottom-up and top-down information
-                    to put conditionals over Gaussian latent variables that
-                    participate in the top-down computation.
+                        to put conditionals over Gaussian latent variables that
+                        participate in the top-down computation.
+        decoder_modules: modules to construct canvas update.
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
-        output_transform: transform to apply to outputs of the top-down model.
-        train_dist_scale: whether to train rescaling param (for testing)
+                    -- gen and inf modules should have matching names.
     '''
     def __init__(self,
                  td_modules,
                  bu_modules_gen, im_modules_gen,
                  bu_modules_inf, im_modules_inf,
-                 merge_info, output_transform,
-                 train_dist_scale=True):
-        # organize the always shared modules
+                 decoder_modules,
+                 merge_info):
+        # grab the bottom-up, top-down, and info merging modules
         self.td_modules = [m for m in td_modules]
-        # organize the modules (maybe) specific to the generator
+        self.decoder_modules = [m for m in decoder_modules]
         self.bu_modules_gen = [m for m in bu_modules_gen]
         self.im_modules_gen = [m for m in im_modules_gen]
-        self.im_modules_gen_dict = {m.mod_name: m for m in im_modules_gen}
-        self.im_modules_gen_dict[None] = None
-        # organize the modules (maybe) specific to the inferencer
         self.bu_modules_inf = [m for m in bu_modules_inf]
         self.im_modules_inf = [m for m in im_modules_inf]
+        self.im_modules_gen_dict = {m.mod_name: m for m in im_modules_gen}
+        self.im_modules_gen_dict[None] = None
         self.im_modules_inf_dict = {m.mod_name: m for m in im_modules_inf}
         self.im_modules_inf_dict[None] = None
         # grab the full set of trainable parameters in these modules
-        self.gen_params = []
-        self.inf_params = []
-        for module in self.td_modules:
-            self.gen_params.extend(module.params)
-        for module in self.bu_modules_gen:
-            self.gen_params.extend(module.params)
-        for module in self.im_modules_gen:
-            self.gen_params.extend(module.params)
-        for module in self.bu_modules_inf:
-            self.inf_params.extend(module.params)
-        for module in self.im_modules_inf:
-            self.inf_params.extend(module.params)
+        self.gen_params = []  # modules that aren't just for inference
+        self.inf_params = []  # modules that are just for inference
+        # get generator params (these only get to adapt to the training set)
+        generator_modules = [self.td_modules, self.bu_modules_gen,
+                             self.im_modules_gen, self.decoder_modules]
+        for mods in generator_modules:
+            for mod in mods:
+                self.gen_params.extend(mod.params)
+        # get inferencer params (these can be fine-tuned at test time)
+        inferencer_modules = [self.bu_modules_inf, self.im_modules_inf]
+        for mods in inferencer_modules:
+            for mod in mods:
+                self.inf_params.extend(mod.params)
         # filter redundant parameters, to allow parameter sharing
         p_dict = {}
         for p in self.gen_params:
-            p_dict[p.auto_name] = p
+            p_dict[p.name] = p
         self.gen_params = p_dict.values()
         p_dict = {}
         for p in self.inf_params:
-            p_dict[p.auto_name] = p
+            p_dict[p.name] = p
         self.inf_params = p_dict.values()
-        p_dict = {}
-        for p in self.gen_params:
-            p_dict[p.auto_name] = p
-        for p in self.inf_params:
-            p_dict[p.auto_name] = p
-        self.all_params = p_dict.values()
-        # make dist_scale parameter (add it to the inf net parameters)
-        if train_dist_scale:
-            # init to a somewhat arbitrary value -- not magic (probably)
-            self.dist_scale = sharedX(floatX([0.2]))
-            self.gen_params.append(self.dist_scale)
-        else:
-            self.dist_scale = sharedX(floatX([1.0]))
+        # make dist_scale parameter (add it to generator parameters)
+        self.dist_scale = sharedX(floatX([0.2]))
+        self.gen_params.append(self.dist_scale)
         # gather a list of all parameters in this network
-        self.params = self.all_params
+        self.params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
-        # keep a transform that we'll apply to generator output
-        if output_transform == 'ident':
-            self.output_transform = lambda x: x
-        else:
-            self.output_transform = output_transform
-        print("Compiling sample generator...")
-        # # i'm the operator with my sample generator
-        # self.generate_samples = self._construct_generate_samples()
-        # samps = self.generate_samples(32)
-        print("DONE.")
         return
 
     def dump_params(self, f_name=None):
-        """
+        '''
         Dump params to a file for later reloading by self.load_params.
-        """
+        '''
         assert(not (f_name is None))
         f_handle = file(f_name, 'wb')
-        # dump the parameter dicts for all modules in this network
-        mod_param_dicts = [m.dump_params() for m in self.td_modules]
+        # dump the parameter dicts for generator modules
+        generator_modules = self.td_modules + self.bu_modules_gen + \
+            self.im_modules_gen + self.decoder_modules
+        mod_param_dicts = [m.dump_params() for m in generator_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-        mod_param_dicts = [m.dump_params() for m in self.bu_modules_gen]
-        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-        mod_param_dicts = [m.dump_params() for m in self.im_modules_gen]
-        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-        mod_param_dicts = [m.dump_params() for m in self.bu_modules_inf]
-        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-        mod_param_dicts = [m.dump_params() for m in self.im_modules_inf]
+        # dump the parameter dicts for inferencer modules
+        inferencer_modules = self.bu_modules_inf + self.im_modules_inf
+        mod_param_dicts = [m.dump_params() for m in inferencer_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
         # dump dist_scale parameter
         ds_ary = self.dist_scale.get_value(borrow=False)
@@ -142,26 +118,21 @@ class CondDeepConvGRU(object):
         return
 
     def load_params(self, f_name=None):
-        """
+        '''
         Load params from a file saved via self.dump_params.
-        """
+        '''
         assert(not (f_name is None))
         pickle_file = open(f_name)
-        # reload the parameter dicts for all modules in this network
+        # reload the parameter dicts for generator modules
+        generator_modules = self.td_modules + self.bu_modules_gen + \
+            self.im_modules_gen + self.decoder_modules
         mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, self.td_modules):
+        for param_dict, mod in zip(mod_param_dicts, generator_modules):
             mod.load_params(param_dict=param_dict)
+        # reload the parameter dicts for inferencer modules
+        inferencer_modules = self.bu_modules_inf + self.im_modules_inf
         mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, self.bu_modules_gen):
-            mod.load_params(param_dict=param_dict)
-        mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, self.im_modules_gen):
-            mod.load_params(param_dict=param_dict)
-        mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, self.bu_modules_inf):
-            mod.load_params(param_dict=param_dict)
-        mod_param_dicts = cPickle.load(pickle_file)
-        for param_dict, mod in zip(mod_param_dicts, self.im_modules_inf):
+        for param_dict, mod in zip(mod_param_dicts, inferencer_modules):
             mod.load_params(param_dict=param_dict)
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
@@ -169,14 +140,13 @@ class CondDeepConvGRU(object):
         pickle_file.close()
         return
 
-    def apply_bu(self, input, mode='gen'):
+    def apply_bu(self, input, mod_type='gen'):
         '''
         Apply this model's bottom-up inference modules to the given input,
         and return a dict mapping BU module names to their outputs.
-        -- mode can be either 'gen' or 'inf'.
-        -- mode determines which BU modules will be used.
         '''
-        if mode == 'gen':
+        assert (mod_type in ['gen', 'inf'])
+        if mod_type == 'gen':
             bu_modules = self.bu_modules_gen
         else:
             bu_modules = self.bu_modules_inf
@@ -193,16 +163,12 @@ class CondDeepConvGRU(object):
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im(self, input, mode='gen', z_vals=None):
+    def apply_im(self, input, im_states, td_states):
         '''
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
-        -- mode can be either 'gen' or 'inf'.
-        -- mode determines which BU and IM modules will be used.
-        -- If z_vals is given, we use those values for the latent samples in
-           the corresponding TD module, and don't draw new samples.
 
-        ++ this does all the heavy lifting ++
+        -- this does all the heavy lifting --
 
         This first computes the full bottom-up pass to collect the output of
         each BU module, where the output of the final BU module is the means
@@ -211,28 +177,22 @@ class CondDeepConvGRU(object):
 
         This then computes the top-down pass using latent variables sampled
         from distributions determined by merging partial results of the BU pass
-        with results from the partially-completed TD pass. The IM modules can
-        feed information to eachother too.
+        with results from the partially-completed TD pass. The IM modules feed
+        information to eachother too.
         '''
-        assert (mode in {'gen', 'inf'}), "mode must be in {'gen', 'inf'}"
+        bu_noise = noise if self.use_bu_noise else None
+        td_noise = noise if self.use_td_noise else None
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
+        kld_dict = {}
         z_dict = {}
-        logz_dict = {}
-        logy_dict = {}
+        logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input, mode=mode)
+        sc_info = self.apply_sc(input=input, noise=bu_noise)
+        bu_res_dict = self.apply_bu(input=input, noise=bu_noise,
+                                    sc_info=sc_info)
         # dict for storing IM state information
         im_res_dict = {None: None}
-        # grab the appropriate sets of BU and IM modules...
-        if mode == 'gen':
-            bu_modules = self.bu_modules_gen
-            im_modules = self.im_modules_gen
-            im_modules_dict = self.im_modules_gen_dict
-        else:
-            bu_modules = self.bu_modules_inf
-            im_modules = self.im_modules_inf
-            im_modules_dict = self.im_modules_inf_dict
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -243,7 +203,7 @@ class CondDeepConvGRU(object):
             im_mod_name = self.merge_info[td_mod_name]['im_module']
             bu_src_name = self.merge_info[td_mod_name]['bu_source']
             im_src_name = self.merge_info[td_mod_name]['im_source']
-            im_module = im_modules_dict[im_mod_name]  # this might be None
+            im_module = self.im_modules_dict[im_mod_name]  # this might be None
             if td_mod_type in ['top', 'cond']:
                 if td_mod_type == 'top':
                     # top TD conditionals are based purely on BU info
@@ -251,70 +211,84 @@ class CondDeepConvGRU(object):
                     cond_logvar_im = bu_res_dict[bu_src_name][1]
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
+                    cond_mean_td = 0.0 * cond_mean_im
+                    cond_logvar_td = 0.0 * cond_logvar_im
+                    # reparametrize Gaussian for latent samples
+                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                             rng=cu_rng)
                     # feedforward through the current TD module
-                    td_act_i = td_module.apply(rand_vals=cond_rvs)
+                    td_act_i = td_module.apply(rand_vals=cond_rvs,
+                                               noise=td_noise)
                     # compute initial state for IM pass, maybe...
                     im_act_i = None
                     if not (im_module is None):
-                        im_act_i = im_module.apply(rand_vals=cond_rvs)
+                        im_act_i = im_module.apply(rand_vals=cond_rvs,
+                                                   noise=bu_noise)
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]               # info from TD pass
                     bu_info = bu_res_dict[bu_src_name]  # info from BU pass
                     im_info = im_res_dict[im_src_name]  # info from IM pass
+                    if self.use_sc:
+                        # add shortcut info to bottom-up info
+                        bu_info = T.concatenate([bu_info, sc_info], axis=1)
                     # get the conditional distribution SSs (Sufficient Stat s)
                     cond_mean_im, cond_logvar_im, im_act_i = \
                         im_module.apply_im(td_input=td_info,
                                            bu_input=bu_info,
-                                           im_input=im_info)
+                                           im_input=im_info,
+                                           noise=bu_noise)
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
+                    cond_mean_td, cond_logvar_td = \
+                        im_module.apply_td(td_input=td_info,
+                                           noise=td_noise)
+                    cond_mean_td = self.dist_scale[0] * cond_mean_td
+                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
+                    # estimate location as an offset from prior
+                    cond_mean_im = cond_mean_im + cond_mean_td
+
+                    # reparametrize Gaussian for latent samples
+                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                             rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=cond_rvs)
+                                               rand_vals=cond_rvs,
+                                               noise=td_noise)
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
+                # record KLd info for the conditional distribution
+                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                     T.flatten(cond_logvar_im, 2),
+                                     0.0, 0.0)
+                kld_dict[td_mod_name] = kld_i
                 # get the log likelihood of the current latent samples under
                 # both the proposal distribution q(z | x) and the prior p(z).
                 # -- these are used when computing the IWAE bound.
-                log_prob_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               T.flatten(cond_mean_im, 2),
-                                               log_vars=T.flatten(cond_logvar_im, 2),
-                                               do_sum=True)
-                # get the log likelihood of z under a default prior.
-                log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               (0. * T.flatten(cond_mean_im, 2)),
-                                               log_vars=(0. * T.flatten(cond_logvar_im, 2)),
-                                               do_sum=True)
-                # record latent samples and loglikelihood for current TD module
-                logz_dict[td_mod_name] = log_prob_z
-                logy_dict[td_mod_name] = log_prob_y
+                log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                            T.flatten(cond_mean_td, 2),
+                                            log_vars=T.flatten(cond_logvar_td, 2),
+                                            do_sum=True)
+                log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                            T.flatten(cond_mean_im, 2),
+                                            log_vars=T.flatten(cond_logvar_im, 2),
+                                            do_sum=True)
+                logz_dict['log_p_z'].append(log_p_z)
+                logz_dict['log_q_z'].append(log_q_z)
                 z_dict[td_mod_name] = cond_rvs
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules
                 td_info = td_acts[-1]  # incoming info from TD pass
-                td_act_i = td_module.apply(input=td_info, rand_vals=None)
+                td_act_i = td_module.apply(input=td_info, rand_vals=None,
+                                           noise=td_noise)
                 td_acts.append(td_act_i)
                 if not (im_module is None):
                     # perform an update of the IM state
                     im_info = im_res_dict[im_src_name]
-                    im_act_i = im_module.apply(input=im_info, rand_vals=None)
+                    im_act_i = im_module.apply(input=im_info, rand_vals=None,
+                                               noise=bu_noise)
                     im_res_dict[im_mod_name] = im_act_i
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
@@ -324,9 +298,18 @@ class CondDeepConvGRU(object):
         # package results into a handy dictionary
         im_res_dict = {}
         im_res_dict['td_output'] = td_output
+        im_res_dict['kld_dict'] = kld_dict
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict
-        im_res_dict['logz_dict'] = logz_dict
-        im_res_dict['logy_dict'] = logy_dict
+        im_res_dict['log_p_z'] = logz_dict['log_p_z']
+        im_res_dict['log_q_z'] = logz_dict['log_q_z']
         return im_res_dict
+
+
+
+
+
+##############
+# EYE BUFFER #
+##############

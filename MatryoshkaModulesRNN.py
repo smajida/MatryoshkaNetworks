@@ -23,8 +23,7 @@ class BasicConvGRUModuleRNN(object):
     Convolutional GRU, takes a recurrent input and an exogenous input.
     '''
     def __init__(self, state_chans, in_chans, filt_shape,
-                 act_func='tanh', stride='single',
-                 mod_name='gm_conv'):
+                 act_func='tanh', mod_name='gm_conv'):
         assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
             "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
@@ -65,6 +64,9 @@ class BasicConvGRUModuleRNN(object):
                              "{}_w2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.b2])
+        # initialize trainable initial state
+        self.s0 = bias_ifn((self.state_chans), "{}_s0".format(self.mod_name))
+        self.params.extend([self.s0])
         return
 
     def share_params(self, source_module):
@@ -82,6 +84,9 @@ class BasicConvGRUModuleRNN(object):
         self.w2 = source_module.w2
         self.b2 = source_module.b2
         self.params.extend([self.w2, self.b2])
+        # share initial state
+        self.s0 = source_module.s0
+        self.params.extend([self.s0])
         return
 
     def load_params(self, param_dict):
@@ -92,6 +97,7 @@ class BasicConvGRUModuleRNN(object):
         self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
         self.b2.set_value(floatX(param_dict['b2']))
+        self.s0.set_value(floatX(param_dict['s0']))
         return
 
     def dump_params(self):
@@ -103,6 +109,7 @@ class BasicConvGRUModuleRNN(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
+        param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
     def apply(self, state, input, rand_vals=None):
@@ -175,12 +182,14 @@ class GenConvGRUModuleRNN(object):
                              "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.b1])
-
         # initialize gate layer parameters
         self.w2 = weight_ifn((self.state_chans, full_in_chans, fd, fd),
                              "{}_w2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.b2])
+        # initialize trainable initial state
+        self.s0 = bias_ifn((self.state_chans), "{}_s0".format(self.mod_name))
+        self.params.extend([self.s0])
         return
 
     def share_params(self, source_module):
@@ -198,6 +207,9 @@ class GenConvGRUModuleRNN(object):
         self.w2 = source_module.w2
         self.b2 = source_module.b2
         self.params.extend([self.w2, self.b2])
+        # share initial state
+        self.s0 = source_module.s0
+        self.params.extend([self.s0])
         return
 
     def load_params(self, param_dict):
@@ -208,6 +220,7 @@ class GenConvGRUModuleRNN(object):
         self.b1.set_value(floatX(param_dict['b1']))
         self.w2.set_value(floatX(param_dict['w2']))
         self.b2.set_value(floatX(param_dict['b2']))
+        self.s0.set_value(floatX(param_dict['s0']))
         return
 
     def dump_params(self):
@@ -219,6 +232,7 @@ class GenConvGRUModuleRNN(object):
         param_dict['b1'] = self.b1.get_value(borrow=False)
         param_dict['w2'] = self.w2.get_value(borrow=False)
         param_dict['b2'] = self.b2.get_value(borrow=False)
+        param_dict['s0'] = self.s0.get_value(borrow=False)
         return param_dict
 
     def apply(self, state, input, rand_vals):
@@ -312,6 +326,9 @@ class InfConvGRUModuleRNN(object):
                                 "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2 * self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
+        # initialize trainable initial state
+        self.s0_im = bias_ifn((self.state_chans), "{}_s0_im".format(self.mod_name))
+        self.params.extend([self.s0_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = weight_ifn((2 * self.rand_chans, self.td_chans, 3, 3),
@@ -340,6 +357,9 @@ class InfConvGRUModuleRNN(object):
         self.w3_im = source_module.w3_im
         self.b3_im = source_module.b3_im
         self.params.extend([self.w3_im, self.b3_im])
+        # share initial state
+        self.s0_im = source_module.s0_im
+        self.params.extend([self.s0_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
             self.w1_td = source_module.w1_td
@@ -358,6 +378,7 @@ class InfConvGRUModuleRNN(object):
         self.b2_im.set_value(floatX(param_dict['b2_im']))
         self.w3_im.set_value(floatX(param_dict['w3_im']))
         self.b3_im.set_value(floatX(param_dict['b3_im']))
+        self.s0_im.set_value(floatX(param_dict['s0_im']))
         if self.use_td_cond:
             self.w1_td.set_value(floatX(param_dict['w1_td']))
             self.b1_td.set_value(floatX(param_dict['b1_td']))
@@ -375,6 +396,7 @@ class InfConvGRUModuleRNN(object):
         param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
         param_dict['w3_im'] = self.w3_im.get_value(borrow=False)
         param_dict['b3_im'] = self.b3_im.get_value(borrow=False)
+        param_dict['s0_im'] = self.s0_im.get_value(borrow=False)
         if self.use_td_cond:
             param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
             param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
@@ -403,7 +425,7 @@ class InfConvGRUModuleRNN(object):
 
     def apply_im(self, state, td_input, bu_input):
         '''
-        Combine td_input, bu_input, and im_input to update the IM state
+        Combine prior IM state, td_input, and bu_input to update the IM state
         and to make a conditional Gaussian distribution.
         '''
         # compute GRU gates
@@ -419,6 +441,7 @@ class InfConvGRUModuleRNN(object):
         s = dnn_conv(update_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
         s = s + self.b2_im.dimshuffle('x', 0, 'x', 'x')
         s = self.act_func(s)
+
         # combine initial state and proposed new state based on u
         new_state = (u * state) + ((1. - u) * s)
 
