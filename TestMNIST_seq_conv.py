@@ -115,7 +115,7 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 tanh = activations.Tanh()
-sigmoid = activations.Sigmoid()
+ou = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
 #########################################
@@ -130,7 +130,7 @@ td_module_1 = \
         out_shape=(ngf * 2, 7, 7),
         fc_dim=ngfc,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='td_mod_1')
@@ -229,7 +229,7 @@ bu_module_1 = \
         fc_chans=ngfc,
         rand_chans=nz0,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
@@ -323,7 +323,7 @@ bu_module_1 = \
         fc_chans=ngfc,
         rand_chans=nz0,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
@@ -416,7 +416,7 @@ im_module_1 = \
         out_shape=(ngf * 2, 7, 7),
         fc_dim=ngfc,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='im_mod_1')
@@ -525,7 +525,7 @@ for i in range(depth_14x14):
 
 
 # transforms to apply to generator outputs
-def output_transform(x):
+def clip_sigmoid(x):
     output = sigmoid(T.clip(x, -15.0, 15.0))
     return output
 
@@ -581,10 +581,10 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
-for step in range(1):
+for step in range(5):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
-    x_from = sigmoid(X_step[-1])
+    x_from = clip_sigmoid(X_step[-1])
     x_to = Xg
     x_inf = T.concatenate([x_from, x_to], axis=1)
     im_res_dict_inf = inf_gen_model.apply_im(x_inf, mode='inf')
@@ -592,8 +592,8 @@ for step in range(1):
     logz_inf = im_res_dict_inf['logz_dict']
     if step > 0:
         # run the generator conditioned on things
-        x_from = sigmoid(X_step[-2])
-        x_to = sigmoid(X_step[-1])
+        x_from = clip_sigmoid(X_step[-2])
+        x_to = clip_sigmoid(X_step[-1])
         x_gen = T.concatenate([x_from, x_to], axis=1)
         im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='gen', z_vals=z_inf)
         logz_gen = im_res_dict_gen['logz_dict']
@@ -607,7 +607,7 @@ for step in range(1):
     x_new = X_step[-1] + im_res_dict_inf['td_output']
     X_step.append(x_new)
 # final step output is the reconstruction
-Xg_recon = sigmoid(T.clip(X_step[-1], -15., 15.))
+Xg_recon = clip_sigmoid(X_step[-1])
 
 # compute reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
