@@ -262,7 +262,7 @@ class FancyFCGRUModule(object):
                  use_bn_params=True,
                  mod_name='basic_fc_gru'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.state_chans = state_chans
         if ((rand_chans is None) or (rand_chans == 0)):
             self.rand_chans = 0
@@ -282,7 +282,7 @@ class FancyFCGRUModule(object):
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -294,13 +294,13 @@ class FancyFCGRUModule(object):
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize gating parameters
-        self.w1 = weight_ifn((self.state_chans+self.rand_chans, 2*self.state_chans),
+        self.w1 = weight_ifn((self.state_chans + self.rand_chans, 2 * self.state_chans),
                              "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((2*self.state_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((2*self.state_chans), "{}_b1".format(self.mod_name))
+        self.g1 = gain_ifn((2 * self.state_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize state update parameters
-        self.w2 = weight_ifn((self.state_chans+self.rand_chans, self.state_chans),
+        self.w2 = weight_ifn((self.state_chans + self.rand_chans, self.state_chans),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.state_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
@@ -386,7 +386,7 @@ class FancyFCGRUModule(object):
             h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h2 = h2 + self.b2.dimshuffle('x',0)
+            h2 = h2 + self.b2.dimshuffle('x', 0)
             h2 = add_noise(h2, noise=noise)
         update = self.act_func(h2)
 
@@ -398,6 +398,7 @@ class FancyFCGRUModule(object):
         else:
             result = output
         return result
+
 
 ###############################
 # BASIC FULLY-CONNECTED LAYER #
@@ -425,7 +426,7 @@ class BasicFCModule(object):
                  use_noise=True,
                  mod_name='basic_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.apply_bn = apply_bn
@@ -443,7 +444,7 @@ class BasicFCModule(object):
         self.use_bn_params = use_bn_params
         self.use_noise = use_noise
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -493,7 +494,7 @@ class BasicFCModule(object):
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = h1 + self.b1.dimshuffle('x', 0)
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
@@ -532,13 +533,13 @@ class BasicConvPertModule(object):
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
                  use_bn_params=True, mod_name='basic_conv_res'):
         assert (stride in ['single']), \
-                "stride must be 'single'."
+            "stride must be 'single'."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
+            "invalid act_func {}.".format(act_func)
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3,3) or (5,5)."
         assert (in_chans == out_chans), \
-                "in_chans and out_chans must be the same."
+            "in_chans and out_chans must be the same."
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.conv_chans = conv_chans
@@ -560,7 +561,7 @@ class BasicConvPertModule(object):
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -650,7 +651,6 @@ class BasicConvPertModule(object):
         """
         Apply this convolutional module to some input.
         """
-        batch_size = input.shape[0] # number of inputs in this batch
         bm = (self.filt_dim - 1) // 2
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
@@ -660,35 +660,35 @@ class BasicConvPertModule(object):
 
         if self.use_conv:
             # apply first internal conv layer
-            h1 = dnn_conv(input, self.w1, subsample=(1,1), border_mode=(bm, bm))
+            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
             if self.apply_bn:
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
                                 share_mask=share_mask)
             # apply second internal conv layer
-            h2 = dnn_conv(h1, self.w2, subsample=(1,1), border_mode=(bm, bm))
+            h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
             if self.apply_bn:
                 h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
+                h2 = h2 + self.b2.dimshuffle('x', 0, 'x', 'x')
                 h2 = add_noise(h2, noise=noise)
             # combine non-linear and linear transforms of input...
             h3 = input + h2
         else:
             # apply standard conv layer
-            h3 = dnn_conv(input, self.w3, subsample=(1,1), border_mode=(bm, bm))
+            h3 = dnn_conv(input, self.w3, subsample=(1, 1), border_mode=(bm, bm))
         # post-process the perturbed input
         if self.apply_bn:
             h3 = switchy_bn(h3, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h3 = h3 + self.b3.dimshuffle('x',0,'x','x')
+            h3 = h3 + self.b3.dimshuffle('x', 0, 'x', 'x')
             h3 = add_noise(h3, noise=noise)
         output = self.act_func(h3)
         if rand_shapes:
@@ -696,6 +696,7 @@ class BasicConvPertModule(object):
         else:
             result = output
         return result
+
 
 #############################
 # BASIC CONVOLUTIONAL LAYER #
@@ -726,9 +727,9 @@ class BasicConvModule(object):
                  mod_name='basic_conv'):
         assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
-                "stride should be 'single', 'double', or 'half'."
+            "stride should be 'single', 'double', or 'half'."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.filt_dim = filt_shape[0]
         self.in_chans = in_chans
         self.out_chans = out_chans
@@ -751,7 +752,7 @@ class BasicConvModule(object):
         self.use_bn_params = use_bn_params
         self.use_noise = use_noise
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -793,7 +794,7 @@ class BasicConvModule(object):
         Apply this convolutional module to the given input.
         """
         noise = noise if self.use_noise else None
-        bm = int((self.filt_dim - 1) / 2) # use "same" mode convolutions
+        bm = int((self.filt_dim - 1) / 2)  # use "same" mode convolutions
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
@@ -812,8 +813,8 @@ class BasicConvModule(object):
                             use_gb=self.use_bn_params)
         else:
             if self.rescale_output:
-                h1 = h1 * self.g1.dimshuffle('x',0,'x','x')
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = h1 * self.g1.dimshuffle('x', 0, 'x', 'x')
+            h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         if rand_shapes:
@@ -836,11 +837,11 @@ class BasicConvGRUModule(object):
                  apply_bn=True, use_bn_params=True, stride='single',
                  mod_name='gm_conv'):
         assert ((in_chans == out_chans)), \
-                "in_chans == out_chans is required."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
+            "in_chans == out_chans is required."
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3,3) or (5,5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.filt_dim = filt_shape[0]
         self.in_chans = in_chans
         self.out_chans = out_chans
@@ -859,7 +860,7 @@ class BasicConvGRUModule(object):
         self.apply_bn = apply_bn
         self.use_bn_params = use_bn_params
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -872,10 +873,10 @@ class BasicConvGRUModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize gate layer parameters
-        self.w1 = weight_ifn((2*self.in_chans, self.in_chans, fd, fd),
+        self.w1 = weight_ifn((2 * self.in_chans, self.in_chans, fd, fd),
                              "{}_w1".format(self.mod_name))
-        self.g1 = gain_ifn((2*self.in_chans), "{}_g1".format(self.mod_name))
-        self.b1 = bias_ifn((2*self.in_chans), "{}_b1".format(self.mod_name))
+        self.g1 = gain_ifn((2 * self.in_chans), "{}_g1".format(self.mod_name))
+        self.b1 = bias_ifn((2 * self.in_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
         # initialize first new state layer parameters
         self.w2 = weight_ifn((self.in_chans, self.in_chans, fd, fd),
@@ -934,7 +935,6 @@ class BasicConvGRUModule(object):
         """
         Apply this generator module to some input.
         """
-        batch_size = input.shape[0]    # number of inputs in this batch
         bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
 
         # compute update gate and remember gate
@@ -943,18 +943,18 @@ class BasicConvGRUModule(object):
             h = switchy_bn(h, g=self.g1, b=self.b1, n=noise,
                            use_gb=self.use_bn_params)
         else:
-            h = h + self.b1.dimshuffle('x',0,'x','x')
+            h = h + self.b1.dimshuffle('x', 0, 'x', 'x')
             h = add_noise(h, noise=noise)
         h = sigmoid(h + 1.)
-        u = h[:,:self.in_chans,:,:]
-        r = h[:,self.in_chans:,:,:]
+        u = h[:, :self.in_chans, :, :]
+        r = h[:, self.in_chans:, :, :]
         # compute new state proposal -- include hidden layer
         s = dnn_conv((r * input), self.w2, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
             s = switchy_bn(s, g=self.g2, b=self.b2, n=noise,
                            use_gb=self.use_bn_params)
         else:
-            s = s + self.b2.dimshuffle('x',0,'x','x')
+            s = s + self.b2.dimshuffle('x', 0, 'x', 'x')
             s = add_noise(s, noise=noise)
         s = self.act_func(s)
         # combine initial state and proposed new state based on u
@@ -993,7 +993,7 @@ class DiscFCModule(object):
                  use_bn_params=True,
                  mod_name='dm_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.fc_dim = fc_dim
         self.in_dim = in_dim
         self.use_fc = use_fc
@@ -1011,7 +1011,7 @@ class DiscFCModule(object):
             self.act_func = lambda x: lrelu(x)
         self.use_bn_params = use_bn_params
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -1116,11 +1116,11 @@ class DiscConvResModule(object):
                  use_bn_params=True,
                  mod_name='dm_conv'):
         assert ((ds_stride == 1) or (ds_stride == 2)), \
-                "ds_stride must be 1 or 2."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
+            "ds_stride must be 1 or 2."
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3,3) or (5,5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.conv_chans = conv_chans
@@ -1142,8 +1142,7 @@ class DiscConvResModule(object):
         self.apply_bn = apply_bn
         self.use_bn_params = use_bn_params
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
-        return
+        self._init_params()
 
     def _init_params(self):
         """
@@ -1168,7 +1167,7 @@ class DiscConvResModule(object):
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
         self.w3 = weight_ifn((self.out_chans, self.in_chans, fd, fd),
-                                "{}_w3".format(self.mod_name))
+                             "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
@@ -1214,9 +1213,8 @@ class DiscConvResModule(object):
         """
         Apply this convolutional discriminator module to some input.
         """
-        batch_size = input.shape[0] # number of inputs in this batch
-        ss = self.ds_stride         # stride for "learned downsampling"
-        bm = (self.filt_dim - 1) // 2 # set border mode for the convolutions
+        ss = self.ds_stride            # stride for "learned downsampling"
+        bm = (self.filt_dim - 1) // 2  # set border mode for the convolutions
         # apply dropout to input
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
@@ -1227,7 +1225,7 @@ class DiscConvResModule(object):
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+                h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
                 h1 = add_noise(h1, noise=noise)
             # apply activation and maybe dropout
             h1 = self.act_func(h1)
@@ -1282,7 +1280,7 @@ class GenTopModule(object):
                  use_bn_params=True,
                  mod_name='dm_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.rand_dim = rand_dim
         self.out_shape = out_shape
         if len(self.out_shape) == 1:
@@ -1308,7 +1306,7 @@ class GenTopModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -1376,13 +1374,13 @@ class GenTopModule(object):
         Apply this generator module. Pass _either_ batch_size or rand_vals.
         """
         assert not ((batch_size is None) and (rand_vals is None)), \
-                "need either batch_size or rand_vals"
+            "need either batch_size or rand_vals"
         assert ((batch_size is None) or (rand_vals is None)), \
-                "need either batch_size or rand_vals"
+            "need either batch_size or rand_vals"
         if rand_vals is None:
             # we need to generate some latent variables
             rand_shape = (batch_size, self.rand_dim)
-            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0, \
+            rand_vals = cu_rng.normal(size=rand_shape, avg=0.0, std=1.0,
                                       dtype=theano.config.floatX)
         else:
             # get the shape of the incoming latent variables
@@ -1395,7 +1393,7 @@ class GenTopModule(object):
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
+                h1 = h1 + self.b1.dimshuffle('x', 0)
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -1409,13 +1407,13 @@ class GenTopModule(object):
             h2 = switchy_bn(h2, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h2 = h2 + self.b3.dimshuffle('x',0)
+            h2 = h2 + self.b3.dimshuffle('x', 0)
             h2 = add_noise(h2, noise=noise)
         h2 = self.act_func(h2)
         if len(self.out_shape) > 1:
             # reshape vector outputs for use as conv layer inputs
-            h2 = h2.reshape((h2.shape[0], self.out_shape[0], \
-                             self.out_shape[1], self.out_shape[2]))
+            h2 = h2.reshape((h2.shape[0], self.out_shape[0],
+                            self.out_shape[1], self.out_shape[2]))
         if rand_shapes:
             result = [h2, rand_shape]
         else:
@@ -1438,13 +1436,13 @@ class GenConvPertModule(object):
                  use_bn_params=True, act_func='relu',
                  mod_name='gm_conv'):
         assert ((us_stride == 1)), \
-                "us_stride must be 1."
+            "us_stride must be 1."
         assert ((in_chans == out_chans)), \
-                "in_chans == out_chans is required."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
+            "in_chans == out_chans is required."
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.conv_chans = conv_chans
@@ -1468,7 +1466,7 @@ class GenConvPertModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -1481,7 +1479,7 @@ class GenConvPertModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize first conv layer parameters
-        self.w1 = weight_ifn((self.conv_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans + self.rand_chans), fd, fd),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.conv_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
@@ -1594,7 +1592,7 @@ class GenConvPertModule(object):
                 # mask out random values, so they won't get used
                 rand_vals = 0.0 * rand_vals
         rand_vals = rand_vals.reshape(rand_shape)
-        rand_shape = rand_vals.shape # return vals must be theano vars
+        rand_shape = rand_vals.shape  # return vals must be theano vars
 
         pert_input = T.concatenate([rand_vals, input], axis=1)
         # apply first internal conv layer
@@ -1603,7 +1601,7 @@ class GenConvPertModule(object):
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         # # apply second internal conv layer
@@ -1626,15 +1624,16 @@ class GenConvPertModule(object):
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h4 = h4 + self.b3.dimshuffle('x',0,'x','x')
+            h4 = h4 + self.b3.dimshuffle('x', 0, 'x', 'x')
             h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
-        #output = h4
+        # output = h4
         if rand_shapes:
             result = [output, rand_shape]
         else:
             result = output
         return result
+
 
 #########################################
 # DOUBLE GENERATOR CONVOLUTIONAL MODULE #
@@ -1651,11 +1650,11 @@ class GenConvGRUModule(object):
                  use_bn_params=True, act_func='relu',
                  mod_name='gm_conv'):
         assert ((in_chans == out_chans)), \
-                "in_chans == out_chans is required."
-        assert (filt_shape == (3,3) or filt_shape == (5,5)), \
-                "filt_shape must be (3,3) or (5,5)."
+            "in_chans == out_chans is required."
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.rand_chans = rand_chans
@@ -1676,7 +1675,7 @@ class GenConvGRUModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -1689,21 +1688,21 @@ class GenConvGRUModule(object):
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         # initialize gate layer parameters
-        self.w1 = weight_ifn((self.in_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w1 = weight_ifn((self.in_chans, (self.in_chans + self.rand_chans), fd, fd),
                              "{}_w1".format(self.mod_name))
         self.g1 = gain_ifn((self.in_chans), "{}_g1".format(self.mod_name))
         self.b1 = bias_ifn((self.in_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.g1, self.b1])
 
         # initialize gate layer parameters
-        self.w2 = weight_ifn((self.in_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w2 = weight_ifn((self.in_chans, (self.in_chans + self.rand_chans), fd, fd),
                              "{}_w2".format(self.mod_name))
         self.g2 = gain_ifn((self.in_chans), "{}_g2".format(self.mod_name))
         self.b2 = bias_ifn((self.in_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.g2, self.b2])
 
         # initialize first new state layer parameters
-        self.w3 = weight_ifn((self.in_chans, (self.in_chans+self.rand_chans), fd, fd),
+        self.w3 = weight_ifn((self.in_chans, (self.in_chans + self.rand_chans), fd, fd),
                              "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.in_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.in_chans), "{}_b3".format(self.mod_name))
@@ -1790,35 +1789,35 @@ class GenConvGRUModule(object):
                 # mask out random values, so they won't get used
                 rand_vals = 0.0 * rand_vals
         rand_vals = rand_vals.reshape(rand_shape)
-        rand_shape = rand_vals.shape # return vals must be theano vars
+        rand_shape = rand_vals.shape  # return vals must be theano vars
 
         # compute update gate and remember gate
         gate_input = T.concatenate([rand_vals, input], axis=1)
         h1 = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
-                           use_gb=self.use_bn_params)
+                            use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1.dimshuffle('x',0,'x','x')
+            h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
             h1 = add_noise(h1, noise=noise)
         u = sigmoid(h1 + 1.)
         #
         h2 = dnn_conv(gate_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
             h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
-                           use_gb=self.use_bn_params)
+                            use_gb=self.use_bn_params)
         else:
-            h2 = h2 + self.b2.dimshuffle('x',0,'x','x')
+            h2 = h2 + self.b2.dimshuffle('x', 0, 'x', 'x')
             h2 = add_noise(h2, noise=noise)
         r = sigmoid(h2 + 1.)
         # compute new state proposal -- include hidden layer
-        state_input = T.concatenate([rand_vals, r*input], axis=1)
+        state_input = T.concatenate([rand_vals, r * input], axis=1)
         s = dnn_conv(state_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
         if self.apply_bn:
             s = switchy_bn(s, g=self.g2, b=self.b2, n=noise,
                            use_gb=self.use_bn_params)
         else:
-            s = s + self.b2.dimshuffle('x',0,'x','x')
+            s = s + self.b2.dimshuffle('x', 0, 'x', 'x')
             s = add_noise(s, noise=noise)
         s = self.act_func(s)
         # combine initial state and proposed new state based on u
