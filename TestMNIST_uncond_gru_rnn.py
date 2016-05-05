@@ -386,7 +386,7 @@ def make_model_input(x_in):
 # test the model implementation
 #
 x_in = T.tensor4()
-c0_in = (0. * x_in) + c0
+c0_in = T.repeat(c0, x_in.shape[0], axis=0)
 xa_inf = T.concatenate([x_in, c0_in], axis=1)
 res_dict = \
     seq_cond_gen_model.apply_im_uncond(
