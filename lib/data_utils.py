@@ -131,7 +131,7 @@ def sample_patch_masks(X, im_shape, patch_shape, patch_count=1):
 
 def get_masked_data(xi,
                     drop_prob=0.0,
-                    occ_dim=None,
+                    occ_shape=None,
                     occ_count=1,
                     data_mean=None):
     """
@@ -147,7 +147,7 @@ def get_masked_data(xi,
     else:
         # don't apply fully-random occlusion
         xm_rand = np.ones(xi.shape)
-    if occ_dim is None:
+    if occ_shape is None:
         # don't apply rectangular occlusion
         xm_patch = np.ones(xi.shape)
     else:
@@ -155,7 +155,7 @@ def get_masked_data(xi,
         xm_patch = \
             sample_patch_masks(xi,
                                (im_dim, im_dim),
-                               (occ_dim, occ_dim),
+                               occ_shape,
                                patch_count=occ_count)
     xm = xm_rand * xm_patch
     xi = (xm * xi) + ((1.0 - xm) * data_mean)
@@ -165,7 +165,7 @@ def get_masked_data(xi,
     return xi, xo, xm
 
 
-def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
+def sample_data_masks(xi, drop_prob=0.0, occ_shape=None, occ_count=1):
     """
     Construct random masks for observations in xi.
     """
@@ -176,7 +176,7 @@ def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
     else:
         # don't apply fully-random occlusion
         xm_rand = np.ones(xi.shape)
-    if occ_dim is None:
+    if occ_shape is None:
         # don't apply rectangular occlusion
         xm_patch = np.ones(xi.shape)
     else:
@@ -184,7 +184,7 @@ def sample_data_masks(xi, drop_prob=0.0, occ_dim=None, occ_count=1):
         xm_patch = \
             sample_patch_masks(xi,
                                (im_dim, im_dim),
-                               (occ_dim, occ_dim),
+                               occ_shape,
                                patch_count=occ_count)
     xm = xm_rand * xm_patch
     xm = to_fX(xm)
