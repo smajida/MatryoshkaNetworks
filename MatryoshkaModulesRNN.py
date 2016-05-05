@@ -1098,6 +1098,13 @@ class TDModuleWrapperRNN(object):
                 mod.load_params(param_dict=pdict)
         return
 
+    def get_s0_for_batch(self, batch_size):
+        '''
+        Get an initial state for self.gen_module.
+        '''
+        s0 = self.gen_module.get_s0_for_batch(batch_size)
+        return s0
+
     def apply(self, state, input, rand_vals):
         '''
         Process the recurrent gen_module, then apply self.mlp_modules.
