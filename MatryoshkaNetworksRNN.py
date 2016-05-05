@@ -93,7 +93,7 @@ class DeepSeqCondGen(object):
         self.dist_scale = sharedX(floatX([0.2]))
         self.gen_params.append(self.dist_scale)
         # gather a list of all parameters in this network
-        self.params = self.inf_params + self.gen_params
+        self.all_params = self.inf_params + self.gen_params
         # get instructions for how to merge bottom-up and top-down info
         self.merge_info = merge_info
         # make a switch for alternating between generator and inferencer
