@@ -135,6 +135,18 @@ td_module_1 = \
         act_func=act_func,
         mod_name='td_mod_1')
 
+# (7, 7) -> (7, 7)
+td_module_1b = \
+    BasicConvModule(
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='td_mod_1b'
+    )
+
 # grow the (7, 7) -> (7, 7) part of network
 td_modules_7x7 = []
 for i in range(depth_7x7):
@@ -211,7 +223,7 @@ td_module_6 = \
         mod_name='td_mod_6')
 
 # modules must be listed in "evaluation order"
-td_modules = [td_module_1] + \
+td_modules = [td_module_1, td_module_1b] + \
              td_modules_7x7 + \
              [td_module_3] + \
              td_modules_14x14 + \
@@ -233,6 +245,17 @@ bu_module_1 = \
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
+
+# (7, 7) -> (7, 7)
+bu_module_1b = \
+    BasicConvModule(
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='bu_mod_1b')
 
 # grow the (7, 7) -> (7, 7) part of network
 bu_modules_7x7 = []
@@ -308,7 +331,7 @@ bu_modules_gen = [bu_module_6, bu_module_5] + \
                  bu_modules_14x14 + \
                  [bu_module_3] + \
                  bu_modules_7x7 + \
-                 [bu_module_1]
+                 [bu_module_1b, bu_module_1]
 
 
 ##########################################
@@ -327,6 +350,17 @@ bu_module_1 = \
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
+
+# (7, 7) -> (7, 7)
+bu_module_1b = \
+    BasicConvModule(
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='bu_mod_1b')
 
 # grow the (7, 7) -> (7, 7) part of network
 bu_modules_7x7 = []
@@ -402,7 +436,7 @@ bu_modules_inf = [bu_module_6, bu_module_5] + \
                  bu_modules_14x14 + \
                  [bu_module_3] + \
                  bu_modules_7x7 + \
-                 [bu_module_1]
+                 [bu_module_1b, bu_module_1]
 
 
 #########################################
@@ -420,6 +454,17 @@ im_module_1 = \
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='im_mod_1')
+
+# (7, 7) -> (7, 7)
+im_module_1b = \
+    BasicConvModule(
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='im_mod_1b')
 
 # grow the (7, 7) -> (7, 7) part of network
 im_modules_7x7 = []
@@ -470,7 +515,7 @@ for i in range(depth_14x14):
             mod_name=mod_name)
     im_modules_14x14.append(new_module)
 
-im_modules = [im_module_1] + \
+im_modules = [im_module_1, im_module_1b] + \
              im_modules_7x7 + \
              [im_module_3] + \
              im_modules_14x14
@@ -481,6 +526,9 @@ im_modules = [im_module_1] + \
 merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
+
+    'td_mod_1b': {'td_type': 'pass', 'im_module': 'im_mod_1b',
+                  'bu_source': None, 'im_source': 'im_mod_1'},
 
     'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
                  'bu_source': None, 'im_source': im_modules_7x7[-1].mod_name},
@@ -496,7 +544,7 @@ for i in range(depth_7x7):
     td_type = 'cond'
     td_mod_name = 'td_mod_2{}'.format(alphabet[i])
     im_mod_name = 'im_mod_2{}'.format(alphabet[i])
-    im_src_name = 'im_mod_1'
+    im_src_name = 'im_mod_1b'
     bu_src_name = 'bu_mod_3'
     if i > 0:
         im_src_name = 'im_mod_2{}'.format(alphabet[i - 1])
@@ -581,7 +629,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
-for step in range(5):
+for step in range(1):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
     x_from = clip_sigmoid(X_step[-1])
