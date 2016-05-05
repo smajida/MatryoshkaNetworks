@@ -211,7 +211,7 @@ bu_module_2 = \
 
 bu_module_3 = \
     BasicConvModuleRNN(
-        in_chans=(nc + 1),
+        in_chans=(2 * nc),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
         stride='double',
@@ -247,7 +247,7 @@ bu_module_2 = \
 
 bu_module_3 = \
     BasicConvModuleRNN(
-        in_chans=(2 * (nc + 1)),
+        in_chans=(2 * nc),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
         stride='double',
