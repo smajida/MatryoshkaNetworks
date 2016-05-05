@@ -411,7 +411,6 @@ seq_cond_gen_model = \
 ####################################
 lam_kld = sharedX(floatX([1.0]))
 X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))  # default "initial state"
-noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 all_params = inf_gen_model.all_params + [X_init]
@@ -600,7 +599,6 @@ print('DONE.')
 #         imb_input = make_model_input(imb)
 #         vmb_input = make_model_input(vmb)
 #         # train vae on training batch
-#         noise.set_value(floatX([noise_std]))
 #         g_result = g_train_func(*imb_input)
 #         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
 #         vae_nlls.append(1. * g_result[3])
@@ -617,7 +615,6 @@ print('DONE.')
 #         i_batch_count += 1
 #         # evaluate vae on validation batch
 #         if v_batch_count < 25:
-#             noise.set_value(floatX([0.0]))
 #             v_result = g_eval_func(*vmb_input)
 #             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
 #             v_batch_count += 1
