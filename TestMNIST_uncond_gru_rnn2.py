@@ -192,7 +192,7 @@ bu_module_1b = \
         in_chans=(ngf * 2),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
-        stride='double',
+        stride='single',
         act_func=bu_act_func,
         mod_name='bu_mod_1b')  # (14, 14) -> (14, 14)
 
@@ -237,7 +237,7 @@ bu_module_1b = \
         in_chans=(ngf * 2),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
-        stride='double',
+        stride='single',
         act_func=bu_act_func,
         mod_name='bu_mod_1b')  # (14, 14) -> (14, 14)
 
