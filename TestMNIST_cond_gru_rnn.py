@@ -149,7 +149,7 @@ td_module_2a = \
 td_module_2b = \
     BasicConvModuleRNN(
         in_chans=(ngf * 4),
-        out_chans=(ngf * 4),
+        out_chans=(ngf * 2),
         filt_shape=(3, 3),
         stride='half',
         act_func=td_act_func,
@@ -163,8 +163,8 @@ td_module_2 = \
 # setup the (14, 14) -> (28, 28) module
 td_module_3a = \
     GenConvGRUModuleRNN(
-        state_chans=(ngf * 4),
-        input_chans=(ngf * 4),
+        state_chans=(ngf * 2),
+        input_chans=(ngf * 2),
         rand_chans=nz1,
         spatial_shape=(14, 14),
         filt_shape=(3, 3),
@@ -172,24 +172,16 @@ td_module_3a = \
         mod_name='td_mod_3a')
 td_module_3b = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 4),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
+        in_chans=(ngf * 2),
+        out_chans=nc,
+        filt_shape=(5, 5),
         stride='half',
         act_func=td_act_func,
         mod_name='td_mod_3b')
-td_module_3c = \
-    BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=nc,
-        filt_shape=(3, 3),
-        stride='single',
-        act_func='ident',
-        mod_name='td_mod_3c')
 td_module_3 = \
     TDModuleWrapperRNN(
         gen_module=td_module_3a,
-        mlp_modules=[td_module_3b, td_module_3c],
+        mlp_modules=[td_module_3b],
         mod_name='td_mod_3')
 
 td_modules = [td_module_1, td_module_2, td_module_3]
@@ -210,41 +202,24 @@ bu_module_1 = \
 
 bu_module_2 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 4),
+        in_chans=(ngf * 2),
         out_chans=(ngf * 4),
-        filt_shape=(3, 3),
+        filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
         mod_name='bu_mod_2')  # (14, 14) -> (7, 7)
-bu_module_2b = \
-    BasicConvModuleRNN(
-        in_chans=(ngf * 4),
-        out_chans=(ngf * 4),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_2b')  # (14, 14) -> (14, 14)
 
 bu_module_3 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 4),
-        filt_shape=(3, 3),
+        in_chans=(nc + 1),
+        out_chans=(ngf * 2),
+        filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
         mod_name='bu_mod_3')  # (28, 28) -> (14, 14)
-bu_module_3b = \
-    BasicConvModuleRNN(
-        in_chans=(nc + 1),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_3b')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_gen = [bu_module_3b, bu_module_3, bu_module_2b,
-                  bu_module_2, bu_module_1]
+bu_modules_gen = [bu_module_3, bu_module_2, bu_module_1]
 
 
 ##########################################
@@ -263,41 +238,24 @@ bu_module_1 = \
 
 bu_module_2 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 4),
+        in_chans=(ngf * 2),
         out_chans=(ngf * 4),
-        filt_shape=(3, 3),
+        filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
         mod_name='bu_mod_2')  # (14, 14) -> (7, 7)
-bu_module_2b = \
-    BasicConvModuleRNN(
-        in_chans=(ngf * 4),
-        out_chans=(ngf * 4),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_2b')  # (14, 14) -> (14, 14)
 
 bu_module_3 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 4),
-        filt_shape=(3, 3),
+        in_chans=(2 * (nc + 1)),
+        out_chans=(ngf * 2),
+        filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
         mod_name='bu_mod_3')  # (28, 28) -> (14, 14)
-bu_module_3b = \
-    BasicConvModuleRNN(
-        in_chans=(2 * (nc + 1)),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_3b')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_inf = [bu_module_3b, bu_module_3, bu_module_2b,
-                  bu_module_2, bu_module_1]
+bu_modules_inf = [bu_module_3, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
@@ -328,10 +286,10 @@ im_module_2 = \
 
 im_module_3 = \
     InfConvGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(ngf * 4),
+        state_chans=(ngf * 2),
+        td_state_chans=(ngf * 2),
+        td_input_chans=(ngf * 2),
+        bu_chans=(ngf * 2),
         rand_chans=nz1,
         spatial_shape=(14, 14),
         act_func='tanh',
@@ -369,10 +327,10 @@ im_module_2 = \
 
 im_module_3 = \
     InfConvGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(ngf * 4),
+        state_chans=(ngf * 2),
+        td_state_chans=(ngf * 2),
+        td_input_chans=(ngf * 2),
+        bu_chans=(ngf * 2),
         rand_chans=nz1,
         spatial_shape=(14, 14),
         act_func='tanh',
@@ -519,8 +477,8 @@ vae_nll_cost = T.mean(vae_obs_nlls)
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: sum([kld_dict[tdm_name] for kld_dict in kld_dicts])
                 for tdm_name in kld_dicts[0].keys()}  # aggregate over refinement steps
-kl_by_td_mod = {tdm_name: T.sum(kl_by_td_mod[tdm_name], axis=1)
-                for tdm_name in kld_dicts[0].keys()}  # aggregate over latent dimensions
+# kl_by_td_mod = {tdm_name: T.sum(kl_by_td_mod[tdm_name], axis=1)
+#                 for tdm_name in kld_dicts[0].keys()}  # aggregate over latent dimensions
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])

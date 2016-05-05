@@ -269,6 +269,7 @@ class DeepSeqCondGen(object):
                                  T.flatten(cond_logvar_inf, 2),
                                  T.flatten(cond_mean_gen, 2),
                                  T.flatten(cond_logvar_gen, 2))
+            kld_z = T.sum(kld_z, axis=1)
             # get the log likelihood of the current latent samples under
             # both the proposal distribution q(z | x) and the prior p(z).
             # -- these are used when computing the IWAE bound.
