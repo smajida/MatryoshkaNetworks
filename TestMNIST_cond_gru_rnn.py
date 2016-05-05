@@ -424,7 +424,7 @@ def make_model_input(x_in):
     #     get_downsampling_masks(x_in, im_shape=(28, 28),
     #                            im_chans=1, data_mean=Xmu)
     xg_gen, xg_inf, xm_gen = \
-        get_masked_data(x_in, drop_prob=0.0, occ_dim=(5, 5),
+        get_masked_data(x_in, drop_prob=0.0, occ_shape=(5, 5),
                         occ_count=5, data_mean=Xmu)
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
