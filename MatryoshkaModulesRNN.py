@@ -127,7 +127,7 @@ class BasicConvGRUModuleRNN(object):
             "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
-        assert not (name == 'no_name'), \
+        assert not (mod_name == 'no_name'), \
             'module name is required.'
         self.state_chans = state_chans
         self.in_chans = in_chans
@@ -272,7 +272,7 @@ class GenConvGRUModuleRNN(object):
             "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
-        assert not (name == 'no_name'), \
+        assert not (mod_name == 'no_name'), \
             'module name is required.'
         self.state_chans = state_chans
         self.input_chans = input_chans
