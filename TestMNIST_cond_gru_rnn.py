@@ -436,7 +436,7 @@ im_states_inf = None
 canvas = None
 xg_gen = Xg_gen
 kld_dicts = []
-for i in range(3):
+for i in range(1):
     # xg_gen changes at each step
     xa_gen = T.concatenate([xg_gen, Xm_gen], axis=1)
     xa_inf = T.concatenate([xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
@@ -450,11 +450,11 @@ for i in range(3):
             im_states_inf=im_states_inf)
     # update predictions for missing values
     if td_states is None:
-        canvas = T.clip(res_dict['output'], -15., 15.)
+        canvas = res_dict['output']
     else:
-        canvas = T.clip(res_dict['output'] + canvas, -15., 15.)
+        canvas = res_dict['output'] + canvas
     # generator conditions on known values and predictions for missing values
-    xg_gen = sigmoid(canvas)  # ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(canvas))
+    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(T.clip(canvas, -15. 15.)))
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
@@ -462,7 +462,7 @@ for i in range(3):
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
-Xg_recon = xg_gen
+Xg_recon = sigmoid(T.clip(canvas, -15., 15.))
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
