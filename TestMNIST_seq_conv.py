@@ -115,7 +115,7 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 tanh = activations.Tanh()
-ou = activations.Sigmoid()
+sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
 #########################################
