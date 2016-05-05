@@ -26,6 +26,7 @@ def tanh_clip(x, scale=10.0):
     x = scale * tanh((1.0 / scale) * x)
     return x
 
+
 def fc_drop_func(x, unif_drop, share_mask=False):
     """
     Helper func for applying uniform dropout.
@@ -40,9 +41,10 @@ def fc_drop_func(x, unif_drop, share_mask=False):
         # use the same mask for entire batch
         if unif_drop > 0.01:
             r = cu_rng.uniform((x.shape[1],), dtype=theano.config.floatX)
-            r = r.dimshuffle('x',0)
+            r = r.dimshuffle('x', 0)
             x = x * (r > unif_drop)
     return x
+
 
 def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
     """
@@ -55,23 +57,24 @@ def conv_drop_func(x, unif_drop, chan_drop, share_mask=False):
             ru = cu_rng.uniform(x.shape, dtype=theano.config.floatX)
             x = x * (ru > unif_drop)
         if chan_drop > 0.01:
-            rc = cu_rng.uniform((x.shape[0],x.shape[1]),
+            rc = cu_rng.uniform((x.shape[0], x.shape[1]),
                                 dtype=theano.config.floatX)
             chan_mask = (rc > chan_drop)
-            x = x * chan_mask.dimshuffle(0,1,'x','x')
+            x = x * chan_mask.dimshuffle(0, 1, 'x', 'x')
     else:
         # use the same mask for entire batch
         if unif_drop > 0.01:
-            ru = cu_rng.uniform((x.shape[1],x.shape[2],x.shape[3]),
+            ru = cu_rng.uniform((x.shape[1], x.shape[2], x.shape[3]),
                                 dtype=theano.config.floatX)
-            ru = ru.dimshuffle('x',0,1,2)
+            ru = ru.dimshuffle('x', 0, 1, 2)
             x = x * (ru > unif_drop)
         if chan_drop > 0.01:
             rc = cu_rng.uniform((x.shape[1],),
                                 dtype=theano.config.floatX)
             chan_mask = (rc > chan_drop)
-            x = x * chan_mask.dimshuffle('x',0,'x','x')
+            x = x * chan_mask.dimshuffle('x', 0, 'x', 'x')
     return x
+
 
 def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
     """
@@ -83,9 +86,6 @@ def switchy_bn(acts, g=None, b=None, use_gb=True, n=None):
         bn_acts = batchnorm(acts, n=n)
     return bn_acts
 
-#######################################
-# BASIC DOUBLE FULLY-CONNECTED MODULE #
-#######################################
 
 class BasicFCPertModule(object):
     """
@@ -110,7 +110,7 @@ class BasicFCPertModule(object):
                  use_bn_params=True,
                  mod_name='basic_fc_res'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.fc_chans = fc_chans
@@ -129,7 +129,7 @@ class BasicFCPertModule(object):
         self.apply_bn = apply_bn
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -154,7 +154,7 @@ class BasicFCPertModule(object):
         self.params.extend([self.w2, self.g2, self.b2])
         # initialize convolutional projection layer parameters
         self.w3 = weight_ifn((self.in_chans, self.out_chans),
-                                "{}_w3".format(self.mod_name))
+                             "{}_w3".format(self.mod_name))
         self.g3 = gain_ifn((self.out_chans), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_chans), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
@@ -205,7 +205,7 @@ class BasicFCPertModule(object):
                 h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1.dimshuffle('x',0)
+                h1 = h1 + self.b1.dimshuffle('x', 0)
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -215,12 +215,12 @@ class BasicFCPertModule(object):
                 h2 = switchy_bn(h2, g=self.g2, b=self.b2, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h2 = h2 + self.b2.dimshuffle('x',0)
+                h2 = h2 + self.b2.dimshuffle('x', 0)
                 h2 = add_noise(h2, noise=noise)
             # apply short-cut linear layer
-            h3 = T.dot(input, self.w3)
+            # h3 = T.dot(input, self.w3)
             # combine non-linear and linear transforms of input...
-            h4 = h2 + input #h3
+            h4 = h2 + input  # + h3
         else:
             # apply short-cut linear layer
             h4 = T.dot(input, self.w3)
@@ -228,7 +228,7 @@ class BasicFCPertModule(object):
             h4 = switchy_bn(h4, g=self.g3, b=self.b3, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h4 = h4 + self.b3.dimshuffle('x',0)
+            h4 = h4 + self.b3.dimshuffle('x', 0)
             h4 = add_noise(h4, noise=noise)
         output = self.act_func(h4)
         if rand_shapes:
@@ -369,12 +369,12 @@ class FancyFCGRUModule(object):
             h1 = switchy_bn(h1, g=self.g1, b=self.b1, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1.dimshuffle('x',0)
+            h1 = h1 + self.b1.dimshuffle('x', 0)
             h1 = add_noise(h1, noise=noise)
         h1 = sigmoid(h1 + 1.)
         # split information for update/recall gates
-        r = h1[:,:self.state_chans]
-        z = h1[:,self.state_chans:]
+        r = h1[:, :self.state_chans]
+        z = h1[:, self.state_chans:]
 
         # apply recall gate to input and compute state update proposal
         if self.rand_chans > 0:
