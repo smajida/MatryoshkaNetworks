@@ -187,15 +187,6 @@ bu_module_1 = \
         act_func=bu_act_func,
         mod_name='bu_mod_1')  # (14, 14) -> (7, 7)
 
-bu_module_1b = \
-    BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_1b')  # (14, 14) -> (14, 14)
-
 bu_module_2 = \
     BasicConvModuleRNN(
         in_chans=(ngf * 1),
@@ -215,7 +206,7 @@ bu_module_2b = \
         mod_name='bu_mod_2b')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_gen = [bu_module_2b, bu_module_2, bu_module_1b, bu_module_1]
+bu_modules_gen = [bu_module_2b, bu_module_2, bu_module_1]
 
 
 ##########################################
@@ -232,15 +223,6 @@ bu_module_1 = \
         act_func=bu_act_func,
         mod_name='bu_mod_1')  # (14, 14) -> (7, 7)
 
-bu_module_1b = \
-    BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func=bu_act_func,
-        mod_name='bu_mod_1b')  # (14, 14) -> (14, 14)
-
 bu_module_2 = \
     BasicConvModuleRNN(
         in_chans=(ngf * 1),
@@ -260,7 +242,7 @@ bu_module_2b = \
         mod_name='bu_mod_2b')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_inf = [bu_module_2b, bu_module_2, bu_module_1b, bu_module_1]
+bu_modules_gen = [bu_module_2b, bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
