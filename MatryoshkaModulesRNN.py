@@ -7,6 +7,7 @@ from lib import activations
 from lib import inits
 from lib.rng import cu_rng
 from lib.theano_utils import floatX
+from lib.ops import deconv
 from MatryoshkaModules import *
 
 relu = activations.Rectify()
@@ -16,6 +17,94 @@ bce = T.nnet.binary_crossentropy
 hard_sigmoid = T.nnet.hard_sigmoid
 tanh = activations.Tanh()
 elu = activations.ELU()
+
+
+class BasicConvModuleRNN(object):
+    '''
+    Simple convolutional layer for use anywhere?
+
+    Params:
+        in_chans: number of channels in input
+        out_chans: number of channels to produce as output
+        filt_shape: filter shape, should be square and odd dim
+        stride: whether to use 'double', 'single', or 'half' stride.
+        act_func: --
+        mod_name: text name to identify this module in theano graph
+    '''
+    def __init__(self,
+                 in_chans, out_chans,
+                 filt_shape, stride='single',
+                 act_func='ident',
+                 mod_name='basic_conv'):
+        assert ((filt_shape[0] % 2) > 0), \
+            "filter dim should be odd (not even)"
+        assert (stride in ['single', 'double', 'half']), \
+            "stride should be 'single', 'double', or 'half'."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+            "invalid act_func {}.".format(act_func)
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.filt_dim = filt_shape[0]
+        self.stride = stride
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
+                             "{}_w1".format(self.mod_name))
+        self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.b1]
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input):
+        '''
+        Apply this convolutional module to the given input.
+        '''
+        bm = int((self.filt_dim - 1) / 2)  # use "same" mode convolutions
+        # apply first conv layer
+        if self.stride == 'single':  # normal, 1x1 stride
+            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        elif self.stride == 'double':  # downsampling, 2x2 stride
+            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        else:  # upsampling, 0.5x0.5 stride
+            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        # apply bias and activation
+        h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
+        h1 = self.act_func(h1)
+        return h1
 
 
 class BasicConvGRUModuleRNN(object):
@@ -818,6 +907,8 @@ class InfFCGRUModuleRNN(object):
         '''
         if self.use_td_cond:
             # simple conditioning on top-down input and recurrent state
+            td_state = T.flatten(td_state, 2)
+            td_input = T.flatten(td_input, 2)
             cond_input = T.concatenate([td_state, td_input], axis=1)
             h1 = T.dot(cond_input, self.w1_td)
             h1 = h1 + self.b1_td.dimshuffle('x', 0)
@@ -866,6 +957,101 @@ class InfFCGRUModuleRNN(object):
         out_mean = g[:, :self.rand_chans]
         out_logvar = g[:, self.rand_chans:]
         return out_mean, out_logvar, new_state
+
+
+class FCReshapeModuleRNN(object):
+    '''
+    Simple module for transforming and reshaping conv->fc or fc->conv.
+
+    -- The transformation is always applied in fully-connected shape.
+
+    Params:
+        in_shape: shape of input, i.e., (rows, cols, feats) or (feats,)
+        out_shape: shape of output, i.e., (rows, cols, feats) or (feats,)
+        act_func: --
+        mod_name: text name to identify this module in theano graph
+    '''
+    def __init__(self,
+                 in_shape,
+                 out_shape,
+                 act_func='ident',
+                 mod_name='no_name'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+            "invalid act_func {}.".format(act_func)
+        assert not (mod_name == 'no_name')
+        assert (len(in_shape) in [1, 2, 3])
+        assert (len(out_shape) in [1, 2, 3])
+        # get basic input/output shape information
+        self.in_shape = in_shape
+        self.out_shape = out_shape
+        self.out_reshape = False if (len(self.out_shape) == 1) else True
+        self.in_chans = 1
+        for c in self.in_shape:
+            self.in_chans = self.in_chans * c
+        self.out_chans = 1
+        for c in self.out_shape:
+            self.out_chans = self.out_chans * c
+        # intialize remaining stuff
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        self.w1 = weight_ifn((self.in_chans, self.out_chans),
+                             "{}_w1".format(self.mod_name))
+        self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.b1]
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input):
+        '''
+        Flatten input, apply linear transform and activation, then reshape.
+        '''
+        h1 = T.dot(T.flatten(input, 2), self.w1)
+        h1 = h1 + self.b1.dimshuffle('x', 0)
+        h1 = self.act_func(h1)
+        if self.out_reshape:
+            if len(self.out_shape) == 2:
+                output = h1.reshape(h1.shape[0], self.out_shape[0],
+                                    self.out_shape[1])
+            elif len(self.out_shape) == 3:
+                output = h1.reshape(h1.shape[0], self.out_shape[0],
+                                    self.out_shape[1], self.out_shape[2])
+        else:
+            output = h1
+        return output
 
 
 class TDModuleWrapperRNN(object):
@@ -929,6 +1115,8 @@ class TDModuleWrapperRNN(object):
             # use the updated recurrent state as output
             output = state_new
         return output, state_new
+
+
 
 
 ##############
