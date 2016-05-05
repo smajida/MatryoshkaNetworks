@@ -424,7 +424,7 @@ im_states_inf = None
 canvas = T.repeat(c0, x_in.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
-for i in range(2):
+for i in range(10):
     # record initial canvas state for each step
     xg_gen = clip_sigmoid(canvas)
     step_recons.append(xg_gen)
