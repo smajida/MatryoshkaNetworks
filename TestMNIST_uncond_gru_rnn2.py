@@ -115,40 +115,28 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# setup the top module
+# setup the (14, 14) -> (28, 28) module
 td_module_1a = \
-    GenFCGRUModuleRNN(
-        state_chans=(ngf * 4),
-        input_chans=(ngf * 4),
-        rand_chans=nz0,
+    GenConvGRUModuleRNN(
+        state_chans=(ngf * 2),
+        input_chans=(ngf * 2),
+        rand_chans=nz1,
+        spatial_shape=(14, 14),
+        filt_shape=(3, 3),
         act_func='tanh',
         mod_name='td_mod_1a')
 td_module_1b = \
-    FCReshapeModuleRNN(  # FC -> (7, 7)
-        in_shape=(ngf * 4,),
-        out_shape=(ngf * 4, 7, 7),
-        act_func=td_act_func,
-        mod_name='td_mod_1b')
-td_module_1c = \
-    BasicConvModuleRNN(  # (7, 7) -> (14, 14)
-        in_chans=(ngf * 4),
-        out_chans=(ngf * 2),
-        filt_shape=(5, 5),
-        stride='half',
-        act_func=td_act_func,
-        mod_name='td_mod_1c')
-td_module_1d = \
-    BasicConvModuleRNN(  # (14, 14) -> (28, 28)
+    BasicConvModuleRNN(
         in_chans=(ngf * 2),
         out_chans=(ngf * 1),
         filt_shape=(5, 5),
         stride='half',
-        act_func=td_act_func,
-        mod_name='td_mod_1d')
+        act_func='ident',
+        mod_name='td_mod_1b')
 td_module_1 = \
     TDModuleWrapperRNN(
         gen_module=td_module_1a,
-        mlp_modules=[td_module_1b, td_module_1c, td_module_1d],
+        mlp_modules=[td_module_1b],
         mod_name='td_mod_1')
 
 # setup the (28, 28) -> (28, 28) module
@@ -184,33 +172,24 @@ td_modules = [td_module_1, td_module_2]
 
 bu_module_1 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 4),
-        filt_shape=(5, 5),
-        stride='double',
-        act_func=bu_act_func,
-        mod_name='bu_mod_1')  # (14, 14) -> (7, 7)
-
-bu_module_1b = \
-    BasicConvModuleRNN(
         in_chans=(ngf * 1),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
-        mod_name='bu_mod_1b')  # (28, 28) -> (14, 14)
+        mod_name='bu_mod_1')  # (28, 28) -> (14, 14)
 
 bu_module_2 = \
     BasicConvModuleRNN(
         in_chans=(2 * nc),
         out_chans=(ngf * 1),
-        filt_shape=(3, 3),
+        filt_shape=(5, 5),
         stride='single',
         act_func=bu_act_func,
         mod_name='bu_mod_2')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_gen = [bu_module_2, bu_module_1b, bu_module_1]
+bu_modules_gen = [bu_module_2, bu_module_1]
 
 
 ##########################################
@@ -220,45 +199,37 @@ bu_modules_gen = [bu_module_2, bu_module_1b, bu_module_1]
 
 bu_module_1 = \
     BasicConvModuleRNN(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 4),
-        filt_shape=(5, 5),
-        stride='double',
-        act_func=bu_act_func,
-        mod_name='bu_mod_1')  # (14, 14) -> (7, 7)
-
-bu_module_1b = \
-    BasicConvModuleRNN(
         in_chans=(ngf * 1),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
         stride='double',
         act_func=bu_act_func,
-        mod_name='bu_mod_1b')  # (28, 28) -> (14, 14)
+        mod_name='bu_mod_1')  # (28, 28) -> (14, 14)
 
 bu_module_2 = \
     BasicConvModuleRNN(
         in_chans=(2 * nc),
         out_chans=(ngf * 1),
-        filt_shape=(3, 3),
+        filt_shape=(5, 5),
         stride='single',
         act_func=bu_act_func,
         mod_name='bu_mod_2')  # (28, 28) -> (28, 28)
 
 # modules must be listed in "evaluation order"
-bu_modules_inf = [bu_module_2, bu_module_1b, bu_module_1]
+bu_modules_inf = [bu_module_2, bu_module_1]
 
 #########################################
 # Setup the information merging modules #
 #########################################
 
 im_module_1 = \
-    InfFCGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(7 * 7 * ngf * 4),
-        rand_chans=nz0,
+    InfConvGRUModuleRNN(
+        state_chans=(ngf * 2),
+        td_state_chans=(ngf * 2),
+        td_input_chans=(ngf * 2),
+        bu_chans=(ngf * 2),
+        rand_chans=nz1,
+        spatial_shape=(14, 14),
         act_func='tanh',
         use_td_cond=use_td_cond,
         mod_name='im_mod_1')
@@ -282,12 +253,13 @@ im_modules_gen = [im_module_1, im_module_2]
 #########################################
 
 im_module_1 = \
-    InfFCGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(7 * 7 * ngf * 4),
-        rand_chans=nz0,
+    InfConvGRUModuleRNN(
+        state_chans=(ngf * 2),
+        td_state_chans=(ngf * 2),
+        td_input_chans=(ngf * 2),
+        bu_chans=(ngf * 2),
+        rand_chans=nz1,
+        spatial_shape=(14, 14),
         act_func='tanh',
         use_td_cond=use_td_cond,
         mod_name='im_mod_1')
@@ -304,7 +276,7 @@ im_module_2 = \
         use_td_cond=use_td_cond,
         mod_name='im_mod_2')
 
-im_modules_inf = [im_module_1, im_module_2]
+im_modules_gen = [im_module_1, im_module_2]
 
 #
 # Setup a description for where to get conditional distributions from.
