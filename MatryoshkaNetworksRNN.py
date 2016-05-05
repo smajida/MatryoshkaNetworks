@@ -167,12 +167,12 @@ class DeepSeqCondGen(object):
         res_dict['acts'] = mlp_acts
         return res_dict
 
-    def apply_im(self,
-                 input_gen,
-                 input_inf,
-                 td_states=None,
-                 im_states_gen=None,
-                 im_states_inf=None):
+    def apply_im_cond(self,
+                      input_gen,
+                      input_inf,
+                      td_states=None,
+                      im_states_gen=None,
+                      im_states_inf=None):
         '''
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
@@ -304,6 +304,133 @@ class DeepSeqCondGen(object):
         res_dict['output'] = td_outs[-1]
         res_dict['td_states'] = td_states_new
         res_dict['im_states_gen'] = im_states_gen_new
+        res_dict['im_states_inf'] = im_states_inf_new
+        res_dict['z_dict'] = z_dict
+        res_dict['kld_dict'] = kld_dict
+        res_dict['log_pz_dict'] = log_pz_dict
+        res_dict['log_qz_dict'] = log_qz_dict
+        return res_dict
+
+    def apply_im_uncond(self,
+                        input_inf,
+                        td_states=None,
+                        im_states_inf=None):
+        '''
+        Compute the merged pass over this model's bottom-up, top-down, and
+        information merging modules.
+
+        -- this does all the heavy lifting --
+
+        Inputs:
+            input_inf: input to the inferencer upsy-downsy network
+            td_states: shared TD module states at time t - 1
+            im_states_inf: inferencer IM module states at time t - 1
+        '''
+        # gather initial states for stateful modules if none were given
+        batch_size = input_inf.shape[0]
+        if td_states is None:
+            td_states = {tdm.mod_name: tdm.get_s0_for_batch(batch_size)
+                         for tdm in self.td_modules}
+        if im_states_inf is None:
+            im_states_inf = {imm.mod_name: imm.get_s0_for_batch(batch_size)
+                             for imm in self.im_modules_inf}
+        # set aside a dict for recording KLd info at each layer that requires
+        # samples from a conditional distribution over the latent variables.
+        z_dict = {}        # latent samples used in each TD module
+        kld_dict = {}      # KL(inf || gen) in each TD module
+        log_pz_dict = {}   # log p(z | x) for each TD module
+        log_qz_dict = {}   # log q(z | x) for each TD module
+        # first, run the bottom-up pass for the inference network
+        bu_res_dict_inf = self.apply_mlp(input=input_inf,
+                                         modules=self.bu_modules_inf)
+        # dicts for storing updated module states
+        td_states_new = {}
+        im_states_inf_new = {}
+        # now, run top-down pass using latent variables sampled from
+        # conditional distributions constructed by merging bottom-up and
+        # top-down information.
+        td_outs = []
+        for i, td_module in enumerate(self.td_modules):
+            # get info about this TD module's connections
+            td_mod_name = td_module.mod_name
+            td_mod_type = self.merge_info[td_mod_name]['td_type']
+            im_mod_name = self.merge_info[td_mod_name]['im_module']
+            bu_mod_name = self.merge_info[td_mod_name]['bu_module']
+            # get states and inputs for processing this TD module
+            assert (td_mod_type in ['top', 'cond'])
+            if td_mod_type == 'top':
+                # use a "dummy" TD input at the top TD module
+                td_input = 0. * td_states[td_mod_name]
+            else:
+                # use previous TD module output at other TD modules
+                td_input = td_outs[-1]  # from step t
+            td_state = td_states[td_mod_name]            # from step t - 1
+            bu_input_inf = bu_res_dict_inf[bu_mod_name]  # from step t
+            im_state_inf = im_states_inf[im_mod_name]    # from step t - 1
+            # get IM modules to apply at this step
+            im_module_inf = self.im_modules_inf_dict[im_mod_name]
+            # get conditional Gaussian parameters from generator
+            cond_mean_gen, cond_logvar_gen = \
+                im_module_inf.apply_td(td_state=td_state,
+                                       td_input=td_input)
+            cond_mean_gen = self.dist_scale[0] * cond_mean_gen
+            cond_logvar_gen = self.dist_scale[0] * cond_logvar_gen
+            # get conditional Gaussian parameters from inferencer
+            cond_mean_inf, cond_logvar_inf, im_state_inf_new = \
+                im_module_inf.apply_im(state=im_state_inf,
+                                       td_state=td_state,
+                                       td_input=td_input,
+                                       bu_input=bu_input_inf)
+            cond_mean_inf = self.dist_scale[0] * cond_mean_inf
+            cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
+            # do reparametrization for gen and inf models
+            cond_z_gen = reparametrize(cond_mean_gen, cond_logvar_gen,
+                                       rng=cu_rng)
+            cond_z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
+                                       rng=cu_rng)
+            cond_z = (self.sample_switch[0] * cond_z_inf) + \
+                ((1. - self.sample_switch[0]) * cond_z_gen)
+            # update the current TD module
+            td_output, td_state_new = \
+                td_module.apply(state=td_state, input=td_input, rand_vals=cond_z)
+            # get KL divergence between inferencer and generator
+            kld_z = gaussian_kld(T.flatten(cond_mean_inf, 2),
+                                 T.flatten(cond_logvar_inf, 2),
+                                 T.flatten(cond_mean_gen, 2),
+                                 T.flatten(cond_logvar_gen, 2))
+            kld_z = T.sum(kld_z, axis=1)
+            # get the log likelihood of the current latent samples under
+            # both the proposal distribution q(z | x) and the prior p(z).
+            # -- these are used when computing the IWAE bound.
+            log_pz = log_prob_gaussian(T.flatten(cond_z, 2),
+                                       T.flatten(cond_mean_gen, 2),
+                                       log_vars=T.flatten(cond_logvar_gen, 2),
+                                       do_sum=True)
+            # get the log likelihood of z under a default prior.
+            log_qz = log_prob_gaussian(T.flatten(cond_z, 2),
+                                       T.flatten(cond_mean_inf, 2),
+                                       log_vars=T.flatten(cond_logvar_inf, 2),
+                                       do_sum=True)
+            # record values produced while processing this TD module
+            # -- these values are all keyed by the TD module name
+            td_outs.append(td_output)
+            td_states_new[td_mod_name] = td_state_new
+            im_states_inf_new[im_mod_name] = im_state_inf_new
+            z_dict[td_mod_name] = cond_z
+            kld_dict[td_mod_name] = kld_z
+            log_pz_dict[td_mod_name] = log_pz
+            log_qz_dict[td_mod_name] = log_qz
+
+        # We return:
+        #   1. the canvas update generated by this step
+        #   2. the updated TD module states
+        #   3. the updated IM module states for gen/inf
+        #   4. the latent samples used in this canvas update
+        #   5. the KL(q || p) for each TD module
+        #   6. the log q(z|x) and log p(z|x) for each TD module
+        res_dict = {}
+        res_dict['output'] = td_outs[-1]
+        res_dict['td_states'] = td_states_new
         res_dict['im_states_inf'] = im_states_inf_new
         res_dict['z_dict'] = z_dict
         res_dict['kld_dict'] = kld_dict
