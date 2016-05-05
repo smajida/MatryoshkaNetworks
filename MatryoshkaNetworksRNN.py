@@ -264,6 +264,11 @@ class DeepSeqCondGen(object):
             # update the current TD module
             td_output, td_state_new = \
                 td_module.apply(state=td_state, input=td_input, rand_vals=cond_z)
+            # get KL divergence between inferencer and generator
+            kld_z = gaussian_kld(T.flatten(cond_mean_inf, 2),
+                                 T.flatten(cond_logvar_inf, 2),
+                                 T.flatten(cond_mean_gen, 2),
+                                 T.flatten(cond_logvar_gen, 2))
             # get the log likelihood of the current latent samples under
             # both the proposal distribution q(z | x) and the prior p(z).
             # -- these are used when computing the IWAE bound.
