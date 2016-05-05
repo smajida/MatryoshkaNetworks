@@ -456,7 +456,7 @@ x_recon = res_dict['output']
 
 print('Compiling test function...')
 inputs = [Xg_gen, Xm_gen, Xg_inf, Xm_inf]
-outputs = [output]
+outputs = [x_recon]
 test_func = theano.function(inputs, outputs)
 
 model_input = make_model_input(Xtr[0:100, :])
