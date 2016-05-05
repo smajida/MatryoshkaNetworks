@@ -1064,7 +1064,8 @@ class TDModuleWrapperRNN(object):
                     a previous state, a top-down input, and a latent input.
         mlp_modules: a list of the modules to apply to the output of gen_module.
     '''
-    def __init__(self, gen_module, mlp_modules=None):
+    def __init__(self, gen_module, mlp_modules=None, mod_name='no_name'):
+        assert not (mod_name == 'no_name')
         self.gen_module = gen_module
         self.params = [p for p in gen_module.params]
         if mlp_modules is not None:
@@ -1075,6 +1076,7 @@ class TDModuleWrapperRNN(object):
         else:
             # don't use any extra post-processing modules
             self.mlp_modules = None
+        self.mod_name = mod_name
         return
 
     def dump_params(self):
