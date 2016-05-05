@@ -454,7 +454,7 @@ for i in range(1):
     else:
         canvas = T.clip(res_dict['output'] + canvas, -15., 15.)
     # generator conditions on known values and predictions for missing values
-    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(canvas))
+    xg_gen = sigmoid(canvas)  # ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(canvas))
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
