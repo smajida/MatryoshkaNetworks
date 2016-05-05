@@ -424,8 +424,8 @@ def make_model_input(x_in):
     #     get_downsampling_masks(x_in, im_shape=(28, 28),
     #                            im_chans=1, data_mean=Xmu)
     xg_gen, xg_inf, xm_gen = \
-        get_masked_data(x_in, drop_prob=0.0, occ_shape=(5, 5),
-                        occ_count=5, data_mean=Xmu)
+        get_masked_data(x_in, drop_prob=0.0, occ_shape=(12, 12),
+                        occ_count=2, data_mean=Xmu)
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
     xg_gen = train_transform(xg_gen)
@@ -439,13 +439,12 @@ Xg_gen = T.tensor4()  # input to generator, with some parts masked out
 Xm_gen = T.tensor4()  # mask indicating parts that are masked out
 Xg_inf = T.tensor4()  # complete observation, for input to inference net
 Xm_inf = T.tensor4()  # mask for which bits to predict
-# get the full inputs to the generator and inferencer networks
-Xa_gen = T.concatenate([Xg_gen, Xm_gen], axis=1)
-Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 
 #
 # test the model implementation
 #
+Xa_gen = T.concatenate([Xg_gen, Xm_gen], axis=1)
+Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 res_dict = \
     seq_cond_gen_model.apply_im(
         input_gen=Xa_gen,
@@ -465,11 +464,6 @@ test_out = test_func(*model_input)
 print('DONE.')
 
 
-# transforms to apply to generator outputs
-def output_transform(x):
-    output = sigmoid(T.clip(x, -15.0, 15.0))
-    return output
-
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
@@ -478,16 +472,39 @@ def output_transform(x):
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 # feed all masked inputs through the inference network
-res_dict = \
-    seq_cond_gen_model.apply_im(
-        input_gen=Xa_gen,
-        input_inf=Xa_inf,
-        td_states=None,
-        im_states_gen=None,
-        im_states_inf=None)
-
-kld_dict = res_dict['kld_dict']
-Xg_recon = sigmoid(T.clip(res_dict['output'], -15., 15.))
+td_states = None
+im_states_gen = None
+im_states_inf = None
+canvas = None
+xg_gen = Xg_gen
+kld_dicts = []
+for i in range(3):
+    # xg_gen changes at each step
+    xa_gen = T.concatenate([xg_gen, Xm_gen], axis=1)
+    xa_inf = T.concatenate([xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
+    # perform pass through joint inference/generation model
+    res_dict = \
+        seq_cond_gen_model.apply_im(
+            input_gen=xa_gen,
+            input_inf=xa_inf,
+            td_states=td_states,
+            im_states_gen=im_states_gen,
+            im_states_inf=im_states_inf)
+    # update predictions for missing values
+    if td_states is None:
+        canvas = T.clip(res_dict['output'], -15., 15.)
+    else:
+        canvas = T.clip(res_dict['output'] + canvas, -15., 15.)
+    # generator conditions on known values and predictions for missing values
+    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(canvas))
+    # grab updated states for next refinement step
+    td_states = res_dict['td_states']
+    im_states_gen = res_dict['im_states_gen']
+    im_states_inf = res_dict['im_states_inf']
+    # record klds from this step
+    kld_dicts.append(res_dict['kld_dict'])
+# reconstruction uses canvas after final refinement step
+Xg_recon = xg_gen
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
@@ -500,8 +517,10 @@ vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert KL dict to aggregate KLds over inference steps
-kl_by_td_mod = {tdm_name: T.sum(tdm_kl, axis=1) for
-                tdm_name, tdm_kl in kld_dict.items()}
+kl_by_td_mod = {tdm_name: sum([kld_dict[tdm_name] for kld_dict in kld_dicts])
+                for tdm_name in kld_dicts[0].keys()}  # aggregate over refinement steps
+kl_by_td_mod = {tdm_name: T.sum(kl_by_td_mod[tdm_name], axis=1)
+                for tdm_name in kld_dicts[0].keys()}  # aggregate over latent dimensions
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
