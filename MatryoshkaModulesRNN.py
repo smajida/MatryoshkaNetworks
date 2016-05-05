@@ -1044,11 +1044,11 @@ class FCReshapeModuleRNN(object):
         h1 = self.act_func(h1)
         if self.out_reshape:
             if len(self.out_shape) == 2:
-                output = h1.reshape(h1.shape[0], self.out_shape[0],
-                                    self.out_shape[1])
+                output = h1.reshape((h1.shape[0], self.out_shape[0],
+                                    self.out_shape[1]))
             elif len(self.out_shape) == 3:
-                output = h1.reshape(h1.shape[0], self.out_shape[0],
-                                    self.out_shape[1], self.out_shape[2])
+                output = h1.reshape((h1.shape[0], self.out_shape[0],
+                                    self.out_shape[1], self.out_shape[2]))
         else:
             output = h1
         return output
