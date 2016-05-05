@@ -436,7 +436,7 @@ im_states_inf = None
 canvas = None
 xg_gen = Xg_gen
 kld_dicts = []
-for i in range(1):
+for i in range(3):
     # xg_gen changes at each step
     xa_gen = T.concatenate([xg_gen, Xm_gen], axis=1)
     xa_inf = T.concatenate([xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
