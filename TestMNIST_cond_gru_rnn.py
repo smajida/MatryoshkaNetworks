@@ -410,10 +410,9 @@ seq_cond_gen_model = \
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))  # default "initial state"
-gen_params = inf_gen_model.gen_params
-inf_params = inf_gen_model.inf_params
-all_params = inf_gen_model.all_params + [X_init]
+gen_params = seq_cond_gen_model.gen_params
+inf_params = seq_cond_gen_model.inf_params
+all_params = seq_cond_gen_model.all_params
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
