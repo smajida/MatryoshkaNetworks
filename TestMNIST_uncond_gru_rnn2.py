@@ -276,7 +276,7 @@ im_module_2 = \
         use_td_cond=use_td_cond,
         mod_name='im_mod_2')
 
-im_modules_gen = [im_module_1, im_module_2]
+im_modules_inf = [im_module_1, im_module_2]
 
 #
 # Setup a description for where to get conditional distributions from.
