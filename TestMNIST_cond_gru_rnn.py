@@ -383,7 +383,7 @@ def make_model_input(x_in):
     #                            im_chans=1, data_mean=Xmu)
     xg_gen, xg_inf, xm_gen = \
         get_masked_data(x_in, drop_prob=0.0, occ_shape=(12, 12),
-                        occ_count=2, data_mean=Xmu)
+                        occ_count=3, data_mean=Xmu)
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
     xg_gen = train_transform(xg_gen)
@@ -436,7 +436,7 @@ im_states_inf = None
 canvas = None
 xg_gen = Xg_gen
 kld_dicts = []
-for i in range(1):
+for i in range(8):
     # xg_gen changes at each step
     xa_gen = T.concatenate([xg_gen, Xm_gen], axis=1)
     xa_inf = T.concatenate([xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
@@ -454,7 +454,7 @@ for i in range(1):
     else:
         canvas = res_dict['output'] + canvas
     # generator conditions on known values and predictions for missing values
-    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(T.clip(canvas, -15. 15.)))
+    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(T.clip(canvas, -15., 15.)))
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
@@ -507,7 +507,7 @@ full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
 #################################################################
 
 # stuff for performing updates
-lrt = sharedX(0.001)
+lrt = sharedX(0.0005)
 b1t = sharedX(0.9)
 updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
 
