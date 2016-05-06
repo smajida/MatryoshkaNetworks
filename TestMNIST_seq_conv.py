@@ -595,7 +595,7 @@ for step in range(1):
     # gather Monte Carlo KLd estimates for this step
     kl_step.append(im_res_dict['kld_dict'])
     # record refined reconstruction for this step
-    x_new = x_step[-1] + im_res_dict_inf['output']
+    x_new = x_step[-1] + im_res_dict['output']
     x_step.append(x_new)
 # final step output is the reconstruction
 Xg_recon = clip_sigmoid(x_step[-1])
