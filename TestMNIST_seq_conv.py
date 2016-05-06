@@ -446,7 +446,7 @@ merge_info = {
                  'bu_source': None, 'im_source': 'im_mod_1'},
 
     'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
-                 'bu_source': None, 'im_source': im_modules_7x7[-1].mod_name},
+                 'bu_source': None, 'im_source': 'im_mod_2'},
 
     'td_mod_5': {'td_type': 'pass', 'im_module': None,
                  'bu_source': None, 'im_source': None},
