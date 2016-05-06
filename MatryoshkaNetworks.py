@@ -905,11 +905,18 @@ class CondInfGenModel(object):
             self.output_transform = lambda x: x
         else:
             self.output_transform = output_transform
-        print("Compiling sample generator...")
-        # # i'm the operator with my sample generator
-        # self.generate_samples = self._construct_generate_samples()
-        # samps = self.generate_samples(32)
-        print("DONE.")
+        # make a switch for alternating between generator and inferencer
+        # conditionals over the latent variables
+        self.sample_switch = sharedX(floatX([1.0]))
+        return
+
+    def set_sample_switch(self, source='inf'):
+        '''
+        Set the latent sample switch to use samples from the given source.
+        '''
+        assert (source_name in ['inf', 'gen'])
+        switch_val = floatX([1.]) if (source_name == 'inf') else floatX([0.])
+        self.sample_switch.set_value(switch_val)
         return
 
     def dump_params(self, f_name=None):
@@ -987,14 +994,10 @@ class CondInfGenModel(object):
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im(self, input, mode='gen', z_vals=None):
+    def apply_im(self, input_gen, input_inf):
         '''
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
-        -- mode can be either 'gen' or 'inf'.
-        -- mode determines which BU and IM modules will be used.
-        -- If z_vals is given, we use those values for the latent samples in
-           the corresponding TD module, and don't draw new samples.
 
         ++ this does all the heavy lifting ++
 
@@ -1008,25 +1011,18 @@ class CondInfGenModel(object):
         with results from the partially-completed TD pass. The IM modules can
         feed information to eachother too.
         '''
-        assert (mode in {'gen', 'inf'}), "mode must be in {'gen', 'inf'}"
         # set aside a dict for recording KLd info at each layer that requires
         # samples from a conditional distribution over the latent variables.
         z_dict = {}
-        logz_dict = {}
-        logy_dict = {}
+        kld_dict = {}
+        log_pz_dict = {}
+        log_qz_dict = {}
         # first, run the bottom-up pass
-        bu_res_dict = self.apply_bu(input=input, mode=mode)
+        bu_res_dict_gen = self.apply_bu(input=input_gen, mode='gen')
+        bu_res_dict_inf = self.apply_bu(input=input_inf, mode='inf')
         # dict for storing IM state information
-        im_res_dict = {None: None}
-        # grab the appropriate sets of BU and IM modules...
-        if mode == 'gen':
-            bu_modules = self.bu_modules_gen
-            im_modules = self.im_modules_gen
-            im_modules_dict = self.im_modules_gen_dict
-        else:
-            bu_modules = self.bu_modules_inf
-            im_modules = self.im_modules_inf
-            im_modules_dict = self.im_modules_inf_dict
+        im_res_dict_gen = {None: None}
+        im_res_dict_inf = {None: None}
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
@@ -1037,92 +1033,120 @@ class CondInfGenModel(object):
             im_mod_name = self.merge_info[td_mod_name]['im_module']
             bu_src_name = self.merge_info[td_mod_name]['bu_source']
             im_src_name = self.merge_info[td_mod_name]['im_source']
-            im_module = im_modules_dict[im_mod_name]  # this might be None
+            im_module_gen = self.im_modules_gen_dict[im_mod_name]
+            im_module_inf = self.im_modules_inf_dict[im_mod_name]
             if td_mod_type in ['top', 'cond']:
                 if td_mod_type == 'top':
-                    # top TD conditionals are based purely on BU info
-                    cond_mean_im = bu_res_dict[bu_src_name][0]
-                    cond_logvar_im = bu_res_dict[bu_src_name][1]
-                    cond_mean_im = self.dist_scale[0] * cond_mean_im
-                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
+                    # get conditional from generator
+                    cond_mean_gen = bu_res_dict_gen[bu_src_name][0]
+                    cond_logvar_gen = bu_res_dict_gen[bu_src_name][1]
+                    cond_mean_gen = self.dist_scale[0] * cond_mean_gen
+                    cond_logvar_gen = self.dist_scale[0] * cond_logvar_gen
+                    # get conditional from inferencer
+                    cond_mean_inf = bu_res_dict_inf[bu_src_name][0]
+                    cond_logvar_inf = bu_res_dict_inf[bu_src_name][1]
+                    cond_mean_inf = self.dist_scale[0] * cond_mean_inf
+                    cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
+                    # generate new latent samples via reparametrization
+                    z_gen = reparametrize(cond_mean_gen, cond_logvar_gen,
+                                          rng=cu_rng)
+                    z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
+                                          rng=cu_rng)
+                    z_vals = (self.sample_switch[0] * z_inf) + \
+                        ((1. - self.sample_switch[1]) * z_gen)
                     # feedforward through the current TD module
-                    td_act_i = td_module.apply(rand_vals=cond_rvs)
+                    td_act_i = td_module.apply(rand_vals=z_vals)
                     # compute initial state for IM pass, maybe...
-                    im_act_i = None
-                    if not (im_module is None):
-                        im_act_i = im_module.apply(rand_vals=cond_rvs)
+                    im_act_gen = None
+                    im_act_inf = None
+                    if (im_module_gen is not None):
+                        im_act_gen = im_module_gen.apply(rand_vals=z_vals)
+                        im_act_inf = im_module_inf.apply(rand_vals=z_vals)
                 else:
                     # handle conditionals based on merging BU and TD info
-                    td_info = td_acts[-1]               # info from TD pass
-                    bu_info = bu_res_dict[bu_src_name]  # info from BU pass
-                    im_info = im_res_dict[im_src_name]  # info from IM pass
-                    # get the conditional distribution SSs (Sufficient Stat s)
-                    cond_mean_im, cond_logvar_im, im_act_i = \
-                        im_module.apply_im(td_input=td_info,
-                                           bu_input=bu_info,
-                                           im_input=im_info)
-                    cond_mean_im = self.dist_scale[0] * cond_mean_im
-                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
-                    if z_vals is not None:
-                        # use previously sampled latent values
-                        cond_rvs = z_vals[td_mod_name]
-                    else:
-                        # generate new latent samples via reparametrization
-                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                                 rng=cu_rng)
+                    td_info = td_acts[-1]
+                    bu_info_gen = bu_res_dict_gen[bu_src_name]
+                    im_info_gen = im_res_dict_gen[im_src_name]
+                    bu_info_inf = bu_res_dict_inf[bu_src_name]
+                    im_info_inf = im_res_dict_inf[im_src_name]
+                    # get conditional from the generator
+                    cond_mean_gen, cond_logvar_gen, im_act_gen = \
+                        im_module_gen.apply_im(td_input=td_info,
+                                               bu_input=bu_info_gen,
+                                               im_input=im_info_gen)
+                    cond_mean_gen = self.dist_scale[0] * cond_mean_gen
+                    cond_logvar_gen = self.dist_scale[0] * cond_logvar_gen
+                    # get conditional from the inferencer
+                    cond_mean_inf, cond_logvar_inf, im_act_inf = \
+                        im_module_inf.apply_im(td_input=td_info,
+                                               bu_input=bu_info_inf,
+                                               im_input=im_info_inf)
+                    cond_mean_inf = self.dist_scale[0] * cond_mean_inf
+                    cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
+                    # generate new latent samples via reparametrization
+                    z_gen = reparametrize(cond_mean_gen, cond_logvar_gen,
+                                          rng=cu_rng)
+                    z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
+                                          rng=cu_rng)
+                    z_vals = (self.sample_switch[0] * z_inf) + \
+                        ((1. - self.sample_switch[1]) * z_gen)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=cond_rvs)
+                                               rand_vals=z_vals)
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
-                im_res_dict[im_mod_name] = im_act_i
+                im_res_dict_gen[im_mod_name] = im_act_gen
+                im_res_dict_inf[im_mod_name] = im_act_inf
+                # get KL divergence between inferencer and generator
+                kld_z = gaussian_kld(T.flatten(cond_mean_inf, 2),
+                                     T.flatten(cond_logvar_inf, 2),
+                                     T.flatten(cond_mean_gen, 2),
+                                     T.flatten(cond_logvar_gen, 2))
+                kld_z = T.sum(kld_z, axis=1)
                 # get the log likelihood of the current latent samples under
                 # both the proposal distribution q(z | x) and the prior p(z).
                 # -- these are used when computing the IWAE bound.
-                log_prob_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               T.flatten(cond_mean_im, 2),
-                                               log_vars=T.flatten(cond_logvar_im, 2),
-                                               do_sum=True)
+                log_pz = log_prob_gaussian(T.flatten(z_vals, 2),
+                                           T.flatten(cond_mean_gen, 2),
+                                           log_vars=T.flatten(cond_logvar_gen, 2),
+                                           do_sum=True)
                 # get the log likelihood of z under a default prior.
-                log_prob_y = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                               (0. * T.flatten(cond_mean_im, 2)),
-                                               log_vars=(0. * T.flatten(cond_logvar_im, 2)),
-                                               do_sum=True)
+                log_qz = log_prob_gaussian(T.flatten(z_vals, 2),
+                                           T.flatten(cond_mean_inf, 2),
+                                           log_vars=T.flatten(cond_logvar_inf, 2),
+                                           do_sum=True)
                 # record latent samples and loglikelihood for current TD module
-                logz_dict[td_mod_name] = log_prob_z
-                logy_dict[td_mod_name] = log_prob_y
-                z_dict[td_mod_name] = cond_rvs
+                z_dict[td_mod_name] = z_vals
+                kld_dict[td_mod_name] = kld_z
+                log_pz_dict[td_mod_name] = log_pz
+                log_qz_dict[td_mod_name] = log_qz
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules
-                td_info = td_acts[-1]  # incoming info from TD pass
+                td_info = td_acts[-1]
                 td_act_i = td_module.apply(input=td_info, rand_vals=None)
                 td_acts.append(td_act_i)
-                if not (im_module is None):
-                    # perform an update of the IM state
-                    im_info = im_res_dict[im_src_name]
-                    im_act_i = im_module.apply(input=im_info, rand_vals=None)
-                    im_res_dict[im_mod_name] = im_act_i
+                if not (im_module_gen is None):
+                    # perform an update of the IM state (for gen and inf)
+                    im_info_gen = im_res_dict_gen[im_src_name]
+                    im_res_dict_gen[im_mod_name] = \
+                        im_module_gen.apply(input=im_info_gen, rand_vals=None)
+                    im_info_inf = im_res_dict_inf[im_src_name]
+                    im_res_dict_inf[im_mod_name] = \
+                        im_module_inf.apply(input=im_info_inf, rand_vals=None)
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply output transform (into observation space, presumably), to get
         # the final "reconstruction" produced by the merged BU/TD pass.
-        td_output = self.output_transform(td_acts[-1])
+        output = self.output_transform(td_acts[-1])
         # package results into a handy dictionary
         im_res_dict = {}
-        im_res_dict['td_output'] = td_output
+        im_res_dict['output'] = output
         im_res_dict['td_acts'] = td_acts
-        im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict
-        im_res_dict['logz_dict'] = logz_dict
-        im_res_dict['logy_dict'] = logy_dict
+        im_res_dict['kld_dict'] = kld_dict
+        im_res_dict['log_pz_dict'] = log_pz_dict
+        im_res_dict['log_qz_dict'] = log_qz_dict
         return im_res_dict
 
     # def _construct_generate_samples(self):

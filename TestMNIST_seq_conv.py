@@ -579,35 +579,26 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
-X_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
+x_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
 for step in range(1):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
-    x_from = clip_sigmoid(X_step[-1])
-    x_to = Xg
-    x_inf = T.concatenate([x_from, x_to], axis=1)
-    im_res_dict_inf = inf_gen_model.apply_im(x_inf, mode='inf')
-    z_inf = im_res_dict_inf['z_dict']
-    logz_inf = im_res_dict_inf['logz_dict']
-    if step > 0:
-        # run the generator conditioned on things
-        x_from = clip_sigmoid(X_step[-2])
-        x_to = clip_sigmoid(X_step[-1])
-        x_gen = T.concatenate([x_from, x_to], axis=1)
-        im_res_dict_gen = inf_gen_model.apply_im(x_gen, mode='gen', z_vals=z_inf)
-        logz_gen = im_res_dict_gen['logz_dict']
+    if step == 0:
+        x1 = 0. * x_step[-1]
     else:
-        logz_gen = im_res_dict_inf['logy_dict']
+        x1 = clip_sigmoid(x_step[-2])
+    x2 = clip_sigmoid(x_step[-1])
+    x_gen = T.concatenate([x1, x2], axis=1)
+    x_inf = T.concatenate([x2, Xg], axis=1)
+    im_res_dict = inf_gen_model.apply_im(input_gen=x_gen, input_inf=x_inf)
     # gather Monte Carlo KLd estimates for this step
-    kls = {td_mod_name: (logz_inf[td_mod_name] - logz_gen[td_mod_name]) for
-           td_mod_name in logz_inf.keys()}
-    kl_step.append(kls)
-    # record variational reconstruction for this step
-    x_new = X_step[-1] + im_res_dict_inf['td_output']
-    X_step.append(x_new)
+    kl_step.append(im_res_dict['kld_dict'])
+    # record refined reconstruction for this step
+    x_new = x_step[-1] + im_res_dict_inf['output']
+    x_step.append(x_new)
 # final step output is the reconstruction
-Xg_recon = clip_sigmoid(X_step[-1])
+Xg_recon = clip_sigmoid(x_step[-1])
 
 # compute reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
@@ -619,7 +610,8 @@ vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert KL dict to aggregate KLds over inference steps
-kl_by_td_mod = {tdm_name: sum([kl[tdm_name] for kl in kl_step]) for tdm_name in logz_inf.keys()}
+kl_by_td_mod = {tdm_name: sum([kl[tdm_name] for kl in kl_step])
+                for tdm_name in kl_step[0].keys()}
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
