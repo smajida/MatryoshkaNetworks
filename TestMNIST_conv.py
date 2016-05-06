@@ -26,11 +26,7 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModules import \
-    BasicConvModule, GenTopModule, InfTopModule, \
-    GenConvPertModule, BasicConvPertModule, \
-    GenConvGRUModule, InfConvMergeModuleIMS
-from MatryoshkaNetworks import InfGenModel
+from ModelBuilders import build_mnist_conv_res
 
 sys.setrecursionlimit(100000)
 
@@ -42,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best_6deep'
+desc = 'test_conv_best_2deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,27 +61,16 @@ else:
 
 
 set_seed(123)        # seed for shared rngs
-nc = 1               # # of channels in image
 nbatch = 100         # # of examples in batch
+nc = 1               # # of channels in image
+nz0 = 32             # # of dim in top-most latent variables
 npx = 28             # # of pixels width/height of images
-nz0 = 32             # # of dim for Z0
-nz1 = 4              # # of dim for Z1
-ngf = 32             # base # of filters for conv layers in generative stuff
-ngfc = 128           # # of filters in fully connected layers of generative stuff
 nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
-multi_rand = True    # whether to use stochastic variables at multiple scales
-use_conv = True      # whether to use "internal" conv layers in gen/disc networks
-use_bn = False       # whether to use batch normalization throughout the model
-act_func = 'lrelu'   # activation func to use where they can be selected
-noise_std = 0.0      # amount of noise to inject in BU and IM modules
-use_bu_noise = False
-use_td_noise = False
-inf_mt = 0
 use_td_cond = False
-depth_7x7 = 6
-depth_14x14 = 6
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -118,351 +103,22 @@ tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
-#########################################
-# Setup the top-down processing modules #
-# -- these do generation                #
-#########################################
+# BUILD THE MODEL
+inf_gen_model = \
+    build_mnist_conv_res(
+        nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
+        act_func='lrelu', use_td_cond=True,
+        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+td_modules = inf_gen_model.td_modules
+bu_modules = inf_gen_model.bu_modules
+im_modules = inf_gen_model.im_modules
 
-# FC -> (7, 7)
-td_module_1 = \
-    GenTopModule(
-        rand_dim=nz0,
-        out_shape=(ngf * 2, 7, 7),
-        fc_dim=ngfc,
-        use_fc=True,
-        use_sc=False,
-        apply_bn=use_bn,
-        act_func=act_func,
-        mod_name='td_mod_1')
-
-# grow the (7, 7) -> (7, 7) part of network
-td_modules_7x7 = []
-for i in range(depth_7x7):
-    mod_name = 'td_mod_2{}'.format(alphabet[i])
-    new_module = \
-    GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        rand_chans=nz1,
-        filt_shape=(3,3),
-        use_rand=multi_rand,
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        act_func=act_func,
-        us_stride=1,
-        mod_name=mod_name
-    )
-    td_modules_7x7.append(new_module)
-# manual stuff for parameter sharing....
-
-# (7, 7) -> (14, 14)
-td_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='td_mod_3'
-)
-
-# grow the (14, 14) -> (14, 14) part of network
-td_modules_14x14 = []
-for i in range(depth_14x14):
-    mod_name = 'td_mod_4{}'.format(alphabet[i])
-    new_module = \
-    GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        rand_chans=nz1,
-        filt_shape=(3,3),
-        use_rand=multi_rand,
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        act_func=act_func,
-        us_stride=1,
-        mod_name=mod_name
-    )
-    td_modules_14x14.append(new_module)
-# manual stuff for parameter sharing....
-
-# (14, 14) -> (28, 28)
-td_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='td_mod_5'
-)
-
-# (28, 28) -> (28, 28)
-td_module_6 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
-    out_chans=nc,
-    apply_bn=False,
-    use_noise=False,
-    stride='single',
-    act_func='ident',
-    mod_name='td_mod_6'
-)
-
-# modules must be listed in "evaluation order"
-td_modules = [td_module_1] + \
-             td_modules_7x7 + \
-             [td_module_3] + \
-             td_modules_14x14 + \
-             [td_module_5, td_module_6]
-
-##########################################
-# Setup the bottom-up processing modules #
-# -- these do inference                  #
-##########################################
-
-# (7, 7) -> FC
-bu_module_1 = \
-InfTopModule(
-    bu_chans=(ngf*2*7*7),
-    fc_chans=ngfc,
-    rand_chans=nz0,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_1'
-)
-
-# grow the (7, 7) -> (7, 7) part of network
-bu_modules_7x7 = []
-for i in range(depth_7x7):
-    mod_name = 'bu_mod_2{}'.format(alphabet[i])
-    new_module = \
-    BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        filt_shape=(3,3),
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    bu_modules_7x7.append(new_module)
-bu_modules_7x7.reverse() # reverse, to match "evaluation order"
-
-# (14, 14) -> (7, 7)
-bu_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_3'
-)
-
-# grow the (14, 14) -> (14, 14) part of network
-bu_modules_14x14 = []
-for i in range(depth_14x14):
-    mod_name = 'bu_mod_4{}'.format(alphabet[i])
-    new_module = \
-    BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        filt_shape=(3,3),
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    bu_modules_14x14.append(new_module)
-bu_modules_14x14.reverse() # reverse, to match "evaluation order"
-
-# (28, 28) -> (14, 14)
-bu_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_5'
-)
-
-# (28, 28) -> (28, 28)
-bu_module_6 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=nc,
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_6'
-)
-
-# modules must be listed in "evaluation order"
-bu_modules = [bu_module_6, bu_module_5] + \
-             bu_modules_14x14 + \
-             [bu_module_3] + \
-             bu_modules_7x7 + \
-             [bu_module_1]
-
-
-#########################################
-# Setup the information merging modules #
-#########################################
-
-# FC -> (7, 7)
-im_module_1 = \
-GenTopModule(
-    rand_dim=nz0,
-    out_shape=(ngf*2, 7, 7),
-    fc_dim=ngfc,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_1'
-)
-
-# grow the (7, 7) -> (7, 7) part of network
-im_modules_7x7 = []
-for i in range(depth_7x7):
-    mod_name = 'im_mod_2{}'.format(alphabet[i])
-    new_module = \
-    InfConvMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        rand_chans=nz1,
-        conv_chans=(ngf*2),
-        use_conv=True,
-        use_td_cond=use_td_cond,
-        apply_bn=use_bn,
-        mod_type=inf_mt,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    im_modules_7x7.append(new_module)
-
-# (7, 7) -> (14, 14)
-im_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='im_mod_3'
-)
-
-# grow the (14, 14) -> (14, 14) part of network
-im_modules_14x14 = []
-for i in range(depth_14x14):
-    mod_name = 'im_mod_4{}'.format(alphabet[i])
-    new_module = \
-    InfConvMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        rand_chans=nz1,
-        conv_chans=(ngf*2),
-        use_conv=True,
-        use_td_cond=use_td_cond,
-        apply_bn=use_bn,
-        mod_type=inf_mt,
-        act_func=act_func,
-        mod_name=mod_name
-    )
-    im_modules_14x14.append(new_module)
-
-im_modules = [im_module_1] + \
-             im_modules_7x7 + \
-             [im_module_3] + \
-             im_modules_14x14
-
-#
-# Setup a description for where to get conditional distributions from.
-#
-merge_info = {
-    'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
-                 'bu_source': 'bu_mod_1', 'im_source': None},
-
-    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
-                 'bu_source': None, 'im_source': im_modules_7x7[-1].mod_name},
-
-    'td_mod_5': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None},
-    'td_mod_6': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None}
-}
-
-# add merge_info entries for the modules with latent variables
-for i in range(depth_7x7):
-    td_type = 'cond'
-    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
-    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
-    im_src_name = 'im_mod_1'
-    bu_src_name = 'bu_mod_3'
-    if i > 0:
-        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
-    if i < (depth_7x7 - 1):
-        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
-    # add entry for this TD module
-    merge_info[td_mod_name] = {
-        'td_type': td_type, 'im_module': im_mod_name,
-        'bu_source': bu_src_name, 'im_source': im_src_name
-    }
-for i in range(depth_14x14):
-    td_type = 'cond'
-    td_mod_name = 'td_mod_4{}'.format(alphabet[i])
-    im_mod_name = 'im_mod_4{}'.format(alphabet[i])
-    im_src_name = 'im_mod_3'
-    bu_src_name = 'bu_mod_5'
-    if i > 0:
-        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
-    if i < (depth_14x14 - 1):
-        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
-    # add entry for this TD module
-    merge_info[td_mod_name] = {
-        'td_type': td_type, 'im_module': im_mod_name,
-        'bu_source': bu_src_name, 'im_source': im_src_name
-    }
-
-
-# construct the "wrapper" object for managing all our modules
-output_transform = lambda x: sigmoid(T.clip(x, -15.0, 15.0))
-inf_gen_model = InfGenModel(
-    bu_modules=bu_modules,
-    td_modules=td_modules,
-    im_modules=im_modules,
-    sc_modules=[],
-    merge_info=merge_info,
-    output_transform=output_transform,
-    use_sc=False
-)
-
-#inf_gen_model.load_params(inf_gen_param_file)
+# inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-noise = sharedX(floatX([noise_std]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -482,14 +138,14 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+im_res_dict = inf_gen_model.apply_im(Xg)
 Xg_recon = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-log_p_x = T.sum(log_prob_bernoulli( \
-                T.flatten(Xg,2), T.flatten(Xg_recon,2),
+log_p_x = T.sum(log_prob_bernoulli(
+                T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
                 do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
@@ -528,7 +184,6 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 
 # stuff for performing updates
 lrt = sharedX(0.001)
-#lrt = sharedX(0.0005)
 b1t = sharedX(0.8)
 gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
@@ -544,7 +199,7 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -556,10 +211,10 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
-print "{0:.2f} seconds to compile theano functions".format(time()-t)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
+print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
@@ -570,14 +225,14 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0,1.0,10)
-sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
-for epoch in range(1, niter+niter_decay+1):
+kld_weights = np.linspace(0.0, 1.0, 10)
+sample_z0mb = rand_gen(size=(200, nz0))
+for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    #if ((epoch-1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    # if ((epoch-1) < len(kld_weights)):
+    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
@@ -591,24 +246,23 @@ for epoch in range(1, niter+niter_decay+1):
     g_batch_count = 0.
     i_batch_count = 0.
     v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=ntrain/nbatch):
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
         # grab a validation batch, if required
         if v_batch_count < 50:
-            start_idx = int(v_batch_count)*nbatch
-            vmb = Xva[start_idx:(start_idx+nbatch),:]
+            start_idx = int(v_batch_count) * nbatch
+            vmb = Xva[start_idx:(start_idx + nbatch), :]
         else:
-            vmb = Xva[0:nbatch,:]
+            vmb = Xva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
         # train vae on training batch
-        noise.set_value(floatX([noise_std]))
         g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1.*g_result[3])
-        vae_klds.append(1.*g_result[4])
-        gen_grad_norms.append(1.*g_result[5])
-        inf_grad_norms.append(1.*g_result[6])
+        vae_nlls.append(1. * g_result[3])
+        vae_klds.append(1. * g_result[4])
+        gen_grad_norms.append(1. * g_result[5])
+        inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
@@ -621,7 +275,6 @@ for epoch in range(1, niter+niter_decay+1):
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            noise.set_value(floatX([0.0]))
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
@@ -652,31 +305,31 @@ for epoch in range(1, niter+niter_decay+1):
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
-    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx]) \
+    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
-    i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx]) \
+    i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2i = " ".join(i_bc_strs)
     ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
+    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+        ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
     ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
+    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+        ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
-    str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
+    str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+        nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
     kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
-    str6 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format( \
-            kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
+    str6 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+        kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format( \
-            v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
+    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
+        v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
     joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
-    out_file.write(joint_str+"\n")
+    out_file.write(joint_str + "\n")
     out_file.flush()
     #################################
     # QUALITATIVE DIAGNOSTICS STUFF #
@@ -694,8 +347,8 @@ for epoch in range(1, niter+niter_decay+1):
         tr_recons = recon_func(tr_rb)
         va_recons = recon_func(va_rb)
         # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
-        va_vis_batch = np.zeros((200, nc, npx, npx))
+        tr_vis_batch = np.zeros((200, 1, npx, npx))
+        va_vis_batch = np.zeros((200, 1, npx, npx))
         for rec_pair in range(100):
             idx_in = 2 * rec_pair
             idx_out = 2 * rec_pair + 1
@@ -706,6 +359,7 @@ for epoch in range(1, niter+niter_decay+1):
         # draw images...
         grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
         grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
+
 
 
 
