@@ -64,7 +64,7 @@ class BasicConvModuleRNN(object):
         '''
         Initialize parameters for the layers in this module.
         '''
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
                              "{}_w1".format(self.mod_name))
@@ -152,7 +152,7 @@ class BasicConvGRUModuleRNN(object):
         Initialize parameters for the layers in this module.
         '''
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         full_in_chans = self.state_chans + self.in_chans
@@ -298,7 +298,7 @@ class GenConvGRUModuleRNN(object):
         Initialize parameters for the layers in this module.
         '''
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
         full_input_chans = self.state_chans + self.input_chans + self.rand_chans
@@ -440,7 +440,7 @@ class InfConvGRUModuleRNN(object):
             self.act_func = lambda x: lrelu(x)
         self.use_td_cond = use_td_cond
         self.mod_name = mod_name
-        self._init_params()  # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -448,7 +448,7 @@ class InfConvGRUModuleRNN(object):
         Initialize parameters for the layers in this module.
         '''
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         td_in_chans = self.td_state_chans + self.td_input_chans
         full_in_chans = self.state_chans + td_in_chans + self.bu_chans
@@ -642,7 +642,7 @@ class GenFCGRUModuleRNN(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self._init_params()  # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -650,7 +650,7 @@ class GenFCGRUModuleRNN(object):
         Initialize parameters for the layers in this module.
         '''
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         full_input_chans = self.state_chans + self.input_chans + self.rand_chans
         # initialize gate layer parameters
@@ -785,7 +785,7 @@ class InfFCGRUModuleRNN(object):
             self.act_func = lambda x: lrelu(x)
         self.use_td_cond = use_td_cond
         self.mod_name = mod_name
-        self._init_params()  # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -793,7 +793,7 @@ class InfFCGRUModuleRNN(object):
         Initialize parameters for the layers in this module.
         '''
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         td_in_chans = self.td_state_chans + self.td_input_chans
         full_in_chans = self.state_chans + td_in_chans + self.bu_chans
@@ -1010,7 +1010,7 @@ class FCReshapeModuleRNN(object):
         '''
         Initialize parameters for the layers in this module.
         '''
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.in_chans, self.out_chans),
                              "{}_w1".format(self.mod_name))

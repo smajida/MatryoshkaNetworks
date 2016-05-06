@@ -137,7 +137,7 @@ class BasicFCPertModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first conv layer parameters
@@ -290,7 +290,7 @@ class FancyFCGRUModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize gating parameters
@@ -451,7 +451,7 @@ class BasicFCModule(object):
         """
         Initialize parameters for the layers in this module.
         """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.in_chans, self.out_chans),
@@ -569,7 +569,7 @@ class BasicConvPertModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
@@ -759,7 +759,7 @@ class BasicConvModule(object):
         """
         Initialize parameters for the layers in this module.
         """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
@@ -868,7 +868,7 @@ class BasicConvGRUModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
@@ -1018,7 +1018,7 @@ class DiscFCModule(object):
         """
         Initialize parameters for the layers in this module.
         """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.in_dim, self.fc_dim),
@@ -1149,7 +1149,7 @@ class DiscConvResModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
@@ -1314,7 +1314,7 @@ class GenTopModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first layer parameters
@@ -1474,7 +1474,7 @@ class GenConvPertModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
@@ -1683,7 +1683,7 @@ class GenConvGRUModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         fd = self.filt_dim
@@ -1888,7 +1888,7 @@ class GenFCPertModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first conv layer parameters
@@ -2088,7 +2088,7 @@ class InfConvGRUModuleIMS(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         ############################################
@@ -2337,7 +2337,7 @@ class InfFCGRUModuleIMS(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize gating parameters
@@ -2540,7 +2540,7 @@ class InfConvMergeModuleIMS(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         ############################################
@@ -2806,7 +2806,7 @@ class InfConvMergeModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         ############################################
@@ -3054,7 +3054,7 @@ class InfFCMergeModuleIMS(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         ############################################
@@ -3307,7 +3307,7 @@ class InfFCMergeModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         ############################################
@@ -3548,7 +3548,7 @@ class InfTopModule(object):
         """
         Initialize parameters for the layers in this module.
         """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize weights for transform into fc layer
@@ -3672,7 +3672,7 @@ class MlpFCModule(object):
         Initialize parameters for the layers in this module.
         """
         self.params = []
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Orthogonal()
         gain_ifn = inits.Normal(loc=1., scale=0.02)
         bias_ifn = inits.Constant(c=0.)
         # initialize first layer parameters
