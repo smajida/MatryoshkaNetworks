@@ -31,7 +31,7 @@ from MatryoshkaModulesRNN import \
     GenFCGRUModuleRNN, FCReshapeModuleRNN, TDModuleWrapperRNN, \
     GenConvGRUModuleRNN, BasicConvModuleRNN, \
     InfFCGRUModuleRNN, InfConvGRUModuleRNN
-from MatryoshkaNetworksRNN import DeepSeqCondGen
+from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
 
@@ -354,7 +354,7 @@ merge_info = {
 
 # construct the "wrapper" object for managing all our modules
 seq_cond_gen_model = \
-    DeepSeqCondGen(
+    DeepSeqCondGenRNN(
         td_modules=td_modules,
         bu_modules_gen=bu_modules_gen,
         im_modules_gen=im_modules_gen,
