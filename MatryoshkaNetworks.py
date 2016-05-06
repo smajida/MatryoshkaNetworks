@@ -1053,7 +1053,7 @@ class CondInfGenModel(object):
                     z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
                                           rng=cu_rng)
                     z_vals = (self.sample_switch[0] * z_inf) + \
-                        ((1. - self.sample_switch[1]) * z_gen)
+                        ((1. - self.sample_switch[0]) * z_gen)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=z_vals)
                     # compute initial state for IM pass, maybe...
@@ -1089,7 +1089,7 @@ class CondInfGenModel(object):
                     z_inf = reparametrize(cond_mean_inf, cond_logvar_inf,
                                           rng=cu_rng)
                     z_vals = (self.sample_switch[0] * z_inf) + \
-                        ((1. - self.sample_switch[1]) * z_gen)
+                        ((1. - self.sample_switch[0]) * z_gen)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=z_vals)
