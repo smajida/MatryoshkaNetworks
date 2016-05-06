@@ -42,7 +42,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best'
+desc = 'test_conv_best_6deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,28 +64,28 @@ else:
     Xva = Xte
 
 
-set_seed(123)      # seed for shared rngs
-nc = 1             # # of channels in image
-nbatch = 100       # # of examples in batch
-npx = 28           # # of pixels width/height of images
-nz0 = 32           # # of dim for Z0
-nz1 = 4            # # of dim for Z1
-ngf = 32           # base # of filters for conv layers in generative stuff
-ngfc = 128         # # of filters in fully connected layers of generative stuff
-nx = npx*npx*nc    # # of dimensions in X
-niter = 150        # # of iter at starting learning rate
-niter_decay = 150   # # of iter to linearly decay learning rate to zero
-multi_rand = True   # whether to use stochastic variables at multiple scales
-use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False      # whether to use batch normalization throughout the model
-act_func = 'lrelu'  # activation func to use where they can be selected
-noise_std = 0.0     # amount of noise to inject in BU and IM modules
+set_seed(123)        # seed for shared rngs
+nc = 1               # # of channels in image
+nbatch = 100         # # of examples in batch
+npx = 28             # # of pixels width/height of images
+nz0 = 32             # # of dim for Z0
+nz1 = 4              # # of dim for Z1
+ngf = 32             # base # of filters for conv layers in generative stuff
+ngfc = 128           # # of filters in fully connected layers of generative stuff
+nx = npx * npx * nc  # # of dimensions in X
+niter = 150          # # of iter at starting learning rate
+niter_decay = 150    # # of iter to linearly decay learning rate to zero
+multi_rand = True    # whether to use stochastic variables at multiple scales
+use_conv = True      # whether to use "internal" conv layers in gen/disc networks
+use_bn = False       # whether to use batch normalization throughout the model
+act_func = 'lrelu'   # activation func to use where they can be selected
+noise_std = 0.0      # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 6
+depth_14x14 = 6
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -125,16 +125,15 @@ bce = T.nnet.binary_crossentropy
 
 # FC -> (7, 7)
 td_module_1 = \
-GenTopModule(
-    rand_dim=nz0,
-    out_shape=(ngf*2, 7, 7),
-    fc_dim=ngfc,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_1'
-)
+    GenTopModule(
+        rand_dim=nz0,
+        out_shape=(ngf * 2, 7, 7),
+        fc_dim=ngfc,
+        use_fc=True,
+        use_sc=False,
+        apply_bn=use_bn,
+        act_func=act_func,
+        mod_name='td_mod_1')
 
 # grow the (7, 7) -> (7, 7) part of network
 td_modules_7x7 = []
@@ -687,8 +686,8 @@ for epoch in range(1, niter+niter_decay+1):
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
         # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100,:]
-        va_rb = Xva[0:100,:]
+        tr_rb = Xtr[0:100, :]
+        va_rb = Xva[0:100, :]
         # get the model reconstructions
         tr_rb = train_transform(tr_rb)
         va_rb = train_transform(va_rb)
@@ -698,12 +697,12 @@ for epoch in range(1, niter+niter_decay+1):
         tr_vis_batch = np.zeros((200, nc, npx, npx))
         va_vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
-            idx_in = 2*rec_pair
-            idx_out = 2*rec_pair + 1
-            tr_vis_batch[idx_in,:,:,:] = tr_rb[rec_pair,:,:,:]
-            tr_vis_batch[idx_out,:,:,:] = tr_recons[rec_pair,:,:,:]
-            va_vis_batch[idx_in,:,:,:] = va_rb[rec_pair,:,:,:]
-            va_vis_batch[idx_out,:,:,:] = va_recons[rec_pair,:,:,:]
+            idx_in = 2 * rec_pair
+            idx_out = 2 * rec_pair + 1
+            tr_vis_batch[idx_in, :, :, :] = tr_rb[rec_pair, :, :, :]
+            tr_vis_batch[idx_out, :, :, :] = tr_recons[rec_pair, :, :, :]
+            va_vis_batch[idx_in, :, :, :] = va_rb[rec_pair, :, :, :]
+            va_vis_batch[idx_out, :, :, :] = va_recons[rec_pair, :, :, :]
         # draw images...
         grayscale_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/rec_tr_{}.png".format(result_dir, epoch))
         grayscale_grid_vis(draw_transform(va_vis_batch), (10, 20), "{}/rec_va_{}.png".format(result_dir, epoch))
