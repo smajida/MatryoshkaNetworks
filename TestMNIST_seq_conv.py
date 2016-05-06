@@ -129,7 +129,7 @@ td_module_1 = \
         out_shape=(ngf * 2, 7, 7),
         fc_dim=ngfc,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='td_mod_1')
@@ -218,7 +218,7 @@ bu_module_1 = \
         fc_chans=ngfc,
         rand_chans=nz0,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
@@ -303,7 +303,7 @@ bu_module_1 = \
         fc_chans=ngfc,
         rand_chans=nz0,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='bu_mod_1')
@@ -386,7 +386,7 @@ im_module_1 = \
         out_shape=(ngf * 2, 7, 7),
         fc_dim=ngfc,
         use_fc=True,
-        use_sc=False,
+        use_sc=True,
         apply_bn=use_bn,
         act_func=act_func,
         mod_name='im_mod_1')
@@ -528,7 +528,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 x_step = [T.repeat(X_init, Xg.shape[0], axis=0)]
 kl_step = []
-for step in range(1):
+for step in range(3):
     # run an inference pass to move from previous step's reconstruction towards
     # the target value (i.e. Xg)
     if step == 0:

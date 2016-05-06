@@ -128,7 +128,7 @@ td_module_1b = \
     FCReshapeModuleRNN(
         in_shape=(ngf * 4,),
         out_shape=(ngf * 4, 7, 7),
-        act_func=td_act_func,
+        act_func='ident',
         mod_name='td_mod_1b')
 td_module_1 = \
     TDModuleWrapperRNN(
@@ -152,7 +152,7 @@ td_module_2b = \
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
         stride='half',
-        act_func=td_act_func,
+        act_func='ident',
         mod_name='td_mod_2b')
 td_module_2 = \
     TDModuleWrapperRNN(
@@ -176,7 +176,7 @@ td_module_3b = \
         out_chans=nc,
         filt_shape=(5, 5),
         stride='half',
-        act_func=td_act_func,
+        act_func='ident',
         mod_name='td_mod_3b')
 td_module_3 = \
     TDModuleWrapperRNN(
