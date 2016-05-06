@@ -422,6 +422,11 @@ test_out = test_func(*model_input)
 print('DONE.')
 
 
+def clip_sigmoid(x):
+    output = sigmoid(T.clip(x, -15.0, 15.0))
+    return output
+
+
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
@@ -457,7 +462,7 @@ for i in range(8):
     else:
         canvas = res_dict['output'] + canvas
     # generator conditions on known values and predictions for missing values
-    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * sigmoid(T.clip(canvas, -15., 15.)))
+    xg_gen = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
@@ -465,7 +470,7 @@ for i in range(8):
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
-Xg_recon = sigmoid(T.clip(canvas, -15., 15.))
+Xg_recon = clip_sigmoid(canvas)
 step_recons.append(xg_gen)
 
 # compute masked reconstruction error from final step.
