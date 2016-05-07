@@ -930,11 +930,11 @@ class DeepRefiner(object):
             td_vals = td_module.apply(input=td_input_obs, rand_vals=cond_z)
             # apply gated update to td_input_raw
             if self.ndim == 2:
-                state_update = td_vals[:, :td_input.shape[1]]
-                gates = sigmoid(td_vals[:, td_input.shape[1]] + 1.)
+                state_update = td_vals[:, :td_input_raw.shape[1]]
+                gates = sigmoid(td_vals[:, td_input_raw.shape[1]] + 1.)
             else:
-                state_update = td_vals[:, :td_input.shape[1], :, :]
-                gates = sigmoid(td_vals[:, td_input.shape[1], :, :] + 1.)
+                state_update = td_vals[:, :td_input_raw.shape[1], :, :]
+                gates = sigmoid(td_vals[:, td_input_raw.shape[1], :, :] + 1.)
             td_output = state_update + (gates * td_input_raw)
             # get KL divergence between inferencer and generator
             kld_z = gaussian_kld(T.flatten(cond_mean_inf, 2),
