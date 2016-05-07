@@ -906,6 +906,8 @@ class DeepRefiner(object):
             im_module = self.im_modules[i]
             td_input_raw = td_outs[-1]
             td_input_obs = obs_transform(td_input_raw)
+            bu_input = T.concatenate([input_inf, td_input_obs,
+                                     (input_inf - td_input_obs)], axis=1)
             # get conditional Gaussian parameters from generator
             cond_mean_gen, cond_logvar_gen = \
                 im_module.apply_td(td_input=td_input_obs)
@@ -914,7 +916,7 @@ class DeepRefiner(object):
             # get conditional Gaussian parameters from inferencer
             cond_mean_inf, cond_logvar_inf = \
                 im_module.apply_im(td_input=td_input_obs,
-                                   bu_input=T.concatenate([input_inf, td_input_obs], axis=1))
+                                   bu_input=bu_input)
             cond_mean_inf = self.dist_scale[0] * cond_mean_inf
             cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
             # do reparametrization for gen and inf models

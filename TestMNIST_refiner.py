@@ -158,7 +158,7 @@ rim_im_1 = \
         mod_name='rim_im_1')
 rim_cm_1 = \
     BasicConvModuleNEW(
-        in_chans=(nc * 2),
+        in_chans=(nc * 3),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
         stride='single',
@@ -214,7 +214,7 @@ refine_dict = \
     refiner_model.apply_im(
         input_gen=xg_raw,
         input_inf=Xg,
-        clip_sigmoid)
+        obs_transform=clip_sigmoid)
 kld_dict_r = refine_dict['kld_dict']
 Xg_recon = clip_sigmoid(refine_dict['output'])
 
