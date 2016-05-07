@@ -903,6 +903,7 @@ class DeepRefiner(object):
         td_outs = [input_gen]
         for i, td_module in enumerate(self.td_modules):
             # get the IM module associated with this TD module
+            td_mod_name = td_module.mod_name
             im_module = self.im_modules[i]
             td_input_raw = td_outs[-1]
             td_input_obs = obs_transform(td_input_raw)
