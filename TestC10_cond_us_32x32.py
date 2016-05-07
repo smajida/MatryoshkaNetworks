@@ -141,8 +141,8 @@ def estimate_whitening_transform(X, samples=10):
     return W, mu
 
 
-def nats2bpp(nats):
-    bpp = (nats / (npx * npx * nc)) / np.log(2.)
+def nats2bpp(nats, obs_dim=(npx * npx * nc)):
+    bpp = (nats / obs_dim) / np.log(2.)
     return bpp
 
 
@@ -150,18 +150,19 @@ def check_gauss_bpp(x, x_te):
     from scipy import stats
     print('Estimating data ll with Gaussian...')
     mu, sigma = estimate_gauss_params(x, samples=10)
+    obs_dim = x.shape[1]
 
     # evaluate on "train" set
     x_f = fuzz_data(x, scale=1., rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
-    print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
+    print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
 
     # evaluate on "test" set
     x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
     ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
     mean_nll = -1. * np.mean(ll)
-    print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll)))
+    print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
 
     # test with shrinking error
     alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
@@ -172,7 +173,7 @@ def check_gauss_bpp(x, x_te):
         for beta in [0.6, 0.4, 0.2, 0.1]:
             ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), (beta * sigma))
             mean_nll = -1. * np.mean(ll)
-            print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
+            print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
     return
 
 xtr = get_downsampled_data(Xtr, im_shape=(32, 32), im_chans=3,
