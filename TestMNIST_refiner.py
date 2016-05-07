@@ -76,8 +76,8 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -145,7 +145,12 @@ td_mod_refine_1 = \
         gen_module=rtd_td_1,
         mlp_modules=[rtd_cm_1],
         mod_name='td_mod_refine_1')
-td_modules_refine = [td_mod_refine_1]
+td_mod_refine_2 = \
+    TDModuleWrapperNEW(
+        gen_module=rtd_td_1,
+        mlp_modules=[rtd_cm_1],
+        mod_name='td_mod_refine_2')
+td_modules_refine = [td_mod_refine_1, td_mode_refine_2]
 
 # IM modules for the refiner
 rim_im_1 = \
@@ -170,7 +175,12 @@ im_mod_refine_1 = \
         inf_module=rim_im_1,
         mlp_modules=[rim_cm_1],
         mod_name='im_mod_refine_1')
-im_modules_refine = [im_mod_refine_1]
+im_mod_refine_2 = \
+    IMModuleWrapperNEW(
+        inf_module=rim_im_1,
+        mlp_modules=[rim_cm_1],
+        mod_name='im_mod_refine_2')
+im_modules_refine = [im_mod_refine_1, im_mod_refine_2]
 
 # BUILD THE REFINER
 refiner_model = \
@@ -282,11 +292,11 @@ print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
                  vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs, vae_layer_klds]
+                 vae_obs_costs, vae_layer_klds, vae_layer_klds_r]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs', 'vae_layer_klds']
+              'vae_obs_costs', 'vae_layer_klds', 'vae_layer_klds_r']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
@@ -317,6 +327,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_epoch_costs = [0. for i in range(5)]
     i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
+    epoch_layer_klds_r = [0. for i in range(len(vae_layer_names_r))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
@@ -344,6 +355,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
+        batch_layer_klds_r = g_result[9]
+        epoch_layer_klds_r = [(v1 + v2) for v1, v2 in zip(batch_layer_klds_r, epoch_layer_klds_r)]
         g_batch_count += 1
         # train inference model on samples from the generator
         # if epoch > 5:
@@ -354,7 +367,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # evaluate vae on validation batch
         if v_batch_count < 25:
             v_result = g_eval_func(vmb_img)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
         # cut learning rate in half
@@ -382,6 +395,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
+    epoch_layer_klds_r = [(c / g_batch_count) for c in epoch_layer_klds_r]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
@@ -403,9 +417,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
+    kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names_r, epoch_layer_klds_r)]
+    str8 = "    refine kld -- {}".format(" ".join(kld_strs))
+    str9 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8, str9])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
