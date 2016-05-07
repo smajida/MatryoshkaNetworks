@@ -65,7 +65,7 @@ niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False      # whether to use batch normalization throughout the model
+use_bn = True      # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -747,7 +747,7 @@ inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100,:])) # cheeky model implementation test
+test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -774,15 +774,15 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0,1.0,25)
-sample_z0mb = rand_gen(size=(200, nz0)) # root noise for visualizing samples
-for epoch in range(1, niter+niter_decay+1):
+kld_weights = np.linspace(0.0, 1.0, 25)
+sample_z0mb = rand_gen(size=(200, nz0))
+for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    #lam_kld.set_value(floatX([1.0]))
+    # if ((epoch-1) < len(kld_weights)):
+    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
