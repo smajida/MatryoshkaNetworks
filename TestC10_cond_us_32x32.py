@@ -15,9 +15,9 @@ import theano.tensor as T
 from lib import activations
 from lib import updates
 from lib import inits
-from lib.ops import log_mean_exp, binarize_data
-from lib.costs import log_prob_bernoulli
-from lib.vis import grayscale_grid_vis
+from lib.ops import log_mean_exp, binarize_data, fuzz_data
+from lib.costs import log_prob_bernoulli, log_prob_gaussian
+from lib.vis import grayscale_grid_vis, color_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import \
