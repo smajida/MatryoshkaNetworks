@@ -936,7 +936,7 @@ class DeepRefiner(object):
             else:
                 state_update = td_vals[:, :td_input_raw.shape[1], :, :]
                 gates = sigmoid(td_vals[:, td_input_raw.shape[1], :, :] + 1.)
-            td_output = state_update + (gates * td_input_raw)
+            td_output = state_update + td_input_raw  # (gates * td_input_raw)
             # get KL divergence between inferencer and generator
             kld_z = gaussian_kld(T.flatten(cond_mean_inf, 2),
                                  T.flatten(cond_logvar_inf, 2),
