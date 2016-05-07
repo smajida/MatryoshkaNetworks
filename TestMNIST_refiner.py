@@ -234,7 +234,7 @@ vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in 
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 
 # get KL-divergences from refiner
-kld_tuples_r = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict_r.items()]
+kld_tuples_r = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dict_r.items()]
 vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples_r])
 vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
 
