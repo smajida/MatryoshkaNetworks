@@ -153,6 +153,7 @@ rim_im_1 = \
         td_chans=nc,
         bu_chans=(ngf * 2),
         rand_chans=(nz1 * 2),
+        conv_chans=(ngf * 2),
         act_func='lrelu',
         use_td_cond=False,
         mod_name='rim_im_1')
