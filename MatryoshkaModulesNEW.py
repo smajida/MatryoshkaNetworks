@@ -1549,7 +1549,7 @@ class IMModuleWrapperNEW(object):
             mlp_out = bu_input
         if td_input is None:
             td_input = mlp_out
-        cond_mean, cond_logvar = self.inf_module.apply(mlp_out, td_input)
+        cond_mean, cond_logvar = self.inf_module.apply_im(mlp_out, td_input)
         return output
 
 
