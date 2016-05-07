@@ -150,7 +150,7 @@ td_mod_refine_2 = \
         gen_module=rtd_td_1,
         mlp_modules=[rtd_cm_1],
         mod_name='td_mod_refine_2')
-td_modules_refine = [td_mod_refine_1, td_mode_refine_2]
+td_modules_refine = [td_mod_refine_1, td_mod_refine_2]
 
 # IM modules for the refiner
 rim_im_1 = \
