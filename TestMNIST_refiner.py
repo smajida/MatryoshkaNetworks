@@ -135,7 +135,7 @@ rtd_td_1 = \
 rtd_cm_1 = \
     BasicConvModuleNEW(
         in_chans=(ngf * 2),
-        out_chans=nc,
+        out_chans=(nc + 1),
         filt_shape=(3, 3),
         stride='single',
         act_func='ident',
