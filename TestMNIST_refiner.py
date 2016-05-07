@@ -168,7 +168,8 @@ rim_cm_1 = \
 im_mod_refine_1 = \
     IMModuleWrapperNEW(
         inf_module=rim_im_1,
-        mlp_modules=[rim_cm_1])
+        mlp_modules=[rim_cm_1],
+        mod_name='im_mod_refine_1')
 im_modules_refine = [im_mod_refine_1]
 
 # BUILD THE REFINER
