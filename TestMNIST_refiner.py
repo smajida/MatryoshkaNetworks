@@ -76,8 +76,8 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 2
-depth_14x14 = 2
+depth_7x7 = 1
+depth_14x14 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -186,8 +186,8 @@ def clip_sigmoid(x):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-gen_params = inf_gen_model.gen_params
-inf_params = inf_gen_model.inf_params
+gen_params = inf_gen_model.gen_params + refiner_model.gen_params
+inf_params = inf_gen_model.inf_params + refiner_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
@@ -204,19 +204,19 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
-# run an inference and reconstruction pass through the generative stuff
+# run an inference and reconstruction pass through the primary generator
 im_res_dict = inf_gen_model.apply_im(Xg)
+kld_dict = im_res_dict['kld_dict']
 xg_raw = im_res_dict['td_output']
 
+# run an inference and reconstruction pass through the refiner
 refine_dict = \
     refiner_model.apply_im(
         input_gen=xg_raw,
         input_inf=Xg,
         clip_sigmoid)
+kld_dict_r = refine_dict['kld_dict']
 Xg_recon = clip_sigmoid(refine_dict['output'])
-kld_dict = im_res_dict['kld_dict']
-log_p_z = sum(im_res_dict['log_p_z'])
-log_q_z = sum(im_res_dict['log_q_z'])
 
 log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
@@ -230,16 +230,18 @@ vae_nll_cost = T.mean(vae_obs_nlls)
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+
+# get KL-divergences from refiner
+kld_tuples_r = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict_r.items()]
+vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples_r])
+vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
+
 # compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples]) + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
 vae_kld_cost = T.mean(vae_obs_klds)
 
-# compute per-layer KL-divergence part of cost
-alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
-alt_kld_cost = T.mean(sum(alt_layer_klds))
-
 # compute the KLd cost to use for optimization
-opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+opt_kld_cost = lam_kld[0] * vae_kld_cost
 
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
@@ -259,8 +261,8 @@ Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 # stuff for performing updates
 lrt = sharedX(0.001)
 b1t = sharedX(0.8)
-gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
-inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
+gen_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=100.0)
+inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=100.0)
 
 # build training cost and update functions
 t = time()
@@ -342,10 +344,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 5:
-            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-            i_result = i_train_func(smb_img)
-            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        # if epoch > 5:
+        #     smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #     i_result = i_train_func(smb_img)
+        #     i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
