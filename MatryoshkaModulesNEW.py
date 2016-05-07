@@ -19,7 +19,7 @@ tanh = activations.Tanh()
 elu = activations.ELU()
 
 
-class BasicConvModuleRNN(object):
+class BasicConvModuleNEW(object):
     '''
     Simple convolutional layer for use anywhere?
 
@@ -959,7 +959,294 @@ class InfFCGRUModuleRNN(object):
         return out_mean, out_logvar, new_state
 
 
-class FCReshapeModuleRNN(object):
+class GenConvModuleNEW(object):
+    '''
+    Generator module that transforms a top-down input and some latent
+    variables into an output.
+    '''
+    def __init__(self,
+                 in_chans, out_chans, conv_chans, rand_chans,
+                 filt_shape, act_func='relu',
+                 mod_name='gm_conv'):
+        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
+            "filt_shape must be (3, 3) or (5, 5)."
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+            "invalid act_func {}.".format(act_func)
+        self.in_chans = in_chans
+        self.out_chans = out_chans
+        self.conv_chans = conv_chans
+        self.rand_chans = rand_chans
+        self.filt_dim = filt_shape[0]
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        self.params = []
+        weight_ifn = inits.Orthogonal()
+        bias_ifn = inits.Constant(c=0.)
+        fd = self.filt_dim
+        # initialize first conv layer parameters
+        self.w1 = weight_ifn((self.conv_chans, (self.in_chans + self.rand_chans), fd, fd),
+                             "{}_w1".format(self.mod_name))
+        self.b1 = bias_ifn((self.conv_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.b1])
+        # initialize second conv layer parameters
+        self.w2 = weight_ifn((self.out_chans, self.conv_chans, fd, fd),
+                             "{}_w2".format(self.mod_name))
+        self.b2 = bias_ifn((self.out_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.b2])
+        return
+
+    def share_params(self, source_module):
+        '''
+        Set parameters in this module to be shared with source_module.
+        -- This just sets our parameter info to point to the shared variables
+           used by source_module.
+        '''
+        self.params = []
+        # share first conv layer parameters
+        self.w1 = source_module.w1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.b1])
+        # share second conv layer parameters
+        self.w2 = source_module.w2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.b2])
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, rand_vals):
+        '''
+        Apply this generator module to some input.
+        '''
+        bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
+
+        full_input = T.concatenate([input, rand_vals], axis=1)
+        # apply first conv layer
+        h1 = dnn_conv(full_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
+        h1 = self.act_func(h1)
+        # apply second conv layer
+        h2 = dnn_conv(h1, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        h2 = h2 + self.b2.dimshuffle('x', 0, 'x', 'x')
+        h2 = self.act_func(h2)
+        return h2
+
+
+class InfConvMergeModuleNEW(object):
+    '''
+    Module for merging bottom-up and top-down information in a deep generative
+    convolutional network with multiple layers of latent variables.
+
+    Params:
+        td_chans: number of channels in the "top-down" inputs to module
+        bu_chans: number of channels in the "bottom-up" inputs to module
+        rand_chans: number of latent channels that we want conditionals for
+        conv_chans: number of channels in the "internal" convolution layer
+        act_func: ---
+        use_td_cond: whether to condition on TD info
+        mod_name: text name for identifying module in theano graph
+    '''
+    def __init__(self,
+                 td_chans, bu_chans, rand_chans, conv_chans,
+                 act_func='relu', use_td_cond=False,
+                 mod_name='no_name'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+            "invalid act_func {}.".format(act_func)
+        assert not (mod_name == 'no_name')
+        self.td_chans = td_chans
+        self.bu_chans = bu_chans
+        self.rand_chans = rand_chans
+        self.conv_chans = conv_chans
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.use_td_cond = use_td_cond
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        self.params = []
+        weight_ifn = inits.Orthogonal()
+        bias_ifn = inits.Constant(c=0.)
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize hidden conv layer params
+        self.w1_im = weight_ifn((self.conv_chans, (self.td_chans + self.bu_chans), 3, 3),
+                                "{}_w1_im".format(self.mod_name))
+        self.b1_im = bias_ifn((self.conv_chans), "{}_b1_im".format(self.mod_name))
+        self.params.extend([self.w1_im, self.b1_im])
+        # initialize conditional distribution params
+        self.w2_im = weight_ifn((2 * self.rand_chans, self.conv_chans, 3, 3),
+                                "{}_w2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2 * self.rand_chans), "{}_b2_im".format(self.mod_name))
+        self.params.extend([self.w2_im, self.b2_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = weight_ifn((self.conv_chans, self.td_chans, 3, 3),
+                                    "{}_w1_td".format(self.mod_name))
+            self.b1_td = bias_ifn((self.conv_chans), "{}_b1_td".format(self.mod_name))
+            self.params.extend([self.w1_td, self.b1_td])
+            # initialize second conv layer parameters
+            self.w2_td = weight_ifn((2 * self.rand_chans, self.conv_chans, 3, 3),
+                                    "{}_w2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2 * self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.params.extend([self.w2_td, self.b2_td])
+        return
+
+    def share_params(self, source_module):
+        '''
+        Set this module to share parameters with source_module.
+        '''
+        self.params = []
+        ############################################
+        # Initialize "inference" model parameters. #
+        ############################################
+        # initialize first conv layer parameters
+        self.w1_im = source_module.w1_im
+        self.b1_im = source_module.b1_im
+        self.params.extend([self.w1_im, self.b1_im])
+        # initialize second conv layer parameters
+        self.w2_im = source_module.w2_im
+        self.b2_im = source_module.b2_im
+        self.params.extend([self.w2_im, self.b2_im])
+        # setup params for implementing top-down conditioning
+        if self.use_td_cond:
+            self.w1_td = source_module.w1_td
+            self.b1_td = source_module.b1_td
+            self.params.extend([self.w1_td, self.b1_td])
+            # initialize second conv layer parameters
+            self.w2_td = source_module.w2_td
+            self.b2_td = source_module.b2_td
+            self.params.extend([self.w2_td, self.b2_td])
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        # load info-merge parameters
+        self.w1_im.set_value(floatX(param_dict['w1_im']))
+        self.b1_im.set_value(floatX(param_dict['b1_im']))
+        self.w2_im.set_value(floatX(param_dict['w2_im']))
+        self.b2_im.set_value(floatX(param_dict['b2_im']))
+        if self.use_td_cond:
+            self.w1_td.set_value(floatX(param_dict['w1_td']))
+            self.b1_td.set_value(floatX(param_dict['b1_td']))
+            self.w2_td.set_value(floatX(param_dict['w2_td']))
+            self.b2_td.set_value(floatX(param_dict['b2_td']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        # dump info-merge conditioning parameters
+        param_dict['w1_im'] = self.w1_im.get_value(borrow=False)
+        param_dict['b1_im'] = self.b1_im.get_value(borrow=False)
+        param_dict['w2_im'] = self.w2_im.get_value(borrow=False)
+        param_dict['b2_im'] = self.b2_im.get_value(borrow=False)
+        if self.use_td_cond:
+            param_dict['w1_td'] = self.w1_td.get_value(borrow=False)
+            param_dict['b1_td'] = self.b1_td.get_value(borrow=False)
+            param_dict['w2_td'] = self.w2_td.get_value(borrow=False)
+            param_dict['b2_td'] = self.b2_td.get_value(borrow=False)
+        return param_dict
+
+    def apply_td(self, td_input):
+        '''
+        Put distributions over stuff based on td_input.
+        '''
+        if self.use_td_cond:
+            # compute a conditional distribution from the top-down input
+            h1 = dnn_conv(td_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
+            h1 = h1 + self.b1_td.dimshuffle('x', 0, 'x', 'x')
+            h1 = self.act_func(h1)
+            h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
+            h2 = h2 + self.b2_td.dimshuffle('x', 0, 'x', 'x')
+            out_mean = h2[:, :self.rand_chans, :, :]
+            out_logvar = h2[:, self.rand_chans:, :, :]
+        else:
+            batch_size = td_input.shape[0]
+            rows = td_input.shape[2]
+            cols = td_input.shape[3]
+            rand_shape = (batch_size, self.rand_chans, rows, cols)
+            out_mean = cu_rng.normal(size=rand_shape, avg=0.0, std=0.0001,
+                                     dtype=theano.config.floatX)
+            out_logvar = cu_rng.normal(size=rand_shape, avg=0.0, std=0.0001,
+                                       dtype=theano.config.floatX)
+        return out_mean, out_logvar
+
+    def apply_im(self, td_input, bu_input):
+        '''
+        Combine td_input, bu_input, and im_input to compute stuff.
+        '''
+        # stack top-down and bottom-up inputs on top of each other
+        full_input = T.concatenate([td_input, bu_input], axis=1)
+
+        # apply hidden conv layer
+        h1 = dnn_conv(full_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
+        h1 = h1 + self.b1_im.dimshuffle('x', 0, 'x', 'x')
+        h1 = self.act_func(h1)
+
+        # apply conditonal distribution layer
+        h2 = dnn_conv(h1, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
+        h2 = h2 + self.b2_im.dimshuffle('x', 0, 'x', 'x')
+
+        # get the conditional distribution parameters
+        out_mean = h2[:, :self.rand_chans, :, :]
+        out_logvar = h2[:, self.rand_chans:, :, :]
+        return out_mean, out_logvar
+
+
+class FCReshapeModule(object):
     '''
     Simple module for transforming and reshaping conv->fc or fc->conv.
 
@@ -1126,6 +1413,144 @@ class TDModuleWrapperRNN(object):
         return output, state_new
 
 
+class TDModuleWrapperNEW(object):
+    '''
+    Wrapper around a generative TD module and an optional feedforward
+    sequence of extra "post-processing" modules.
+    -- This is for stateless modules.
+
+    Params:
+        gen_module: the first module in this TD module to apply. Inputs are
+                    a top-down input and a latent input.
+        mlp_modules: a list of the modules to apply to the output of gen_module.
+    '''
+    def __init__(self, gen_module, mlp_modules=None, mod_name='no_name'):
+        assert not (mod_name == 'no_name')
+        self.gen_module = gen_module
+        self.params = [p for p in gen_module.params]
+        if mlp_modules is not None:
+            # use some extra post-processing modules
+            self.mlp_modules = [m for m in mlp_modules]
+            for mlp_mod in self.mlp_modules:
+                self.params.extend(mlp_mod.params)
+        else:
+            # don't use any extra post-processing modules
+            self.mlp_modules = None
+        self.mod_name = mod_name
+        return
+
+    def dump_params(self):
+        '''
+        Dump params for later reloading by self.load_params.
+        '''
+        mod_param_dicts = [self.gen_module.dump_params()]
+        if self.mlp_modules is not None:
+            mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
+        return mod_param_dicts
+
+    def load_params(self, param_dict=None):
+        '''
+        Load params from the output of self.dump_params.
+        '''
+        self.gen_module.load_params(param_dict=param_dict[0])
+        if self.mlp_modules is not None:
+            for pdict, mod in zip(param_dict[1:], self.mlp_modules):
+                mod.load_params(param_dict=pdict)
+        return
+
+    def apply(self, input, rand_vals):
+        '''
+        Process the gen_module, then apply self.mlp_modules.
+        '''
+        h1 = self.gen_module.apply(input, rand_vals)
+        if self.mlp_modules is not None:
+            # feedforward through the MLP modules to get a new output
+            acts = None
+            for mod in self.mlp_modules:
+                if acts is None:
+                    acts = [mod.apply(h1)]
+                else:
+                    acts.append(mod.apply(acts[-1]))
+            output = acts[-1]
+        else:
+            # use the updated recurrent state as output
+            output = h1
+        return output
+
+
+class IMModuleWrapperNEW(object):
+    '''
+    Wrapper around a conditional IM module and an optional feedforward
+    sequence of extra "pre-processing" modules.
+    -- This is for stateless modules.
+
+    Params:
+        inf_module: the final module in this IM module to apply. This takes a
+                    bottom-up input, from the mlp_modules or direct from user.
+        mlp_modules: a list of modules to apply to get an input for gen_module.
+    '''
+    def __init__(self, inf_module, mlp_modules=None, mod_name='no_name'):
+        assert not (mod_name == 'no_name')
+        self.inf_module = inf_module
+        self.rand_chans = self.inf_module.rand_chans
+        self.params = [p for p in inf_module.params]
+        if mlp_modules is not None:
+            # use some extra post-processing modules
+            self.mlp_modules = [m for m in mlp_modules]
+            for mlp_mod in self.mlp_modules:
+                self.params.extend(mlp_mod.params)
+        else:
+            # don't use any extra post-processing modules
+            self.mlp_modules = None
+        self.mod_name = mod_name
+        return
+
+    def dump_params(self):
+        '''
+        Dump params for later reloading by self.load_params.
+        '''
+        mod_param_dicts = [self.inf_module.dump_params()]
+        if self.mlp_modules is not None:
+            mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
+        return mod_param_dicts
+
+    def load_params(self, param_dict=None):
+        '''
+        Load params from the output of self.dump_params.
+        '''
+        self.inf_module.load_params(param_dict=param_dict[0])
+        if self.mlp_modules is not None:
+            for pdict, mod in zip(param_dict[1:], self.mlp_modules):
+                mod.load_params(param_dict=pdict)
+        return
+
+    def apply_td(self, td_input):
+        '''
+        Apply the underlying inf module's `apply_td`.
+        '''
+        cond_mean, cond_logvar = self.inf_module.apply_td(td_input)
+        return cond_mean, cond_logvar
+
+    def apply_im(self, bu_input, td_input=None):
+        '''
+        Process self.mlp_modules, then apply self.inf_module.
+        '''
+        if self.mlp_modules is not None:
+            # feedforward through the MLP modules to get a new output
+            acts = None
+            for mod in self.mlp_modules:
+                if acts is None:
+                    acts = [mod.apply(bu_input)]
+                else:
+                    acts.append(mod.apply(acts[-1]))
+            mlp_out = acts[-1]
+        else:
+            # use the updated recurrent state as output
+            mlp_out = bu_input
+        if td_input is None:
+            td_input = mlp_out
+        cond_mean, cond_logvar = self.inf_module.apply(mlp_out, td_input)
+        return output
 
 
 ##############

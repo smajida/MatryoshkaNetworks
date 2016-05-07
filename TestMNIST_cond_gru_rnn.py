@@ -27,11 +27,11 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModulesRNN import \
-    GenFCGRUModuleRNN, FCReshapeModuleRNN, TDModuleWrapperRNN, \
-    GenConvGRUModuleRNN, BasicConvModuleRNN, \
+from MatryoshkaModulesNEW import \
+    GenFCGRUModuleRNN, FCReshapeModule, TDModuleWrapperRNN, \
+    GenConvGRUModuleRNN, BasicConvModuleNEW, \
     InfFCGRUModuleRNN, InfConvGRUModuleRNN
-from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
+from MatryoshkaNetworksNEW import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
 
@@ -125,7 +125,7 @@ td_module_1a = \
         act_func='tanh',
         mod_name='td_mod_1a')
 td_module_1b = \
-    FCReshapeModuleRNN(
+    FCReshapeModule(
         in_shape=(ngf * 4,),
         out_shape=(ngf * 4, 7, 7),
         act_func=td_act_func,
@@ -147,7 +147,7 @@ td_module_2a = \
         act_func='tanh',
         mod_name='td_mod_2a')
 td_module_2b = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 4),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
@@ -171,7 +171,7 @@ td_module_3a = \
         act_func='tanh',
         mod_name='td_mod_3a')
 td_module_3b = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 2),
         out_chans=nc,
         filt_shape=(5, 5),
@@ -192,7 +192,7 @@ td_modules = [td_module_1, td_module_2, td_module_3]
 ##########################################
 
 bu_module_1 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 4),
         out_chans=(ngf * 4),
         filt_shape=(3, 3),
@@ -201,7 +201,7 @@ bu_module_1 = \
         mod_name='bu_mod_1')  # (7, 7) -> (7, 7)
 
 bu_module_2 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 2),
         out_chans=(ngf * 4),
         filt_shape=(5, 5),
@@ -210,7 +210,7 @@ bu_module_2 = \
         mod_name='bu_mod_2')  # (14, 14) -> (7, 7)
 
 bu_module_3 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(nc + 1),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
@@ -228,7 +228,7 @@ bu_modules_gen = [bu_module_3, bu_module_2, bu_module_1]
 ##########################################
 
 bu_module_1 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 4),
         out_chans=(ngf * 4),
         filt_shape=(3, 3),
@@ -237,7 +237,7 @@ bu_module_1 = \
         mod_name='bu_mod_1')  # (7, 7) -> (7, 7)
 
 bu_module_2 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 2),
         out_chans=(ngf * 4),
         filt_shape=(5, 5),
@@ -246,7 +246,7 @@ bu_module_2 = \
         mod_name='bu_mod_2')  # (14, 14) -> (7, 7)
 
 bu_module_3 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(2 * (nc + 1)),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),

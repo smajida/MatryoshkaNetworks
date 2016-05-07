@@ -27,11 +27,11 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModulesRNN import \
-    GenFCGRUModuleRNN, FCReshapeModuleRNN, TDModuleWrapperRNN, \
-    GenConvGRUModuleRNN, BasicConvModuleRNN, \
+from MatryoshkaModulesNEW import \
+    GenFCGRUModuleRNN, FCReshapeModule, TDModuleWrapperRNN, \
+    GenConvGRUModuleRNN, BasicConvModuleNEW, \
     InfFCGRUModuleRNN, InfConvGRUModuleRNN
-from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
+from MatryoshkaNetworksNEW import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
 
@@ -126,7 +126,7 @@ td_module_1a = \
         act_func='tanh',
         mod_name='td_mod_1a')
 td_module_1b = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(ngf * 2),
         out_chans=nc,
         filt_shape=(5, 5),
@@ -147,7 +147,7 @@ td_modules = [td_module_1]
 ##########################################
 
 bu_module_1 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(3 * nc),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
@@ -165,7 +165,7 @@ bu_modules_gen = [bu_module_1]
 ##########################################
 
 bu_module_1 = \
-    BasicConvModuleRNN(
+    BasicConvModuleNEW(
         in_chans=(3 * nc),
         out_chans=(ngf * 2),
         filt_shape=(5, 5),
