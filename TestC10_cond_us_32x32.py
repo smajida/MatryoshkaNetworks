@@ -41,7 +41,7 @@ sys.setrecursionlimit(100000)
 #
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./mnist"
+EXP_DIR = "./cifar10"
 
 # setup paths for dumping diagnostic info
 desc = 'test_c10_cond_upsample_2x'
