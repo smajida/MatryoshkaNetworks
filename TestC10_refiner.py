@@ -29,6 +29,10 @@ from MatryoshkaModules import BasicConvModule, GenTopModule, InfTopModule, \
                               GenConvPertModule, BasicConvPertModule, \
                               GenConvGRUModule, InfConvMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel
+from MatryoshkaNetworksNEW import DeepRefiner
+from MatryoshkaModulesNEW import \
+    IMModuleWrapperNEW, TDModuleWrapperNEW, BasicConvModuleNEW, \
+    GenConvModuleNEW, InfConvMergeModuleNEW
 
 sys.setrecursionlimit(100000)
 
