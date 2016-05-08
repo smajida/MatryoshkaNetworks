@@ -136,8 +136,8 @@ cond_gen_model = \
 ####################################
 lam_kld = sharedX(floatX([1.0]))
 lam_step = sharedX(floatX([0.2]))
-gen_params = inf_gen_model.gen_params + refiner_model.gen_params
-inf_params = inf_gen_model.inf_params + refiner_model.inf_params
+gen_params = inf_gen_model.gen_params + cond_gen_model.gen_params
+inf_params = inf_gen_model.inf_params + cond_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ######################################################
