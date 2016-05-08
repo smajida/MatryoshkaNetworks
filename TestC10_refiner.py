@@ -436,8 +436,6 @@ for i in range(depth_16x16):
     im_modules_16x16.append(new_module)
 
 im_modules = [im_module_1] + \
-             im_modules_4x4 + \
-             [im_module_3] + \
              im_modules_8x8 + \
              [im_module_5] + \
              im_modules_16x16
