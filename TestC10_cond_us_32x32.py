@@ -665,11 +665,11 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 im_res_dict_inf = inf_gen_model.apply_im(Xa_gen, Xa_inf)
 Xg_recon = im_res_dict_inf['output']
 
-# compute masked reconstruction error from final step.
-log_p_x = T.sum(log_prob_bernoulli(
+#
+log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
-                mask=T.flatten((1. - Xm_gen), 2), do_sum=False),
-                axis=1)
+                log_vars=log_var[0], mask=T.flatten(Xm_inf, 2),
+                do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x

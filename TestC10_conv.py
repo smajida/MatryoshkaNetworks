@@ -679,7 +679,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 # whiten input
 Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
-Xg_whitened = Xg_whitened.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3)
+Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
