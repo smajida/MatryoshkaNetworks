@@ -767,9 +767,9 @@ def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
     inf_gen_model = CondInfGenModel(
         td_modules=td_modules,
         bu_modules_gen=bu_modules_gen,
-        im_modules_gen=im_modules,
+        im_modules_gen=im_modules_gen,
         bu_modules_inf=bu_modules_inf,
-        im_modules_inf=im_modules,
+        im_modules_inf=im_modules_inf,
         merge_info=merge_info,
         output_transform=output_noop)
 
