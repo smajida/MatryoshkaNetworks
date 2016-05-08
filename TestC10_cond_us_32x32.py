@@ -1011,8 +1011,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
-    gen_grad_norms = np.asarray(gen_grad_norms)
-    inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
@@ -1024,12 +1022,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2i = " ".join(i_bc_strs)
-    ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
-    ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
@@ -1040,7 +1032,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, bpp: {2:.2f}, vfe/iwae: {3:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], nats2bpp(v_epoch_costs[2], obs_dim=2304), v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
