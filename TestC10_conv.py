@@ -72,9 +72,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 1
-depth_8x8 = 1
-depth_16x16 = 1
+depth_4x4 = 3
+depth_8x8 = 3
+depth_16x16 = 3
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -776,7 +776,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.01, 1.0, 25)
+kld_weights = np.linspace(0.02, 1.0, 50)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
@@ -811,10 +811,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         noise.set_value(floatX([noise_std]))
         g_result = g_train_func(floatX(imb_img))
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1.*g_result[3])
-        vae_klds.append(1.*g_result[4])
-        gen_grad_norms.append(1.*g_result[5])
-        inf_grad_norms.append(1.*g_result[6])
+        vae_nlls.append(1. * g_result[3])
+        vae_klds.append(1. * g_result[4])
+        gen_grad_norms.append(1. * g_result[5])
+        inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
