@@ -124,7 +124,7 @@ im_modules = inf_gen_model.im_modules
 
 # BUILD THE LOCAL METRIC MODEL
 cond_gen_model = \
-    build_mnist_cond_conv_res(
+    build_mnist_cond_res(
         nz0=32, nz1=4, ngf=32, ngfc=128,
         gen_in_chans=1, inf_in_chans=3,
         act_func='lrelu', use_bn=False, use_td_cond=False,
