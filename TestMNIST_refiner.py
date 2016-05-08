@@ -113,91 +113,29 @@ bce = T.nnet.binary_crossentropy
 # BUILD THE MAIN MODEL
 inf_gen_model = \
     build_mnist_conv_res(
-        nz0=nz0, nz1=nz1, ngf=ngf, ngfc=128, use_bn=False,
-        act_func='lrelu', use_td_cond=True,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+        nz0=nz0, nz1=nz1, ngf=ngf, ngfc=128,
+        act_func='lrelu', use_bn=False, use_td_cond=True,
+        depth_7x7=1, depth_14x14=1)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
 
 # inf_gen_model.load_params(inf_gen_param_file)
 
-# TD modules for the refiner
-rtd_td_1 = \
-    GenConvModuleNEW(
-        in_chans=nc,
-        out_chans=(ngf * 2),
-        conv_chans=(ngf * 2),
-        rand_chans=(nz1 * 2),
-        filt_shape=(3, 3),
-        act_func='lrelu',
-        mod_name='rtd_td_1')
-rtd_cm_1 = \
-    BasicConvModuleNEW(
-        in_chans=(ngf * 2),
-        out_chans=(nc + 1),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func='ident',
-        mod_name='rtd_cm_1')
-td_mod_refine_1 = \
-    TDModuleWrapperNEW(
-        gen_module=rtd_td_1,
-        mlp_modules=[rtd_cm_1],
-        mod_name='td_mod_refine_1')
-td_mod_refine_2 = \
-    TDModuleWrapperNEW(
-        gen_module=rtd_td_1,
-        mlp_modules=[rtd_cm_1],
-        mod_name='td_mod_refine_2')
-td_modules_refine = [td_mod_refine_1, td_mod_refine_2]
+# BUILD THE LOCAL METRIC MODEL
+cond_gen_model = \
+    build_mnist_cond_conv_res(
+        nz0=32, nz1=4, ngf=32, ngfc=128,
+        gen_in_chans=1, inf_in_chans=3,
+        act_func='lrelu', use_bn=False, use_td_cond=False,
+        depth_7x7=1, depth_14x14=1)
 
-# IM modules for the refiner
-rim_im_1 = \
-    InfConvMergeModuleNEW(
-        td_chans=nc,
-        bu_chans=(ngf * 2),
-        rand_chans=(nz1 * 2),
-        conv_chans=(ngf * 2),
-        act_func='lrelu',
-        use_td_cond=False,
-        mod_name='rim_im_1')
-rim_cm_1 = \
-    BasicConvModuleNEW(
-        in_chans=(nc * 3),
-        out_chans=(ngf * 2),
-        filt_shape=(3, 3),
-        stride='single',
-        act_func='lrelu',
-        mod_name='rim_cm_1')
-im_mod_refine_1 = \
-    IMModuleWrapperNEW(
-        inf_module=rim_im_1,
-        mlp_modules=[rim_cm_1],
-        mod_name='im_mod_refine_1')
-im_mod_refine_2 = \
-    IMModuleWrapperNEW(
-        inf_module=rim_im_1,
-        mlp_modules=[rim_cm_1],
-        mod_name='im_mod_refine_2')
-im_modules_refine = [im_mod_refine_1, im_mod_refine_2]
-
-# BUILD THE REFINER
-refiner_model = \
-    DeepRefiner(
-        td_modules=td_modules_refine,
-        im_modules=im_modules_refine,
-        ndim=4)
-
-
-def clip_sigmoid(x):
-    output = sigmoid(T.clip(x, -15.0, 15.0))
-    return output
 
 ####################################
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
+lam_step = sharedX(floatX([0.2]))
 gen_params = inf_gen_model.gen_params + refiner_model.gen_params
 inf_params = inf_gen_model.inf_params + refiner_model.inf_params
 g_params = gen_params + inf_params
@@ -213,29 +151,37 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
+
+
+def clip_sigmoid(x):
+    output = sigmoid(T.clip(x, -15.0, 15.0))
+    return output
+
 # parameter regularization part of cost
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the primary generator
-im_res_dict = inf_gen_model.apply_im(Xg)
-kld_dict = im_res_dict['kld_dict']
-xg_raw = im_res_dict['td_output']
+init_res_dict = inf_gen_model.apply_im(Xg)
+kld_dict = init_res_dict['kld_dict']
+xg_obs = clip_sigmoid(init_res_dict['td_output'])
 
 # run an inference and reconstruction pass through the refiner
-refine_dict = \
-    refiner_model.apply_im(
-        input_gen=xg_raw,
-        input_inf=Xg,
-        obs_transform=clip_sigmoid)
-kld_dict_r = refine_dict['kld_dict']
-Xg_recon = clip_sigmoid(refine_dict['output'])
+input_inf = T.concatenate([xg_obs, Xg, Xg - xg_obs], axis=1)
+cond_res_dict = \
+    cond_gen_model.apply_im(input_gen=xg_obs, input_inf=input_inf)
+kld_dict_r = cond_res_dict['kld_dict']
+Xg_recon = clip_sigmoid(cond_res_dict['output'])
 
-log_p_x = T.sum(log_prob_bernoulli(
-                T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
-                do_sum=False), axis=1)
+log_p_x_1 = T.sum(log_prob_bernoulli(
+                  T.flatten(Xg, 2), T.flatten(xg_obs, 2),
+                  do_sum=False), axis=1)
+
+log_p_x_2 = T.sum(log_prob_bernoulli(
+                  T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
+                  do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x
+vae_obs_nlls = -1.0 * (lam_step[0] * log_p_x_1 + (1. - lam_step[0]) * log_p_x_2)
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
@@ -249,7 +195,9 @@ vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld i
 vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
 
 # compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples]) + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
+obs_klds_1 = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+obs_klds_2 = vae_obs_klds_1 + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
+vae_obs_klds = lam_step[0] * obs_klds_1 + (1. - lam_step[0]) * obs_klds_2
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # compute the KLd cost to use for optimization
@@ -313,14 +261,14 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 10)
+step_weights = np.linspace(0.5, 0.0, 15)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    # if ((epoch-1) < len(kld_weights)):
-    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
+    if ((epoch - 1) < len(step_weights)):
+        lam_step.set_value(floatX([step_weights[epoch - 1]]))
     lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]

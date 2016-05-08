@@ -527,12 +527,6 @@ for i in range(depth_14x14):
     }
 
 
-# transforms to apply to generator outputs
-def output_transform(x):
-    output = sigmoid(T.clip(x, -15.0, 15.0))
-    return output
-
-
 def output_noop(x):
     output = x
     return output
