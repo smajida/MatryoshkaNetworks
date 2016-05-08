@@ -126,7 +126,7 @@ im_modules = inf_gen_model.im_modules
 cond_gen_model = \
     build_mnist_cond_res(
         nz0=32, nz1=4, ngf=32, ngfc=128,
-        gen_in_chans=1, inf_in_chans=3,
+        gen_in_chans=1, inf_in_chans=3, out_chans=1,
         act_func='lrelu', use_bn=False, use_td_cond=False,
         depth_7x7=1, depth_14x14=1)
 

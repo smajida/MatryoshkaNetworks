@@ -352,7 +352,7 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
 
 
 def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
-                         gen_in_chans=None, inf_in_chans=None,
+                         gen_in_chans=None, inf_in_chans=None, out_chans=1,
                          use_bn=False, act_func='lrelu', use_td_cond=True,
                          depth_7x7=5, depth_14x14=5):
     assert ((gen_in_chans is not None) and (inf_in_chans is not None))
@@ -440,7 +440,7 @@ def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
         BasicConvModule(
             filt_shape=(3, 3),
             in_chans=(ngf * 1),
-            out_chans=nc,
+            out_chans=out_chans,
             apply_bn=False,
             use_noise=False,
             stride='single',
