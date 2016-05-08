@@ -856,10 +856,11 @@ im_res_dict = inf_gen_model.apply_im(input_gen=Xa_gen, input_inf=Xa_inf)
 Xg_recon = im_res_dict['output']
 kld_dict = im_res_dict['kld_dict']
 
+Xm_inf_indicator = 1. * (Xm_inf > 0.)
 # compute reconstruction error on missing pixels
 log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
-                log_vars=log_var[0], mask=T.flatten(Xm_inf, 2),
+                log_vars=log_var[0], mask=T.flatten(Xm_inf_indicator, 2),
                 do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
