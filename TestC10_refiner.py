@@ -60,10 +60,10 @@ set_seed(123)       # seed for shared rngs
 nc = 3              # # of channels in image
 nbatch = 100        # # of examples in batch
 npx = 32            # # of pixels width/height of images
-nz0 = 32            # # of dim for Z0
+nz0 = 128           # # of dim for Z0
 nz1 = 4             # # of dim for Z1
 ngf = 32            # base # of filters for conv layers in generative stuff
-ngfc = 128          # # of filters in fully connected layers of generative stuff
+ngfc = 512          # # of filters in fully connected layers of generative stuff
 nx = npx * npx * nc   # # of dimensions in X
 niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
@@ -75,11 +75,11 @@ noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
-use_td_cond = False
-depth_4x4 = 1
-depth_8x8 = 1
-depth_16x16 = 1
-refine_steps = 1
+use_td_cond = True
+depth_4x4 = 2
+depth_8x8 = 2
+depth_16x16 = 2
+refine_steps = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -182,136 +182,95 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (7, 7)
+# FC -> (8, 8)
 td_module_1 = \
-GenTopModule(
-    rand_dim=nz0,
-    out_shape=(ngf * 2, 4, 4),
-    fc_dim=ngfc,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='td_mod_1'
-)
-
-# grow the (4, 4) -> (4, 4) part of network
-td_modules_4x4 = []
-for i in range(depth_4x4):
-    mod_name = 'td_mod_2{}'.format(alphabet[i])
-    new_module = \
-    GenConvPertModule(
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 2),
-        conv_chans=(ngf * 2),
-        rand_chans=nz1,
-        filt_shape=(3, 3),
-        use_rand=multi_rand,
-        use_conv=use_conv,
+    GenTopModule(
+        rand_dim=nz0,
+        out_shape=(ngf * 4, 8, 8),
+        fc_dim=ngfc,
+        use_fc=True,
+        use_sc=False,
         apply_bn=use_bn,
         act_func=act_func,
-        us_stride=1,
-        mod_name=mod_name
-    )
-    td_modules_4x4.append(new_module)
-# manual stuff for parameter sharing....
-
-# (4, 4) -> (8, 8)
-td_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='td_mod_3'
-)
+        mod_name='td_mod_1')
 
 # grow the (8, 8) -> (8, 8) part of network
 td_modules_8x8 = []
 for i in range(depth_8x8):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
     new_module = \
-    GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        rand_chans=nz1,
-        filt_shape=(3,3),
-        use_rand=multi_rand,
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        act_func=act_func,
-        us_stride=1,
-        mod_name=mod_name
-    )
+        GenConvPertModule(
+            in_chans=(ngf * 4),
+            out_chans=(ngf * 4),
+            conv_chans=(ngf * 4),
+            rand_chans=nz1,
+            filt_shape=(3, 3),
+            use_rand=multi_rand,
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            act_func=act_func,
+            us_stride=1,
+            mod_name=mod_name)
     td_modules_8x8.append(new_module)
 # manual stuff for parameter sharing....
 
 # (8, 8) -> (16, 16)
 td_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='td_mod_5'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 4),
+        out_chans=(ngf * 2),
+        apply_bn=use_bn,
+        stride='half',
+        act_func=act_func,
+        mod_name='td_mod_5')
 
 # grow the (16, 16) -> (16, 16) part of network
 td_modules_16x16 = []
 for i in range(depth_16x16):
     mod_name = 'td_mod_6{}'.format(alphabet[i])
     new_module = \
-    GenConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        rand_chans=nz1,
-        filt_shape=(3,3),
-        use_rand=multi_rand,
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        act_func=act_func,
-        us_stride=1,
-        mod_name=mod_name
-    )
+        GenConvPertModule(
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 2),
+            conv_chans=(ngf * 2),
+            rand_chans=nz1,
+            filt_shape=(3, 3),
+            use_rand=multi_rand,
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            act_func=act_func,
+            us_stride=1,
+            mod_name=mod_name)
     td_modules_16x16.append(new_module)
 # manual stuff for parameter sharing....
 
 # (16, 16) -> (32, 32)
 td_module_7 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*2),
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='td_mod_7'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        apply_bn=use_bn,
+        stride='half',
+        act_func=act_func,
+        mod_name='td_mod_7')
 
 # (32, 32) -> (32, 32)
 td_module_8 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
-    out_chans=nc,
-    apply_bn=False,
-    rescale_output=True,
-    use_noise=False,
-    stride='single',
-    act_func='ident',
-    mod_name='td_mod_8'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 2),
+        out_chans=nc,
+        apply_bn=False,
+        rescale_output=True,
+        use_noise=False,
+        stride='single',
+        act_func='ident',
+        mod_name='td_mod_8')
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1] + \
-             td_modules_4x4 + \
-             [td_module_3] + \
              td_modules_8x8 + \
              [td_module_5] + \
              td_modules_16x16 + \
@@ -322,131 +281,92 @@ td_modules = [td_module_1] + \
 # -- these do inference                  #
 ##########################################
 
-# (4, 4) -> FC
+# (8, 8) -> FC
 bu_module_1 = \
-InfTopModule(
-    bu_chans=(ngf*2*4*4),
-    fc_chans=ngfc,
-    rand_chans=nz0,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='bu_mod_1'
-)
-
-# grow the (4, 4) -> (4, 4) part of network
-bu_modules_4x4 = []
-for i in range(depth_4x4):
-    mod_name = 'bu_mod_2{}'.format(alphabet[i])
-    new_module = \
-    BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        filt_shape=(3,3),
-        use_conv=use_conv,
+    InfTopModule(
+        bu_chans=(ngf * 4 * 8 * 8),
+        fc_chans=ngfc,
+        rand_chans=nz0,
+        use_fc=True,
+        use_sc=False,
         apply_bn=use_bn,
-        stride='single',
         act_func=act_func,
-        mod_name=mod_name
-    )
-    bu_modules_4x4.append(new_module)
-bu_modules_4x4.reverse() # reverse, to match "evaluation order"
-
-# (8, 8) -> (4, 4)
-bu_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_3'
-)
+        mod_name='bu_mod_1')
 
 # grow the (8, 8) -> (8, 8) part of network
 bu_modules_8x8 = []
 for i in range(depth_8x8):
     mod_name = 'bu_mod_4{}'.format(alphabet[i])
     new_module = \
-    BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        filt_shape=(3,3),
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name=mod_name
-    )
+        BasicConvPertModule(
+            in_chans=(ngf * 4),
+            out_chans=(ngf * 4),
+            conv_chans=(ngf * 4),
+            filt_shape=(3, 3),
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=mod_name)
     bu_modules_8x8.append(new_module)
-bu_modules_8x8.reverse() # reverse, to match "evaluation order"
+bu_modules_8x8.reverse()
 
-# (8, 8) -> (16, 16)
+# (16, 16) -> (8, 8)
 bu_module_5 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_5'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 4),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_5')
 
 # grow the (16, 16) -> (16, 16) part of network
 bu_modules_16x16 = []
 for i in range(depth_16x16):
     mod_name = 'bu_mod_6{}'.format(alphabet[i])
     new_module = \
-    BasicConvPertModule(
-        in_chans=(ngf*2),
-        out_chans=(ngf*2),
-        conv_chans=(ngf*2),
-        filt_shape=(3,3),
-        use_conv=use_conv,
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name=mod_name
-    )
+        BasicConvPertModule(
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 2),
+            conv_chans=(ngf * 2),
+            filt_shape=(3, 3),
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=mod_name)
     bu_modules_16x16.append(new_module)
-bu_modules_16x16.reverse() # reverse, to match "evaluation order"
+bu_modules_16x16.reverse()
 
-# (16, 16) -> (32, 32)
+# (32, 32) -> (16, 16)
 bu_module_7 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=(ngf*1),
-    out_chans=(ngf*2),
-    apply_bn=use_bn,
-    stride='double',
-    act_func=act_func,
-    mod_name='bu_mod_7'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=(ngf * 2),
+        out_chans=(ngf * 2),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_7')
 
 # (32, 32) -> (32, 32)
 bu_module_8 = \
-BasicConvModule(
-    filt_shape=(3,3),
-    in_chans=nc,
-    out_chans=(ngf*1),
-    apply_bn=use_bn,
-    stride='single',
-    act_func=act_func,
-    mod_name='bu_mod_8'
-)
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=nc,
+        out_chans=(ngf * 2),
+        apply_bn=use_bn,
+        stride='single',
+        act_func=act_func,
+        mod_name='bu_mod_8')
 
 # modules must be listed in "evaluation order"
 bu_modules = [bu_module_8, bu_module_7] + \
              bu_modules_16x16 + \
              [bu_module_5] + \
              bu_modules_8x8 + \
-             [bu_module_3] + \
-             bu_modules_4x4 + \
              [bu_module_1]
 
 
@@ -454,101 +374,65 @@ bu_modules = [bu_module_8, bu_module_7] + \
 # Setup the information merging modules #
 #########################################
 
-# FC -> (4, 4)
+# FC -> (8, 8)
 im_module_1 = \
-GenTopModule(
-    rand_dim=nz0,
-    out_shape=(ngf*2, 4, 4),
-    fc_dim=ngfc,
-    use_fc=True,
-    use_sc=False,
-    apply_bn=use_bn,
-    act_func=act_func,
-    mod_name='im_mod_1'
-)
-
-# grow the (4, 4) -> (4, 4) part of network
-im_modules_4x4 = []
-for i in range(depth_4x4):
-    mod_name = 'im_mod_2{}'.format(alphabet[i])
-    new_module = \
-    InfConvMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        rand_chans=nz1,
-        conv_chans=(ngf*2),
-        use_conv=True,
-        use_td_cond=use_td_cond,
+    GenTopModule(
+        rand_dim=nz0,
+        out_shape=(ngf * 4, 8, 8),
+        fc_dim=ngfc,
+        use_fc=True,
+        use_sc=False,
         apply_bn=use_bn,
-        mod_type=inf_mt,
         act_func=act_func,
-        mod_name=mod_name
-    )
-    im_modules_4x4.append(new_module)
-
-# (4, 4) -> (8, 8)
-im_module_3 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='im_mod_3'
-)
+        mod_name='im_mod_1')
 
 # grow the (8, 8) -> (8, 8) part of network
 im_modules_8x8 = []
 for i in range(depth_8x8):
     mod_name = 'im_mod_4{}'.format(alphabet[i])
     new_module = \
-    InfConvMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        rand_chans=nz1,
-        conv_chans=(ngf*2),
-        use_conv=True,
-        use_td_cond=use_td_cond,
-        apply_bn=use_bn,
-        mod_type=inf_mt,
-        act_func=act_func,
-        mod_name=mod_name
-    )
+        InfConvMergeModuleIMS(
+            td_chans=(ngf * 4),
+            bu_chans=(ngf * 4),
+            im_chans=(ngf * 4),
+            rand_chans=nz1,
+            conv_chans=(ngf * 4),
+            use_conv=True,
+            use_td_cond=use_td_cond,
+            apply_bn=use_bn,
+            mod_type=inf_mt,
+            act_func=act_func,
+            mod_name=mod_name)
     im_modules_8x8.append(new_module)
 
 # (8, 8) -> (16, 16)
 im_module_5 = \
-BasicConvModule(
-    in_chans=(ngf*2),
-    out_chans=(ngf*2),
-    filt_shape=(3,3),
-    apply_bn=use_bn,
-    stride='half',
-    act_func=act_func,
-    mod_name='im_mod_5'
-)
+    BasicConvModule(
+        in_chans=(ngf * 4),
+        out_chans=(ngf * 2),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='half',
+        act_func=act_func,
+        mod_name='im_mod_5')
 
 # grow the (16, 16) -> (16, 16) part of network
 im_modules_16x16 = []
 for i in range(depth_16x16):
     mod_name = 'im_mod_6{}'.format(alphabet[i])
     new_module = \
-    InfConvMergeModuleIMS(
-        td_chans=(ngf*2),
-        bu_chans=(ngf*2),
-        im_chans=(ngf*2),
-        rand_chans=nz1,
-        conv_chans=(ngf*2),
-        use_conv=True,
-        use_td_cond=use_td_cond,
-        apply_bn=use_bn,
-        mod_type=inf_mt,
-        act_func=act_func,
-        mod_name=mod_name
-    )
+        InfConvMergeModuleIMS(
+            td_chans=(ngf * 2),
+            bu_chans=(ngf * 2),
+            im_chans=(ngf * 2),
+            rand_chans=nz1,
+            conv_chans=(ngf * 2),
+            use_conv=True,
+            use_td_cond=use_td_cond,
+            apply_bn=use_bn,
+            mod_type=inf_mt,
+            act_func=act_func,
+            mod_name=mod_name)
     im_modules_16x16.append(new_module)
 
 im_modules = [im_module_1] + \
@@ -565,9 +449,6 @@ merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
-    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
-                 'bu_source': None, 'im_source': im_modules_4x4[-1].mod_name},
-
     'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
                  'bu_source': None, 'im_source': im_modules_8x8[-1].mod_name},
 
@@ -578,31 +459,16 @@ merge_info = {
 }
 
 # add merge_info entries for the modules with latent variables
-for i in range(depth_4x4):
-    td_type = 'cond'
-    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
-    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
-    im_src_name = 'im_mod_1'
-    bu_src_name = 'bu_mod_3'
-    if i > 0:
-        im_src_name = 'im_mod_2{}'.format(alphabet[i-1])
-    if i < (depth_4x4 - 1):
-        bu_src_name = 'bu_mod_2{}'.format(alphabet[i+1])
-    # add entry for this TD module
-    merge_info[td_mod_name] = {
-        'td_type': td_type, 'im_module': im_mod_name,
-        'bu_source': bu_src_name, 'im_source': im_src_name
-    }
 for i in range(depth_8x8):
     td_type = 'cond'
     td_mod_name = 'td_mod_4{}'.format(alphabet[i])
     im_mod_name = 'im_mod_4{}'.format(alphabet[i])
-    im_src_name = 'im_mod_3'
+    im_src_name = 'im_mod_1'
     bu_src_name = 'bu_mod_5'
     if i > 0:
-        im_src_name = 'im_mod_4{}'.format(alphabet[i-1])
+        im_src_name = 'im_mod_4{}'.format(alphabet[i - 1])
     if i < (depth_8x8 - 1):
-        bu_src_name = 'bu_mod_4{}'.format(alphabet[i+1])
+        bu_src_name = 'bu_mod_4{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -615,9 +481,9 @@ for i in range(depth_16x16):
     im_src_name = 'im_mod_5'
     bu_src_name = 'bu_mod_7'
     if i > 0:
-        im_src_name = 'im_mod_6{}'.format(alphabet[i-1])
+        im_src_name = 'im_mod_6{}'.format(alphabet[i - 1])
     if i < (depth_16x16 - 1):
-        bu_src_name = 'bu_mod_6{}'.format(alphabet[i+1])
+        bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -676,7 +542,7 @@ for i in range(refine_steps):
             rand_chans=nz1,
             conv_chans=(ngf * 2),
             act_func='lrelu',
-            use_td_cond=False,
+            use_td_cond=use_td_cond,
             mod_name='rim_im_{}'.format(i))
     rim_cm_i = \
         BasicConvModuleNEW(
@@ -859,7 +725,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.02, 1.0, 50)
+kld_weights = np.linspace(0.1, 1.0, 50)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
