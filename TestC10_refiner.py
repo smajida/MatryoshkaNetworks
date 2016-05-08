@@ -72,9 +72,10 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 3
-depth_8x8 = 3
-depth_16x16 = 3
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
+refine_steps = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -620,18 +621,80 @@ for i in range(depth_16x16):
     }
 
 # construct the "wrapper" object for managing all our modules
-output_transform = lambda x: x  # sigmoid(T.clip(x, -15., 15.))
 inf_gen_model = InfGenModel(
     bu_modules=bu_modules,
     td_modules=td_modules,
     im_modules=im_modules,
     sc_modules=[],
     merge_info=merge_info,
-    output_transform=output_transform,
+    output_transform=lambda x: x,
     use_sc=False
 )
 
-# inf_gen_model.load_params(inf_gen_param_file)
+############################
+# Build the refiner model. #
+############################
+
+# TD modules for the refiner
+td_modules_refine = []
+for i in range(refine_steps):
+    rtd_td_i = \
+        GenConvModuleNEW(
+            in_chans=nc,
+            out_chans=(ngf * 2),
+            conv_chans=(ngf * 2),
+            rand_chans=nz1,
+            filt_shape=(3, 3),
+            act_func='lrelu',
+            mod_name='rtd_td_{}'.format(i))
+    rtd_cm_i = \
+        BasicConvModuleNEW(
+            in_chans=(ngf * 2),
+            out_chans=(nc + 1),
+            filt_shape=(3, 3),
+            stride='single',
+            act_func='ident',
+            mod_name='rtd_cm_{}'.format(i))
+    td_mod_refine_i = \
+        TDModuleWrapperNEW(
+            gen_module=rtd_td_i,
+            mlp_modules=[rtd_cm_i],
+            mod_name='td_mod_refine_{}'.format(i))
+    td_modules_refine.append(td_mod_refine_i)
+
+# IM modules for the refiner
+im_modules_refine = []
+for i in range(refine_steps):
+    rim_im_i = \
+        InfConvMergeModuleNEW(
+            td_chans=nc,
+            bu_chans=(ngf * 2),
+            rand_chans=nz1,
+            conv_chans=(ngf * 2),
+            act_func='lrelu',
+            use_td_cond=False,
+            mod_name='rim_im_{}'.format(i))
+    rim_cm_i = \
+        BasicConvModuleNEW(
+            in_chans=(nc * 3),
+            out_chans=(ngf * 2),
+            filt_shape=(3, 3),
+            stride='single',
+            act_func='lrelu',
+            mod_name='rim_cm_{}'.format(i))
+    im_mod_refine_i = \
+        IMModuleWrapperNEW(
+            inf_module=rim_im_i,
+            mlp_modules=[rim_cm_i],
+            mod_name='im_mod_refine_{}'.format(i))
+    im_modules_refine.append(im_mod_refine_i)
+
+# BUILD THE REFINER
+refiner_model = \
+    DeepRefiner(
+        td_modules=td_modules_refine,
+        im_modules=im_modules_refine,
+        ndim=4)
 
 ####################################
 # Setup the optimization objective #
@@ -639,8 +702,8 @@ inf_gen_model = InfGenModel(
 lam_kld = sharedX(floatX([1.0]))
 log_var = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
-gen_params = inf_gen_model.gen_params + [log_var]
-inf_params = inf_gen_model.inf_params
+gen_params = inf_gen_model.gen_params + refiner_model.gen_params + [log_var]
+inf_params = inf_gen_model.inf_params + refiner_model.inf_params
 g_params = gen_params + inf_params
 
 ###########################################################
@@ -689,11 +752,21 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
-Xg_recon = im_res_dict['td_output']
+xg_raw = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
+# run an inference and reconstruction pass through the refiner
+refine_dict = \
+    refiner_model.apply_im(
+        input_gen=xg_raw,
+        input_inf=Xg_whitened,
+        obs_transform=lambda x: x)
+kld_dict_r = refine_dict['kld_dict']
+Xg_recon = refine_dict['output']
+
+# compute reconstruction error
 log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
@@ -706,8 +779,14 @@ vae_nll_cost = T.mean(vae_obs_nlls) - log_pdet_W
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
+
+# get KL-divergences from refiner
+kld_tuples_r = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dict_r.items()]
+vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples_r])
+vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
+
 # compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples]) + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
 vae_kld_cost = T.mean(vae_obs_klds)
 
 # compute per-layer KL-divergence part of cost
@@ -754,17 +833,17 @@ print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
                  vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs, vae_layer_klds]
+                 vae_obs_costs, vae_layer_klds, vae_layer_klds_r]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs', 'vae_layer_klds']
+              'vae_obs_costs', 'vae_layer_klds', 'vae_layer_klds_r']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)   # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates) # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                       # evaluate model costs
-print "{0:.2f} seconds to compile theano functions".format(time()-t)
+g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
+i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
+g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
+print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
@@ -790,6 +869,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_epoch_costs = [0. for i in range(5)]
     i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
+    epoch_layer_klds_r = [0. for i in range(len(vae_layer_names_r))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
@@ -817,7 +897,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
+        batch_layer_klds_r = g_result[9]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
+        epoch_layer_klds_r = [(v1 + v2) for v1, v2 in zip(batch_layer_klds_r, epoch_layer_klds_r)]
         g_batch_count += 1
         # train inference model on samples from the generator
         # if epoch > 5:
@@ -857,6 +939,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
+    epoch_layer_klds_r = [(c / g_batch_count) for c in epoch_layer_klds_r]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
@@ -878,9 +961,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
+    kld_strs_r = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names_r, epoch_layer_klds_r)]
+    str7_r = "    refine kld -- {}".format(" ".join(kld_strs_r))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, bpp: {2:.2f}, vfe/iwae: {3:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], nats2bpp(v_epoch_costs[2]), v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str7_r, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
