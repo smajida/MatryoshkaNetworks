@@ -622,8 +622,6 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
 xg_raw = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
-log_p_z = sum(im_res_dict['log_p_z'])
-log_q_z = sum(im_res_dict['log_q_z'])
 
 # run an inference and reconstruction pass through the refiner
 refine_dict = \
@@ -635,12 +633,16 @@ kld_dict_r = refine_dict['kld_dict']
 Xg_recon = refine_dict['output']
 
 # compute reconstruction error
-log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                log_vars=log_var[0], do_sum=False), axis=1)
+log_p_x1 = T.sum(log_prob_gaussian(
+                 T.flatten(Xg_whitened, 2), T.flatten(xg_raw, 2),
+                 log_vars=log_var[0], do_sum=False), axis=1)
+
+log_p_x2 = T.sum(log_prob_gaussian(
+                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
+                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x
+vae_obs_nlls = -1.0 * (0.2 * log_p_x1 + 0.8 * log_p_x2)
 vae_nll_cost = T.mean(vae_obs_nlls) - log_pdet_W
 
 # compute per-layer KL-divergence part of cost
@@ -654,15 +656,13 @@ vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld i
 vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
 
 # compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples]) + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
+obs_kld_1 = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+obs_kld_2 = sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
+vae_obs_klds = 0.2 * obs_kld_1 + 0.8 * (obs_kld_1 + obs_kld_2)
 vae_kld_cost = T.mean(vae_obs_klds)
 
-# compute per-layer KL-divergence part of cost
-alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
-alt_kld_cost = T.mean(sum(alt_layer_klds))
-
 # compute the KLd cost to use for optimization
-opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+opt_kld_cost = lam_kld[0] * vae_kld_cost
 
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
@@ -723,7 +723,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.1, 1.0, 50)
+kld_weights = np.linspace(0.04, 1.00, 50)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
