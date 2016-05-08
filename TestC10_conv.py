@@ -72,9 +72,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 2
-depth_8x8 = 2
-depth_16x16 = 2
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
