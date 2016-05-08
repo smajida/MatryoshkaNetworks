@@ -196,7 +196,7 @@ vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
 
 # compute total per-observation KL-divergence part of cost
 obs_klds_1 = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-obs_klds_2 = vae_obs_klds_1 + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
+obs_klds_2 = obs_klds_1 + sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
 vae_obs_klds = lam_step[0] * obs_klds_1 + (1. - lam_step[0]) * obs_klds_2
 vae_kld_cost = T.mean(vae_obs_klds)
 
