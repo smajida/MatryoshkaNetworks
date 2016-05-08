@@ -776,15 +776,15 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 25)
+kld_weights = np.linspace(0.01, 1.0, 25)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
     # mess with the KLd cost
-    # if ((epoch-1) < len(kld_weights)):
-    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch - 1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
