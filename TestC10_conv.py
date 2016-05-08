@@ -40,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_2'
+desc = 'test_conv_baby_steps_white_input'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,7 +65,7 @@ niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = True      # whether to use batch normalization throughout the model
+use_bn = False      # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
@@ -166,7 +166,7 @@ def check_gauss_bpp(x, x_te):
             print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll)))
     return
 
-check_gauss_bpp((255. * Xtr), (255. * Xva))
+# check_gauss_bpp((255. * Xtr), (255. * Xva))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
@@ -631,7 +631,7 @@ inf_gen_model = InfGenModel(
     use_sc=False
 )
 
-#inf_gen_model.load_params(inf_gen_param_file)
+# inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
@@ -677,6 +677,10 @@ def whiten_data(X_sym, W_sym, mu_sym):
 Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
+# whiten input
+Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
+Xg_whitened = Xg_whitened.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3)
+
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
 ##########################################################
@@ -684,16 +688,14 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg, noise=noise)
+im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
 Xg_recon = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
-
 log_p_x = T.sum(log_prob_gaussian(
-                Xg_whitened, T.flatten(Xg_recon, 2),
+                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
                 log_vars=log_var[0], do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
