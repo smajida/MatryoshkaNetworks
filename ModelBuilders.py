@@ -671,7 +671,7 @@ def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
                 use_conv=True,
                 use_td_cond=use_td_cond,
                 apply_bn=use_bn,
-                mod_type=inf_mt,
+                mod_type=0,
                 act_func=act_func,
                 mod_name=mod_name)
         im_modules_7x7.append(new_module)
@@ -701,7 +701,7 @@ def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
                 use_conv=True,
                 use_td_cond=use_td_cond,
                 apply_bn=use_bn,
-                mod_type=inf_mt,
+                mod_type=0,
                 act_func=act_func,
                 mod_name=mod_name)
         im_modules_14x14.append(new_module)
