@@ -85,11 +85,6 @@ alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 ntrain = Xtr.shape[0]
 
 
-alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
-
-ntrain = Xtr.shape[0]
-
-
 def train_transform(X, rescale=True, add_fuzz=True):
     # transform vectorized observations into convnet inputs
     if rescale:
@@ -146,43 +141,6 @@ def nats2bpp(nats, obs_dim=(npx * npx * nc)):
     bpp = (nats / obs_dim) / np.log(2.)
     return bpp
 
-
-def check_gauss_bpp(x, x_te):
-    from scipy import stats
-    print('Estimating data ll with Gaussian...')
-    mu, sigma = estimate_gauss_params(x, samples=10)
-    obs_dim = x.shape[1]
-
-    # evaluate on "train" set
-    x_f = fuzz_data(x, scale=1., rand_type='uniform')
-    ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
-    mean_nll = -1. * np.mean(ll)
-    print('  -- train gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
-
-    # evaluate on "test" set
-    x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
-    ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), sigma)
-    mean_nll = -1. * np.mean(ll)
-    print('  -- test gauss nll: {0:.2f}, gauss bpp: {1:.2f}'.format(mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
-
-    # test with shrinking error
-    alphas = [0.50, 0.25, 0.10, 0.05, 0.02]
-    for alpha in alphas:
-        x_f = fuzz_data(x_te, scale=1., rand_type='uniform')
-        x_f = alpha * x_f
-        # test with shrinking covariance
-        for beta in [0.6, 0.4, 0.2, 0.1]:
-            ll = stats.multivariate_normal.logpdf(x_f, (0. * mu.ravel()), (beta * sigma))
-            mean_nll = -1. * np.mean(ll)
-            print('  -- test a={0:.2f}, b={1:.2f}, gauss nll: {2:.2f}, gauss bpp: {3:.2f}'.format(alpha, beta, mean_nll, nats2bpp(mean_nll, obs_dim=obs_dim)))
-    return
-
-xtr = get_downsampled_data(Xtr, im_shape=(32, 32), im_chans=3,
-                           fixed_mask=True)
-xva = get_downsampled_data(Xva, im_shape=(32, 32), im_chans=3,
-                           fixed_mask=True)
-
-check_gauss_bpp((255. * xtr), (255. * xva))
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
