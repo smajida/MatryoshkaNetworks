@@ -706,10 +706,76 @@ def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
                 mod_name=mod_name)
         im_modules_14x14.append(new_module)
 
-    im_modules = [im_module_1] + \
-                 im_modules_7x7 + \
-                 [im_module_3] + \
-                 im_modules_14x14
+    im_modules_gen = [im_module_1] + \
+                     im_modules_7x7 + \
+                     [im_module_3] + \
+                     im_modules_14x14
+
+    # FC -> (7, 7)
+    im_module_1 = \
+        GenTopModule(
+            rand_dim=nz0,
+            out_shape=(ngf * 2, 7, 7),
+            fc_dim=ngfc,
+            use_fc=True,
+            use_sc=False,
+            apply_bn=use_bn,
+            act_func=act_func,
+            mod_name='im_mod_1')
+
+    # grow the (7, 7) -> (7, 7) part of network
+    im_modules_7x7 = []
+    for i in range(depth_7x7):
+        mod_name = 'im_mod_2{}'.format(alphabet[i])
+        new_module = \
+            InfConvMergeModuleIMS(
+                td_chans=(ngf * 2),
+                bu_chans=(ngf * 2),
+                im_chans=(ngf * 2),
+                rand_chans=nz1,
+                conv_chans=(ngf * 2),
+                use_conv=True,
+                use_td_cond=use_td_cond,
+                apply_bn=use_bn,
+                mod_type=0,
+                act_func=act_func,
+                mod_name=mod_name)
+        im_modules_7x7.append(new_module)
+
+    # (7, 7) -> (14, 14)
+    im_module_3 = \
+        BasicConvModule(
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 2),
+            filt_shape=(3, 3),
+            apply_bn=use_bn,
+            stride='half',
+            act_func=act_func,
+            mod_name='im_mod_3')
+
+    # grow the (14, 14) -> (14, 14) part of network
+    im_modules_14x14 = []
+    for i in range(depth_14x14):
+        mod_name = 'im_mod_4{}'.format(alphabet[i])
+        new_module = \
+            InfConvMergeModuleIMS(
+                td_chans=(ngf * 2),
+                bu_chans=(ngf * 2),
+                im_chans=(ngf * 2),
+                rand_chans=nz1,
+                conv_chans=(ngf * 2),
+                use_conv=True,
+                use_td_cond=use_td_cond,
+                apply_bn=use_bn,
+                mod_type=0,
+                act_func=act_func,
+                mod_name=mod_name)
+        im_modules_14x14.append(new_module)
+
+    im_modules_inf = [im_module_1] + \
+                     im_modules_7x7 + \
+                     [im_module_3] + \
+                     im_modules_14x14
 
     #
     # Setup a description for where to get conditional distributions from.
