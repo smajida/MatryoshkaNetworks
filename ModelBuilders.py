@@ -351,10 +351,10 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
     return inf_gen_model
 
 
-def build_mnist_cond_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128,
-                              gen_in_chans=None, inf_in_chans=None,
-                              use_bn=False, act_func='lrelu', use_td_cond=True,
-                              depth_7x7=5, depth_14x14=5):
+def build_mnist_cond_res(nz0=32, nz1=4, ngf=32, ngfc=128,
+                         gen_in_chans=None, inf_in_chans=None,
+                         use_bn=False, act_func='lrelu', use_td_cond=True,
+                         depth_7x7=5, depth_14x14=5):
     assert ((gen_in_chans is not None) and (inf_in_chans is not None))
 
     #########################################
