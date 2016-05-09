@@ -21,7 +21,7 @@ from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
-from load import load_binarized_mnist, load_udm
+from load import load_udm_ss
 
 #
 # Phil's business
@@ -38,27 +38,29 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best_2deep'
+desc = 'test_conv_ss_100'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-fixed_binarization = True
-# load MNIST dataset, either fixed or dynamic binarization
+# load MNIST dataset semi-supervised data
 data_path = "{}/data/".format(EXP_DIR)
-if fixed_binarization:
-    Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
-    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
-    Xva = Xte
-else:
-    dataset = load_udm("{}mnist.pkl.gz".format(data_path), to_01=True)
-    Xtr = dataset[0][0]
-    Xva = dataset[1][0]
-    Xte = dataset[2][0]
-    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
-    Xva = Xte
 
+data_dict = load_udm_ss("{}mnist.pkl.gz".format(data_path), 100)
+Xtr_su = data_dict['Xtr_su']
+Ytr_su = data_dict['Ytr_su']
+Xtr_un = data_dict['Xtr_un']
+Ytr_un = data_dict['Ytr_un']
+Xva = data_dict['Xva']
+Yva = data_dict['Yva']
+Xte = data_dict['Xte']
+Yte = data_dict['Yte']
+
+print('Xtr_su.shape: {}'.format(Xtr_su.shape))
+print('Ytr_su.shape: {}'.format(Ytr_su.shape))
+print('Xtr_un.shape: {}'.format(Xtr_un.shape))
+print('Ytr_un.shape: {}'.format(Ytr_un.shape))
 
 set_seed(123)        # seed for shared rngs
 nbatch = 100         # # of examples in batch
@@ -70,18 +72,17 @@ niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_bn = True
 use_td_cond = False
-depth_7x7 = 2
-depth_14x14 = 2
+depth_7x7 = 1
+depth_14x14 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
-ntrain = Xtr.shape[0]
+ntrain = Xtr_un.shape[0]
 
 
 def train_transform(X):
-    # transform vectorized observations into convnet inputs
-    if not fixed_binarization:
-        X = binarize_data(X)
+    # binarize data and reshape for input to convnet
+    X = binarize_data(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -135,7 +136,9 @@ g_params = gen_params + inf_params
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg_un = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xg_su = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Yg_su = T.matrix()   # symbolic var for class label inputs
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ##########################################################
@@ -145,8 +148,10 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
+Xg = T.concatenate([Xg_un, Xg_su], axis=1)
 im_res_dict = inf_gen_model.apply_im(Xg)
 Xg_recon = clip_sigmoid(im_res_dict['td_output'])
+cls_acts = im_res_dict['cls_acts']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
@@ -156,7 +161,7 @@ log_p_x = T.sum(log_prob_bernoulli(
                 do_sum=False), axis=1)
 
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x
+vae_obs_nlls = -1.0 * log_p_x + T.mean(T.sqr(cls_acts)) + T.mean(Yg_su)
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # compute per-layer KL-divergence part of cost
@@ -185,6 +190,10 @@ full_cost_inf = full_cost_gen
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
 Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
 
+Xr = T.tensor4()
+xr_res_dict = inf_gen_model.apply_im(Xr)
+Xr_recon = clip_sigmoid(xr_res_dict['td_output'])
+
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
@@ -204,9 +213,9 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg], Xg_recon)
+recon_func = theano.function([Xr], Xr_recon)
 sample_func = theano.function([Z0], Xd_model)
-test_recons = recon_func(train_transform(Xtr[0:100, :]))
+test_recons = recon_func(train_transform(Xtr_un[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
@@ -218,9 +227,8 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
+g_train_func = theano.function([Xg_un, Xg_su, Yg_su], g_cost_outputs, updates=g_updates)
+g_eval_func = theano.function([Xg_un, Xg_su, Yg_su], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
@@ -235,7 +243,7 @@ t = time()
 kld_weights = np.linspace(0.0, 1.0, 10)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
-    Xtr = shuffle(Xtr)
+    Xtr_un = shuffle(Xtr_un)
     Xva = shuffle(Xva)
     # mess with the KLd cost
     # if ((epoch-1) < len(kld_weights)):
@@ -253,7 +261,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     g_batch_count = 0.
     i_batch_count = 0.
     v_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
+    for imb in tqdm(iter_data(Xtr_un, size=nbatch), total=(ntrain / nbatch)):
         # grab a validation batch, if required
         if v_batch_count < 50:
             start_idx = int(v_batch_count) * nbatch
@@ -263,8 +271,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
         vmb_img = train_transform(vmb)
+        xsu_img = train_transform(Xtr_su)
         # train vae on training batch
-        g_result = g_train_func(floatX(imb_img))
+        g_result = g_train_func(imb_img, xsu_img, Ytr_su)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
@@ -275,14 +284,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 5:
-            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-            i_result = i_train_func(smb_img)
-            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            v_result = g_eval_func(vmb_img)
+            v_result = g_eval_func(vmb_img, xsu_img, Ytr_su)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
@@ -318,12 +323,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2i = " ".join(i_bc_strs)
-    ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
-    ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
@@ -334,7 +333,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str2i, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
@@ -346,7 +345,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         samples = np.asarray(sample_func(sample_z0mb))
         grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
         # test reconstruction performance (inference + generation)
-        tr_rb = Xtr[0:100, :]
+        tr_rb = Xtr_un[0:100, :]
         va_rb = Xva[0:100, :]
         # get the model reconstructions
         tr_rb = train_transform(tr_rb)
