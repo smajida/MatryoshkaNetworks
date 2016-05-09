@@ -686,7 +686,7 @@ log_q_z = sum(im_res_dict['log_q_z'])
 #                 log_vars=log_var[0], do_sum=False), axis=1)
 prec_U = sigma_info[0]['prec_U']
 log_det_cov = sigma_info[0]['log_det_sigma']
-log_p_x = logpdf(Xg, Xg_recon, prec_U, log_det_cov)
+log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
