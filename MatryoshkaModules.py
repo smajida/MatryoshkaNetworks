@@ -2057,9 +2057,10 @@ class InfConvGRUModuleIMS(object):
                  apply_bn=False,
                  use_td_cond=False,
                  use_bn_params=True,
+                 unif_post=None,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.im_chans = im_chans
@@ -2079,8 +2080,9 @@ class InfConvGRUModuleIMS(object):
         self.apply_bn = apply_bn
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
+        self.unif_post = unif_post
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -2307,9 +2309,10 @@ class InfFCGRUModuleIMS(object):
                  td_chans, bu_chans, im_chans, rand_chans,
                  act_func='relu', unif_drop=0.0, apply_bn=True,
                  use_td_cond=False, use_bn_params=True,
+                 unif_post=None,
                  mod_name='basic_fc_gru'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.im_chans = im_chans
@@ -2329,7 +2332,8 @@ class InfFCGRUModuleIMS(object):
         self.use_td_cond = use_td_cond
         self.mod_name = mod_name
         self.use_bn_params = use_bn_params
-        self._init_params() # initialize parameters
+        self.unif_post = unif_post
+        self._init_params()
         return
 
     def _init_params(self):
@@ -2506,6 +2510,7 @@ class InfConvMergeModuleIMS(object):
                  use_td_cond=False,
                  use_bn_params=True,
                  mod_type=0,
+                 unif_post=None,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
@@ -2531,8 +2536,9 @@ class InfConvMergeModuleIMS(object):
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
         self.mod_type = mod_type
+        self.unif_post = unif_post
         self.mod_name = mod_name
-        self._init_params()  # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -2772,9 +2778,10 @@ class InfConvMergeModule(object):
                  use_td_cond=False,
                  use_bn_params=True,
                  mod_type=0,
+                 unif_post=None,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.im_chans = im_chans
@@ -2797,8 +2804,9 @@ class InfConvMergeModule(object):
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
         self.mod_type = mod_type
+        self.unif_post = unif_post
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -2958,7 +2966,7 @@ class InfConvMergeModule(object):
         if self.mod_type == 0:
             full_input = T.concatenate([td_input, bu_input], axis=1)
         else:
-            full_input = T.concatenate([td_input, bu_input, td_input-bu_input], axis=1)
+            full_input = T.concatenate([td_input, bu_input, td_input - bu_input], axis=1)
         # do dropout
         full_input = conv_drop_func(full_input, self.unif_drop, self.chan_drop,
                                     share_mask=share_mask)
@@ -2969,7 +2977,7 @@ class InfConvMergeModule(object):
                 h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1_im.dimshuffle('x',0,'x','x')
+                h1 = h1 + self.b1_im.dimshuffle('x', 0, 'x', 'x')
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h1 = conv_drop_func(h1, self.unif_drop, self.chan_drop,
@@ -2979,15 +2987,15 @@ class InfConvMergeModule(object):
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
             # combine non-linear and linear transforms of input...
-            h4 = h2 + self.b3_im.dimshuffle('x',0,'x','x') #+ h3
+            h4 = h2 + self.b3_im.dimshuffle('x', 0, 'x', 'x')
         else:
             # apply direct short-cut conv layer
             h3 = dnn_conv(full_input, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
-            h4 = h3 + self.b3_im.dimshuffle('x',0,'x','x')
+            h4 = h3 + self.b3_im.dimshuffle('x', 0, 'x', 'x')
         # split output into "mean" and "log variance" components, for using in
         # Gaussian reparametrization.
-        out_mean = h4[:,:self.rand_chans,:,:]
-        out_logvar = h4[:,self.rand_chans:,:,:]
+        out_mean = h4[:, :self.rand_chans, :, :]
+        out_logvar = h4[:, self.rand_chans:, :, :]
         return out_mean, out_logvar, None
 
 #########################################
@@ -3021,9 +3029,10 @@ class InfFCMergeModuleIMS(object):
                  use_td_cond=False,
                  use_bn_params=True,
                  mod_type=0,
+                 unif_post=None,
                  mod_name='gm_conv'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.im_chans = im_chans
@@ -3045,8 +3054,9 @@ class InfFCMergeModuleIMS(object):
         self.use_bn_params = True
         self.unif_drop = unif_drop
         self.mod_type = mod_type
+        self.unif_post = unif_post
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -3062,10 +3072,10 @@ class InfFCMergeModuleIMS(object):
         ############################################
         # initialize first layer parameters (from input -> hidden layer)
         if self.mod_type == 0:
-            self.w1_im = weight_ifn(((self.td_chans+self.bu_chans+self.im_chans), self.fc_chans),
+            self.w1_im = weight_ifn(((self.td_chans + self.bu_chans + self.im_chans), self.fc_chans),
                                     "{}_w1_im".format(self.mod_name))
         else:
-            self.w1_im = weight_ifn(((3*self.td_chans+self.im_chans), self.fc_chans),
+            self.w1_im = weight_ifn(((3 * self.td_chans + self.im_chans), self.fc_chans),
                                     "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.fc_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
@@ -3077,10 +3087,10 @@ class InfFCMergeModuleIMS(object):
         self.b2_im = bias_ifn((self.im_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize conditioning layer parameters
-        self.w3_im = weight_ifn((self.im_chans, 2*self.rand_chans),
+        self.w3_im = weight_ifn((self.im_chans, 2 * self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
-        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
-        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2 * self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2 * self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
@@ -3090,9 +3100,9 @@ class InfFCMergeModuleIMS(object):
             self.b1_td = bias_ifn((self.fc_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second conv layer parameters
-            self.w2_td = weight_ifn((self.fc_chans, 2*self.rand_chans),
+            self.w2_td = weight_ifn((self.fc_chans, 2 * self.rand_chans),
                                     "{}_w2_td".format(self.mod_name))
-            self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2 * self.rand_chans), "{}_b2_td".format(self.mod_name))
             self.params.extend([self.w2_td, self.b2_td])
         return
 
@@ -3186,13 +3196,13 @@ class InfFCMergeModuleIMS(object):
                 h1 = switchy_bn(h1, g=self.g1_td, b=self.b1_td, n=noise,
                                 use_gb=self.use_bn_params)
             else:
-                h1 = h1 + self.b1_td.dimshuffle('x',0)
+                h1 = h1 + self.b1_td.dimshuffle('x', 0)
                 h1 = add_noise(h1, noise=noise)
             h1 = self.act_func(h1)
             h2 = T.dot(h1, self.w2_td)
-            h3 = h2 + self.b2_td.dimshuffle('x',0)
-            out_mean = h3[:,:self.rand_chans]
-            out_logvar = 0.0 * h3[:,self.rand_chans:] # use fixed logvar...
+            h3 = h2 + self.b2_td.dimshuffle('x', 0)
+            out_mean = h3[:, :self.rand_chans]
+            out_logvar = 0.0 * h3[:, self.rand_chans:]
         else:
             batch_size = td_input.shape[0]
             rand_shape = (batch_size, self.rand_chans)
@@ -3214,7 +3224,7 @@ class InfFCMergeModuleIMS(object):
         if self.mod_type == 0:
             full_input = T.concatenate([td_input, bu_input, im_input], axis=1)
         else:
-            full_input = T.concatenate([td_input, bu_input, td_input-bu_input, im_input], axis=1)
+            full_input = T.concatenate([td_input, bu_input, td_input - bu_input, im_input], axis=1)
         # do dropout
         full_input = fc_drop_func(full_input, self.unif_drop, share_mask=share_mask)
 
@@ -3224,7 +3234,7 @@ class InfFCMergeModuleIMS(object):
             h1 = switchy_bn(h1, g=self.g1_im, b=self.b1_im, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h1 = h1 + self.b1_im.dimshuffle('x',0)
+            h1 = h1 + self.b1_im.dimshuffle('x', 0)
             h1 = add_noise(h1, noise=noise)
         h1 = self.act_func(h1)
         h1 = fc_drop_func(h1, self.unif_drop, share_mask=share_mask)
@@ -3234,7 +3244,7 @@ class InfFCMergeModuleIMS(object):
             h2 = switchy_bn(h2, g=self.g2_im, b=self.b2_im, n=noise,
                             use_gb=self.use_bn_params)
         else:
-            h2 = h2 + self.b2_im.dimshuffle('x',0)
+            h2 = h2 + self.b2_im.dimshuffle('x', 0)
             h2 = add_noise(h2, noise=noise)
 
         # apply perturbation to IM input, then apply non-linearity
@@ -3242,10 +3252,11 @@ class InfFCMergeModuleIMS(object):
 
         # compute conditional parameters from the updated IM state
         h3 = T.dot(out_im, self.w3_im)
-        h3 = h3 + self.b3_im.dimshuffle('x',0)
-        out_mean = h3[:,:self.rand_chans]
-        out_logvar = h3[:,self.rand_chans:]
+        h3 = h3 + self.b3_im.dimshuffle('x', 0)
+        out_mean = h3[:, :self.rand_chans]
+        out_logvar = h3[:, self.rand_chans:]
         return out_mean, out_logvar, out_im
+
 
 ####################################
 # INFERENCE FULLY CONNECTED MODULE #
@@ -3275,9 +3286,10 @@ class InfFCMergeModule(object):
                  unif_drop=0.0, apply_bn=True,
                  use_td_cond=False,
                  use_bn_params=True,
+                 unif_post=None,
                  mod_name='im_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.td_chans = td_chans
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
@@ -3298,8 +3310,9 @@ class InfFCMergeModule(object):
         self.apply_bn = apply_bn
         self.use_td_cond = use_td_cond
         self.use_bn_params = True
+        self.unif_post = unif_post
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -3314,22 +3327,22 @@ class InfFCMergeModule(object):
         # Initialize "inference" model parameters. #
         ############################################
         # initialize first layer parameters (from input -> hidden layer)
-        self.w1_im = weight_ifn(((self.td_chans+self.bu_chans), self.fc_chans),
+        self.w1_im = weight_ifn(((self.td_chans + self.bu_chans), self.fc_chans),
                                 "{}_w1_im".format(self.mod_name))
         self.g1_im = gain_ifn((self.fc_chans), "{}_g1_im".format(self.mod_name))
         self.b1_im = bias_ifn((self.fc_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.g1_im, self.b1_im])
         # initialize second layer parameters (from hidden layer -> IM state perturbation)
-        self.w2_im = weight_ifn((self.fc_chans, 2*self.rand_chans),
+        self.w2_im = weight_ifn((self.fc_chans, 2 * self.rand_chans),
                                 "{}_w2_im".format(self.mod_name))
-        self.g2_im = gain_ifn((2*self.rand_chans), "{}_g2_im".format(self.mod_name))
-        self.b2_im = bias_ifn((2*self.rand_chans), "{}_b2_im".format(self.mod_name))
+        self.g2_im = gain_ifn((2 * self.rand_chans), "{}_g2_im".format(self.mod_name))
+        self.b2_im = bias_ifn((2 * self.rand_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.g2_im, self.b2_im])
         # initialize conditioning layer parameters
-        self.w3_im = weight_ifn(((self.td_chans+self.bu_chans), 2*self.rand_chans),
+        self.w3_im = weight_ifn(((self.td_chans + self.bu_chans), 2 * self.rand_chans),
                                 "{}_w3_im".format(self.mod_name))
-        self.g3_im = gain_ifn((2*self.rand_chans), "{}_g3_im".format(self.mod_name))
-        self.b3_im = bias_ifn((2*self.rand_chans), "{}_b3_im".format(self.mod_name))
+        self.g3_im = gain_ifn((2 * self.rand_chans), "{}_g3_im".format(self.mod_name))
+        self.b3_im = bias_ifn((2 * self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.g3_im, self.b3_im])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
@@ -3339,9 +3352,9 @@ class InfFCMergeModule(object):
             self.b1_td = bias_ifn((self.fc_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.g1_td, self.b1_td])
             # initialize second conv layer parameters
-            self.w2_td = weight_ifn((self.fc_chans, 2*self.rand_chans),
+            self.w2_td = weight_ifn((self.fc_chans, 2 * self.rand_chans),
                                     "{}_w2_td".format(self.mod_name))
-            self.b2_td = bias_ifn((2*self.rand_chans), "{}_b2_td".format(self.mod_name))
+            self.b2_td = bias_ifn((2 * self.rand_chans), "{}_b2_td".format(self.mod_name))
             self.params.extend([self.w2_td, self.b2_td])
         return
 
