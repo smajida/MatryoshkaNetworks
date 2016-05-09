@@ -1449,9 +1449,9 @@ class InfGenModelSS(object):
                 if td_mod_type == 'top':
                     # feedforward through the top-most generator module.
                     # this module has a fixed ZMUV Gaussian prior.
-                    td_act_i = td_module.apply(rand_vals=rvs,
-                                               batch_size=batch_size,
-                                               noise=td_noise)
+                    td_act_i, cls_acts = td_module.apply(rand_vals=rvs,
+                                                         batch_size=batch_size,
+                                                         noise=td_noise)
                 else:
                     # feedforward through an internal TD module
                     cond_mean_td, cond_logvar_td = \
