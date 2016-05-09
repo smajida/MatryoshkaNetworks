@@ -21,7 +21,7 @@ from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
-from load import load_udm_ss
+from load import load_udm_ss, one_hot
 
 #
 # Phil's business
@@ -49,13 +49,13 @@ data_path = "{}/data/".format(EXP_DIR)
 
 data_dict = load_udm_ss("{}mnist.pkl.gz".format(data_path), 100)
 Xtr_su = data_dict['Xtr_su']
-Ytr_su = data_dict['Ytr_su'][:, np.newaxis]
+Ytr_su = floatX(one_hot(data_dict['Ytr_su']))
 Xtr_un = data_dict['Xtr_un']
-Ytr_un = data_dict['Ytr_un'][:, np.newaxis]
+Ytr_un = floatX(one_hot(data_dict['Ytr_un']))
 Xva = data_dict['Xva']
-Yva = data_dict['Yva'][:, np.newaxis]
+Yva = floatX(one_hot(data_dict['Yva']))
 Xte = data_dict['Xte']
-Yte = data_dict['Yte'][:, np.newaxis]
+Yte = floatX(one_hot(data_dict['Yte']))
 
 print('Xtr_su.shape: {}'.format(Xtr_su.shape))
 print('Ytr_su.shape: {}'.format(Ytr_su.shape))
