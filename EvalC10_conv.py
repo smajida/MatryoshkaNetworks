@@ -137,7 +137,27 @@ def nats2bpp(nats):
     bpp = (nats / (npx * npx * nc)) / np.log(2.)
     return bpp
 
-# check_gauss_bpp((255. * Xtr), (255. * Xva))
+
+def iwae_multi_eval(x, iters, cost_func, iwae_num):
+    # slow multi-pass evaluation of IWAE bound.
+    log_p_x = []
+    log_p_z = []
+    log_q_z = []
+    for i in range(iters):
+        result = cost_func(x)
+        b_size = int(result[0].shape[0] / iwae_num)
+        log_p_x.append(result[0].reshape((b_size, iwae_num)))
+        log_p_z.append(result[1].reshape((b_size, iwae_num)))
+        log_q_z.append(result[2].reshape((b_size, iwae_num)))
+    # stack up results from multiple passes
+    log_p_x = np.concatenate(log_p_x, axis=1)
+    log_p_z = np.concatenate(log_p_z, axis=1)
+    log_q_z = np.concatenate(log_q_z, axis=1)
+    # compute the IWAE bound for each example in x
+    log_ws_mat = log_p_x + log_p_z - log_q_z
+    iwae_bounds = -1.0 * np_log_mean_exp(log_ws_mat, axis=1)
+    return iwae_bounds
+
 
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
