@@ -306,8 +306,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:8], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
-        batch_obs_costs = g_result[7]
-        batch_layer_klds = g_result[8]
+        batch_obs_costs = g_result[8]
+        batch_layer_klds = g_result[9]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
@@ -343,10 +343,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:8])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:8], g_bc_names[:8])]
     str2 = " ".join(g_bc_strs)
     i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:8])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:8], g_bc_names[:8])]
     str2i = " ".join(i_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
