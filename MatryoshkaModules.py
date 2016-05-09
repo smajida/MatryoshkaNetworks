@@ -3767,7 +3767,7 @@ class ClassConvModule(object):
         bias_ifn = inits.Constant(c=0.)
         self.w1 = weight_ifn((self.class_count, self.in_chans, self.filt_dim, self.filt_dim),
                              "{}_w1".format(self.mod_name))
-        self.b1 = bias_ifn((self.class_count_chans), "{}_b1".format(self.mod_name))
+        self.b1 = bias_ifn((self.class_count), "{}_b1".format(self.mod_name))
         self.params = [self.w1, self.b1]
         return
 
