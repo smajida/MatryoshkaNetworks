@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best_6deep'
+desc = 'test_conv_best_2deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,9 +68,10 @@ npx = 28             # # of pixels width/height of images
 nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
-use_td_cond = True
-depth_7x7 = 6
-depth_14x14 = 6
+use_bn = True
+use_td_cond = False
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -105,13 +106,14 @@ bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
 inf_gen_model = \
-    build_mnist_conv_res(
-        nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
-        act_func='lrelu', use_td_cond=use_td_cond,
+    build_mnist_conv_res_ss(
+        nz0=nz0, nz1=4, ngf=32, ngfc=128, class_count=10,
+        act_func='lrelu', use_bn=True, use_td_cond=True,
         depth_7x7=depth_7x7, depth_14x14=depth_14x14)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
+cls_module = inf_gen_model.cls_module
 
 # inf_gen_model.load_params(inf_gen_param_file)
 

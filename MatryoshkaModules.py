@@ -3631,6 +3631,7 @@ class InfTopModule(object):
         out_logvar = h4[:,self.rand_chans:]
         return out_mean, out_logvar
 
+
 #####################################
 # Simple MLP fully connected module #
 #####################################
@@ -3647,7 +3648,7 @@ class MlpFCModule(object):
                  use_bn_params=True,
                  mod_name='dm_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
-                "invalid act_func {}.".format(act_func)
+            "invalid act_func {}.".format(act_func)
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.apply_bn = apply_bn
@@ -3664,7 +3665,7 @@ class MlpFCModule(object):
         else:
             self.act_func = lambda x: lrelu(x)
         self.mod_name = mod_name
-        self._init_params() # initialize parameters
+        self._init_params()
         return
 
     def _init_params(self):
@@ -3722,6 +3723,93 @@ class MlpFCModule(object):
         return h4
 
 
+class ClassConvModule(object):
+    '''
+    Simple convolutional layer for use anywhere?
+
+    Params:
+        in_chans: number of channels in input
+        class_count: number of classes to form predictions over
+        filt_shape: filter shape, should be square and odd dim
+        bu_source: BU module that feeds into this multi-local class predictor
+        stride: whether to use 'double', 'single', or 'half' stride.
+        act_func: --
+        unif_drop: drop rate for uniform dropout
+        chan_drop: drop rate for channel-wise dropout
+        use_noise: whether to use provided noise during apply()
+        mod_name: text name to identify this module in theano graph
+    '''
+    def __init__(self, in_chans, class_count, filt_shape, bu_source,
+                 stride='single', act_func='ident',
+                 unif_drop=0.0, chan_drop=0.0,
+                 use_noise=True,
+                 mod_name='class_conv'):
+        assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
+        assert (stride in ['single', 'double', 'half']), \
+            "stride should be 'single', 'double', or 'half'."
+        self.in_chans = in_chans
+        self.class_count = class_count
+        self.filt_dim = filt_shape[0]
+        self.bu_source = bu_source
+        self.stride = stride
+        self.unif_drop = unif_drop
+        self.chan_drop = chan_drop
+        self.use_noise = use_noise
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this module.
+        """
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        bias_ifn = inits.Constant(c=0.)
+        self.w1 = weight_ifn((self.class_count, self.in_chans, self.filt_dim, self.filt_dim),
+                             "{}_w1".format(self.mod_name))
+        self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
+        self.params = [self.w1, self.b1]
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load module params directly from a dict of numpy arrays.
+        """
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        return
+
+    def dump_params(self):
+        """
+        Dump module params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input, noise=None):
+        """
+        Apply this convolutional module to the given input.
+        """
+        noise = noise if self.use_noise else None
+        bm = int((self.filt_dim - 1) / 2)  # use "same" mode convolutions
+        # apply uniform and/or channel-wise dropout if desired
+        input = conv_drop_func(input, self.unif_drop, self.chan_drop)
+        # apply first conv layer
+        if self.stride == 'single':
+            # normal, 1x1 stride
+            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        elif self.stride == 'double':
+            # downsampling, 2x2 stride
+            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        else:
+            # upsampling, 0.5x0.5 stride
+            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
+        # get class predictions via channel-wise max pooling (over all space)
+        class_preds = T.max(T.max(h1, axis=2), axis=2)
+        return class_preds
 
 
 

@@ -705,7 +705,8 @@ class InfGenModel(object):
                 # record KLd info for the conditional distribution
                 kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
                                      T.flatten(cond_logvar_im, 2),
-                                     0.0, 0.0)
+                                     T.flatten(cond_mean_td, 2),
+                                     T.flatten(cond_logvar_td, 2))
                 kld_dict[td_mod_name] = kld_i
                 # get the log likelihood of the current latent samples under
                 # both the proposal distribution q(z | x) and the prior p(z).
@@ -1278,7 +1279,358 @@ class SimpleInfMLP(object):
         return hs[-1]
 
 
+class InfGenModelSS(object):
+    """
+    A deep, hierarchical generator network. This provides a wrapper around a
+    collection of bottom-up, top-down, and info-merging Matryoshka modules.
 
+    Params:
+        bu_modules: modules for computing bottom-up (inference) information.
+        td_modules: modules for computing top-down (generative) information.
+        im_modules: modules for merging bottom-up and top-down information
+                    to put conditionals over Gaussian latent variables that
+                    participate in the top-down computation.
+        cls_module: module that forks the BU info stream to generate predictions
+        merge_info: dict of dicts describing how to compute the conditionals
+                    required by the feedforward pass through top-down modules.
+        output_transform: transform to apply to outputs of the top-down model.
+        use_td_noise: whether to apply noise in TD modules
+        use_bu_noise: whether to apply noise in BU/IM modules
+        train_dist_scale: whether to train rescaling param (for testing)
+    """
+    def __init__(self,
+                 bu_modules, td_modules, im_modules, cls_module,
+                 merge_info, output_transform,
+                 use_td_noise=False,
+                 use_bu_noise=False,
+                 train_dist_scale=True):
+        # grab the bottom-up, top-down, and info merging modules
+        self.bu_modules = [m for m in bu_modules]
+        self.td_modules = [m for m in td_modules]
+        self.im_modules = [m for m in im_modules]
+        self.cls_module = cls_module
+        self.im_modules_dict = {m.mod_name: m for m in im_modules}
+        self.im_modules_dict[None] = None
+        # grab the full set of trainable parameters in these modules
+        self.gen_params = []
+        self.inf_params = []
+        for module in self.td_modules:
+            self.gen_params.extend(module.params)
+        for module in self.bu_modules:
+            self.inf_params.extend(module.params)
+        for module in self.im_modules:
+            self.inf_params.extend(module.params)
+        self.inf_params.extend(cls_module.params)
+        # filter redundant parameters, to allow parameter sharing
+        p_dict = {}
+        for p in self.gen_params:
+            p_dict[p.name] = p
+        self.gen_params = p_dict.values()
+        p_dict = {}
+        for p in self.inf_params:
+            p_dict[p.name] = p
+        self.inf_params = p_dict.values()
+        # make dist_scale parameter (add it to the inf net parameters)
+        if train_dist_scale:
+            # init to a somewhat arbitrary value -- not magic (probably)
+            self.dist_scale = sharedX(floatX([0.2]))
+            self.gen_params.append(self.dist_scale)
+        else:
+            self.dist_scale = sharedX(floatX([1.0]))
+        # gather a list of all parameters in this network
+        self.params = self.inf_params + self.gen_params
+        # get instructions for how to merge bottom-up and top-down info
+        self.merge_info = merge_info
+        # keep a transform that we'll apply to generator output
+        if output_transform == 'ident':
+            self.output_transform = lambda x: x
+        else:
+            self.output_transform = output_transform
+        # derp derp
+        self.use_td_noise = use_td_noise
+        self.use_bu_noise = use_bu_noise
+        print("Compiling sample generator...")
+        # i'm the operator with my sample generator
+        self.generate_samples = self._construct_generate_samples()
+        samps = self.generate_samples(32)
+        print("DONE.")
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        assert(not (f_name is None))
+        f_handle = file(f_name, 'wb')
+        # dump the parameter dicts for all modules in this network
+        mod_param_dicts = [m.dump_params() for m in self.bu_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)  # dump BU modules
+        mod_param_dicts = [m.dump_params() for m in self.td_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)  # dump TD modules
+        mod_param_dicts = [m.dump_params() for m in self.im_modules]
+        cPickle.dump(mod_param_dicts, f_handle, protocol=-1)  # dump IM modules
+        # dump class module params
+        cPickle.dump(self.cls_module.dump_params(), f_handle, protocol=-1)
+        # dump dist_scale parameter
+        ds_ary = self.dist_scale.get_value(borrow=False)
+        cPickle.dump(ds_ary, f_handle, protocol=-1)
+        f_handle.close()
+        return
+
+    def load_params(self, f_name=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        assert(not (f_name is None))
+        pickle_file = open(f_name)
+        # reload the parameter dicts for all modules in this network
+        mod_param_dicts = cPickle.load(pickle_file)  # load BU modules
+        for param_dict, mod in zip(mod_param_dicts, self.bu_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file)  # load TD modules
+        for param_dict, mod in zip(mod_param_dicts, self.td_modules):
+            mod.load_params(param_dict=param_dict)
+        mod_param_dicts = cPickle.load(pickle_file)  # load IM modules
+        for param_dict, mod in zip(mod_param_dicts, self.im_modules):
+            mod.load_params(param_dict=param_dict)
+        # load class module params
+        self.cls_module.load_params(param_dict=cPickle.load(pickle_file))
+        # load dist_scale parameter
+        ds_ary = cPickle.load(pickle_file)
+        self.dist_scale.set_value(floatX(ds_ary))
+        pickle_file.close()
+        return
+
+    def apply_td(self, rand_vals=None, batch_size=None, noise=None):
+        """
+        Compute a stochastic top-down pass using the given random values.
+        -- batch_size must be provided if rand_vals is None, so we can
+           determine the appropriate size for latent samples.
+        """
+        assert not ((batch_size is None) and (rand_vals is None)), \
+            "need _either_ batch_size or rand_vals."
+        assert ((batch_size is None) or (rand_vals is None)), \
+            "need _either_ batch_size or rand_vals."
+        assert ((rand_vals is None) or (len(rand_vals) == len(self.td_modules))), \
+            "random values should be appropriate for this network."
+        if rand_vals is None:
+            # no random values were provided, which means we'll be generating
+            # based on a user-provided batch_size.
+            rand_vals = [None for i in range(len(self.td_modules))]
+        td_noise = noise if self.use_td_noise else None
+        td_acts = []
+        for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
+            td_mod_name = td_module.mod_name
+            td_mod_type = self.merge_info[td_mod_name]['td_type']
+            im_mod_name = self.merge_info[td_mod_name]['im_module']
+            im_module = self.im_modules_dict[im_mod_name]
+            if td_mod_type in ['top', 'cond']:
+                # handle computation for a TD module that requires
+                # sampling some stochastic latent variables.
+                if td_mod_type == 'top':
+                    # feedforward through the top-most generator module.
+                    # this module has a fixed ZMUV Gaussian prior.
+                    td_act_i = td_module.apply(rand_vals=rvs,
+                                               batch_size=batch_size,
+                                               noise=td_noise)
+                else:
+                    # feedforward through an internal TD module
+                    cond_mean_td, cond_logvar_td = \
+                        im_module.apply_td(td_input=td_acts[-1],
+                                           noise=td_noise)
+                    cond_mean_td = self.dist_scale[0] * cond_mean_td
+                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
+                    if rvs is None:
+                        rvs = reparametrize(cond_mean_td, cond_logvar_td,
+                                            rng=cu_rng)
+                    else:
+                        rvs = reparametrize(cond_mean_td, cond_logvar_td,
+                                            rvs=rvs)
+                    # feedforward using the reparametrized latent variable
+                    # samples and incoming activations.
+                    td_act_i = td_module.apply(input=td_acts[-1],
+                                               rand_vals=rvs,
+                                               noise=td_noise)
+            elif td_mod_type == 'pass':
+                # handle computation for a TD module that only requires
+                # information from preceding TD modules (no rand input)
+                td_act_i = td_module.apply(input=td_acts[-1], rand_vals=None,
+                                           noise=td_noise)
+            td_acts.append(td_act_i)
+        # apply some transform (e.g. tanh or sigmoid) to final activations
+        result = self.output_transform(td_acts[-1])
+        return result
+
+    def apply_bu(self, input, noise=None):
+        """
+        Apply this model's bottom-up inference modules to the given input,
+        and return a dict mapping BU module names to their outputs.
+        """
+        bu_noise = noise if self.use_bu_noise else None
+        bu_acts = []
+        res_dict = {}
+        for i, bu_mod in enumerate(self.bu_modules):
+            if (i == 0):
+                bu_info = input
+            else:
+                bu_info = bu_acts[i - 1]
+            res = bu_mod.apply(bu_info, noise=bu_noise)
+            bu_acts.append(res)
+            res_dict[bu_mod.mod_name] = res
+        res_dict['bu_acts'] = bu_acts
+        return res_dict
+
+    def apply_im(self, input, noise=None):
+        """
+        Compute the merged pass over this model's bottom-up, top-down, and
+        information merging modules.
+
+        -- this does all the heavy lifting --
+
+        This first computes the full bottom-up pass to collect the output of
+        each BU module, where the output of the final BU module is the means
+        and log variances for a diagonal Gaussian distribution over the latent
+        variables that will be fed as input to the first TD module.
+
+        This then computes the top-down pass using latent variables sampled
+        from distributions determined by merging partial results of the BU pass
+        with results from the partially-completed TD pass. The IM modules feed
+        information to eachother too.
+        """
+        bu_noise = noise if self.use_bu_noise else None
+        td_noise = noise if self.use_td_noise else None
+        # set aside a dict for recording KLd info at each layer that requires
+        # samples from a conditional distribution over the latent variables.
+        kld_dict = {}
+        z_dict = {}
+        logz_dict = {'log_p_z': [], 'log_q_z': []}
+        # first, run the bottom-up pass
+        bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
+        # dict for storing IM state information
+        im_res_dict = {None: None}
+        # now, run top-down pass using latent variables sampled from
+        # conditional distributions constructed by merging bottom-up and
+        # top-down information.
+        td_acts = []
+        for i, td_module in enumerate(self.td_modules):
+            td_mod_name = td_module.mod_name
+            td_mod_type = self.merge_info[td_mod_name]['td_type']
+            im_mod_name = self.merge_info[td_mod_name]['im_module']
+            bu_src_name = self.merge_info[td_mod_name]['bu_source']
+            im_src_name = self.merge_info[td_mod_name]['im_source']
+            im_module = self.im_modules_dict[im_mod_name]  # this might be None
+            if td_mod_type in ['top', 'cond']:
+                if td_mod_type == 'top':
+                    # top TD conditionals are based purely on BU info
+                    cond_mean_im = bu_res_dict[bu_src_name][0]
+                    cond_logvar_im = bu_res_dict[bu_src_name][1]
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
+                    cond_mean_td = 0.0 * cond_mean_im
+                    cond_logvar_td = 0.0 * cond_logvar_im
+                    # reparametrize Gaussian for latent samples
+                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                             rng=cu_rng)
+                    # feedforward through the current TD module
+                    td_act_i = td_module.apply(rand_vals=cond_rvs,
+                                               noise=td_noise)
+                    # compute initial state for IM pass, maybe...
+                    im_act_i = None
+                    if not (im_module is None):
+                        im_act_i = im_module.apply(rand_vals=cond_rvs,
+                                                   noise=bu_noise)
+                else:
+                    # handle conditionals based on merging BU and TD info
+                    td_info = td_acts[-1]               # info from TD pass
+                    bu_info = bu_res_dict[bu_src_name]  # info from BU pass
+                    im_info = im_res_dict[im_src_name]  # info from IM pass
+                    # get the conditional distribution SSs (Sufficient Stat s)
+                    cond_mean_im, cond_logvar_im, im_act_i = \
+                        im_module.apply_im(td_input=td_info,
+                                           bu_input=bu_info,
+                                           im_input=im_info,
+                                           noise=bu_noise)
+                    cond_mean_im = self.dist_scale[0] * cond_mean_im
+                    cond_logvar_im = self.dist_scale[0] * cond_logvar_im
+                    cond_mean_td, cond_logvar_td = \
+                        im_module.apply_td(td_input=td_info,
+                                           noise=td_noise)
+                    cond_mean_td = self.dist_scale[0] * cond_mean_td
+                    cond_logvar_td = self.dist_scale[0] * cond_logvar_td
+                    # reparametrize Gaussian for latent samples
+                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                             rng=cu_rng)
+                    # feedforward through the current TD module
+                    td_act_i = td_module.apply(input=td_info,
+                                               rand_vals=cond_rvs,
+                                               noise=td_noise)
+                # record top-down activations produced by IM and TD modules
+                td_acts.append(td_act_i)
+                im_res_dict[im_mod_name] = im_act_i
+                # record KLd info for the conditional distribution
+                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                     T.flatten(cond_logvar_im, 2),
+                                     T.flatten(cond_mean_td, 2),
+                                     T.flatten(cond_logvar_td, 2))
+                kld_dict[td_mod_name] = kld_i
+                # get the log likelihood of the current latent samples under
+                # both the proposal distribution q(z | x) and the prior p(z).
+                # -- these are used when computing the IWAE bound.
+                log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                            T.flatten(cond_mean_td, 2),
+                                            log_vars=T.flatten(cond_logvar_td, 2),
+                                            do_sum=True)
+                log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                            T.flatten(cond_mean_im, 2),
+                                            log_vars=T.flatten(cond_logvar_im, 2),
+                                            do_sum=True)
+                logz_dict['log_p_z'].append(log_p_z)
+                logz_dict['log_q_z'].append(log_q_z)
+                z_dict[td_mod_name] = cond_rvs
+            elif td_mod_type == 'pass':
+                # handle computation for a TD module that only requires
+                # information from preceding TD modules
+                td_info = td_acts[-1]  # incoming info from TD pass
+                td_act_i = td_module.apply(input=td_info, rand_vals=None,
+                                           noise=td_noise)
+                td_acts.append(td_act_i)
+                if not (im_module is None):
+                    # perform an update of the IM state
+                    im_info = im_res_dict[im_src_name]
+                    im_act_i = im_module.apply(input=im_info, rand_vals=None,
+                                               noise=bu_noise)
+                    im_res_dict[im_mod_name] = im_act_i
+            else:
+                assert False, "BAD td_mod_type: {}".format(td_mod_type)
+        # apply class module to the output of some BU module
+        bu_cls_info = bu_res_dict[self.cls_module.bu_source]
+        cls_acts = self.cls_module.apply(bu_cls_info)
+        # apply output transform (into observation space, presumably), to get
+        # the final "reconstruction" produced by the merged BU/TD pass.
+        td_output = self.output_transform(td_acts[-1])
+        # package results into a handy dictionary
+        im_res_dict = {}
+        im_res_dict['td_output'] = td_output
+        im_res_dict['kld_dict'] = kld_dict
+        im_res_dict['cls_acts'] = cls_acts
+        im_res_dict['td_acts'] = td_acts
+        im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
+        im_res_dict['z_dict'] = z_dict
+        im_res_dict['log_p_z'] = logz_dict['log_p_z']
+        im_res_dict['log_q_z'] = logz_dict['log_q_z']
+        return im_res_dict
+
+    def _construct_generate_samples(self):
+        """
+        Generate some samples from this network.
+        """
+        batch_size = T.lscalar()
+        # feedforward through the model with batch size "batch_size"
+        sym_samples = self.apply_td(batch_size=batch_size)
+        # compile a theano function for sampling outputs from the top-down
+        # generative model.
+        sample_func = theano.function([batch_size], sym_samples)
+        return sample_func
 
 
 
