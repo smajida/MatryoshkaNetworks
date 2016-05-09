@@ -859,6 +859,7 @@ def build_mnist_conv_res_ss(nz0=32, nz1=4, ngf=32, ngfc=128, class_count=10,
             use_sc=False,
             apply_bn=use_bn,
             act_func=act_func,
+            aux_dim=class_count,  # number of predictions to "decode"
             mod_name='td_mod_1')
 
     # grow the (7, 7) -> (7, 7) part of network

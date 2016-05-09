@@ -1278,6 +1278,7 @@ class GenTopModule(object):
                  unif_drop=0.0,
                  act_func='relu',
                  use_bn_params=True,
+                 aux_dim=None,
                  mod_name='dm_fc'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
@@ -1305,6 +1306,7 @@ class GenTopModule(object):
             self.act_func = lambda x: relu(x)
         else:
             self.act_func = lambda x: lrelu(x)
+        self.aux_dim = aux_dim
         self.mod_name = mod_name
         self._init_params()
         return
@@ -1335,6 +1337,11 @@ class GenTopModule(object):
         self.g3 = gain_ifn((self.out_dim), "{}_g3".format(self.mod_name))
         self.b3 = bias_ifn((self.out_dim), "{}_b3".format(self.mod_name))
         self.params.extend([self.w3, self.g3, self.b3])
+        # make params for the auxiliary task if desired
+        if self.aux_dim is not None:
+            self.wa = weight_ifn((self.fc_dim, self.aux_dim),
+                                 "{}_wa".format(self.mod_name))
+            self.ba = bias_ifn((self.aux_dim), "{}_ba".format(self.mod_name))
         return
 
     def load_params(self, param_dict):
@@ -1350,6 +1357,9 @@ class GenTopModule(object):
         self.w3.set_value(floatX(param_dict['w3']))
         self.g3.set_value(floatX(param_dict['g3']))
         self.b3.set_value(floatX(param_dict['b3']))
+        if self.aux_dim is not None:
+            self.wa.set_value(floatX(param_dict['wa']))
+            self.ba.set_value(floatX(param_dict['ba']))
         return
 
     def dump_params(self):
@@ -1366,6 +1376,9 @@ class GenTopModule(object):
         param_dict['w3'] = self.w3.get_value(borrow=False)
         param_dict['g3'] = self.g3.get_value(borrow=False)
         param_dict['b3'] = self.b3.get_value(borrow=False)
+        if self.aux_dim is not None:
+            param_dict['wa'] = self.wa.get_value(borrow=False)
+            param_dict['ba'] = self.ba.get_value(borrow=False)
         return param_dict
 
     def apply(self, batch_size=None, rand_vals=None, rand_shapes=False,
@@ -1418,6 +1431,11 @@ class GenTopModule(object):
             result = [h2, rand_shape]
         else:
             result = h2
+        if self.aux_dim is not None:
+            # compute auxiliary output as a linear function of the  hidden
+            # layer's activations.
+            h_aux = T.dot(h1, self.wa) + self.ba.dimshuffle('x', 0)
+            result = [h2, h_aux]
         return result
 
 

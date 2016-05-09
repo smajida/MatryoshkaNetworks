@@ -1531,6 +1531,7 @@ class InfGenModelSS(object):
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
         td_acts = []
+        cls_acts = None
         for i, td_module in enumerate(self.td_modules):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
@@ -1551,8 +1552,9 @@ class InfGenModelSS(object):
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
                     # feedforward through the current TD module
-                    td_act_i = td_module.apply(rand_vals=cond_rvs,
-                                               noise=td_noise)
+                    # -- in SS model, this also gives class predictions
+                    td_act_i, cls_acts = td_module.apply(rand_vals=cond_rvs,
+                                                         noise=td_noise)
                     # compute initial state for IM pass, maybe...
                     im_act_i = None
                     if not (im_module is None):
@@ -1622,8 +1624,8 @@ class InfGenModelSS(object):
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply class module to the output of some BU module
-        bu_cls_info = bu_res_dict[self.cls_module.bu_source]
-        cls_acts = self.cls_module.apply(bu_cls_info)
+        # bu_cls_info = bu_res_dict[self.cls_module.bu_source]
+        # cls_acts = self.cls_module.apply(bu_cls_info)
         # apply output transform (into observation space, presumably), to get
         # the final "reconstruction" produced by the merged BU/TD pass.
         td_output = self.output_transform(td_acts[-1])
