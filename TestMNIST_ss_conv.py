@@ -20,7 +20,7 @@ from lib.costs import log_prob_bernoulli
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
-from lib.data_utils import shuffle, iter_data
+from lib.data_utils import shuffle, iter_data, shuffle_simultaneously
 from load import load_udm_ss, one_hot
 
 #
@@ -132,8 +132,8 @@ def clip_sigmoid(x):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-lam_su_vae = sharedX(floatX([0.1]))
-lam_su_cls = sharedX(floatX([0.1]))
+lam_su_vae = sharedX(floatX([0.01]))
+lam_su_cls = sharedX(floatX([0.01]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -176,12 +176,13 @@ log_p_y_su = T.sum((Yg_su * T.log(p_y_su)), axis=1)  # Yg_su must be one-hot
 vae_obs_nlls = -1.0 * log_p_x
 vae_obs_nlls_un = vae_obs_nlls[:Xg_un.shape[0]]
 vae_obs_nlls_su = vae_obs_nlls[Xg_un.shape[0]:]
+su_nll_cost = T.mean(vae_obs_nlls_su)
+su_cls_cost = -T.mean(log_p_y_su)
+#
 nll_cost_un = T.mean(vae_obs_nlls_un)
-nll_cost_su = (lam_su_vae[0] * T.mean(vae_obs_nlls_su) -
-               lam_su_cls[0] * T.mean(log_p_y_su))
+nll_cost_su = lam_su_vae[0] * su_nll_cost + lam_su_cls[0] * su_cls_cost
 
-su_nll_cost = lam_su_vae[0] * T.mean(vae_obs_nlls_su)
-su_cls_cost = -lam_su_cls[0] * T.mean(log_p_y_su)
+
 # combine unsupervised and supervised reconstruction costs
 vae_nll_cost = nll_cost_un + nll_cost_su
 
@@ -265,7 +266,7 @@ kld_weights = np.linspace(0.0, 1.0, 10)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr_un = shuffle(Xtr_un)
-    Xva = shuffle(Xva)
+    Xva, Yva = shuffle_simultaneously([Xva, Yva])
     # mess with the KLd cost
     # if ((epoch-1) < len(kld_weights)):
     #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
@@ -284,12 +285,14 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # grab a validation batch, if required
         if v_batch_count < 50:
             start_idx = int(v_batch_count) * nbatch
-            vmb = Xva[start_idx:(start_idx + nbatch), :]
+            vmb_x = Xva[start_idx:(start_idx + nbatch), :]
+            vmb_y = Yva[start_idx:(start_idx + nbatch), :]
         else:
-            vmb = Xva[0:nbatch, :]
+            vmb_x = Xva[0:nbatch, :]
+            vmb_y = Yva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
         imb_img = train_transform(imb)
-        vmb_img = train_transform(vmb)
+        vmb_img = train_transform(vmb_x)
         xsu_img = train_transform(Xtr_su)
         # train vae on training batch
         g_result = g_train_func(imb_img, xsu_img, Ytr_su)
@@ -304,7 +307,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            v_result = g_eval_func(vmb_img, xsu_img, Ytr_su)
+            v_result = g_eval_func(vmb_img, vmb_img, vmb_y)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:7], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
@@ -346,8 +349,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
-        v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
+    str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, cls: {2:.2f}".format(
+        v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[6])
     joint_str = "\n".join([str1, str2, str2i, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")

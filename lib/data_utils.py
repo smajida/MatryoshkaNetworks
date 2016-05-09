@@ -40,6 +40,17 @@ def shuffle(*arrays, **options):
         return skutils.shuffle(*arrays, random_state=np_rng)
 
 
+def shuffle_simultaneously(ary_list, axis=0):
+    '''
+    Shuffle a list of numpy arrays simultaneously along the given axis.
+    '''
+    ary_len = ary_list[0].shape[axis]
+    shuf_idx = np.arange(ary_len)
+    shuf_idx = npr.shuffle(shuf_idx)
+    ary_list = [ary.take(shuf_idx, axis=axis) for ary in ary_list]
+    return ary_list
+
+
 def OneHot(X, n=None, negative_class=0.):
     X = np.asarray(X).flatten()
     if n is None:
