@@ -14,7 +14,7 @@ from lib import updates
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat, \
-    mean_pool_rows
+    mean_pool_rows, reparametrize_uniform
 from lib.theano_utils import floatX, sharedX
 from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 
@@ -70,7 +70,7 @@ class GenNetworkGAN(object):
         print("DONE.")
         print("Compiling sample generator...")
         self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(50)
+        _ = self.generate_samples(50)
         print("DONE.")
         return
 
@@ -409,6 +409,8 @@ class InfGenModel(object):
             self.sc_modules = [m for m in sc_modules]
         else:
             self.sc_modules = None
+        self.bu_modules_dict = {m.mod_name: m for m in bu_modules}
+        self.bu_modules_dict[None] = None
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
@@ -651,15 +653,23 @@ class InfGenModel(object):
             if td_mod_type in ['top', 'cond']:
                 if td_mod_type == 'top':
                     # top TD conditionals are based purely on BU info
+                    bu_module = self.bu_modules_dict[bu_src_name]
                     cond_mean_im = bu_res_dict[bu_src_name][0]
                     cond_logvar_im = bu_res_dict[bu_src_name][1]
                     cond_mean_im = self.dist_scale[0] * cond_mean_im
                     cond_logvar_im = self.dist_scale[0] * cond_logvar_im
                     cond_mean_td = 0.0 * cond_mean_im
                     cond_logvar_td = 0.0 * cond_logvar_im
-                    # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if bu_module.unif_post is None:
+                        # reparametrize Gaussian for latent samples
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
+                    else:
+                        # use uniform reparametrization with bounded KLd
+                        cond_rvs, kld_i, log_p_z, log_q_z = \
+                            reparametrize_uniform(cond_mean_im, cond_logvar_im,
+                                                  scale=bu_module.unif_post,
+                                                  rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
@@ -689,12 +699,17 @@ class InfGenModel(object):
                                            noise=td_noise)
                     cond_mean_td = self.dist_scale[0] * cond_mean_td
                     cond_logvar_td = self.dist_scale[0] * cond_logvar_td
-                    # estimate location as an offset from prior
-                    cond_mean_im = cond_mean_im + cond_mean_td
 
-                    # reparametrize Gaussian for latent samples
-                    cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
-                                             rng=cu_rng)
+                    if im_module.unif_post is None:
+                        # reparametrize Gaussian for latent samples
+                        cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
+                                                 rng=cu_rng)
+                    else:
+                        # use uniform reparametrization with bounded KLd
+                        cond_rvs, kld_i, log_p_z, log_q_z = \
+                            reparametrize_uniform(cond_mean_im, cond_logvar_im,
+                                                  scale=im_module.unif_post,
+                                                  rng=cu_rng)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
@@ -702,23 +717,24 @@ class InfGenModel(object):
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
-                # record KLd info for the conditional distribution
-                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
-                                     T.flatten(cond_logvar_im, 2),
-                                     T.flatten(cond_mean_td, 2),
-                                     T.flatten(cond_logvar_td, 2))
+                if im_module.unif_post is None:
+                    # record KLd info for the conditional distribution
+                    kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                         T.flatten(cond_logvar_im, 2),
+                                         T.flatten(cond_mean_td, 2),
+                                         T.flatten(cond_logvar_td, 2))
+                    # get the log likelihood of the current latent samples under
+                    # both the proposal distribution q(z | x) and the prior p(z).
+                    # -- these are used when computing the IWAE bound.
+                    log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                                T.flatten(cond_mean_td, 2),
+                                                log_vars=T.flatten(cond_logvar_td, 2),
+                                                do_sum=True)
+                    log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                                T.flatten(cond_mean_im, 2),
+                                                log_vars=T.flatten(cond_logvar_im, 2),
+                                                do_sum=True)
                 kld_dict[td_mod_name] = kld_i
-                # get the log likelihood of the current latent samples under
-                # both the proposal distribution q(z | x) and the prior p(z).
-                # -- these are used when computing the IWAE bound.
-                log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_td, 2),
-                                            log_vars=T.flatten(cond_logvar_td, 2),
-                                            do_sum=True)
-                log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_im, 2),
-                                            log_vars=T.flatten(cond_logvar_im, 2),
-                                            do_sum=True)
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
                 z_dict[td_mod_name] = cond_rvs

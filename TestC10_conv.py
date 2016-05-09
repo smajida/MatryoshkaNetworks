@@ -40,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_gauss_error'
+desc = 'test_conv_baby_steps_td_cond'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,16 +65,16 @@ niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False      # whether to use batch normalization throughout the model
+use_bn = False       # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = True
-depth_4x4 = 1
-depth_8x8 = 1
-depth_16x16 = 1
+depth_4x4 = 2
+depth_8x8 = 3
+depth_16x16 = 3
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -626,7 +626,7 @@ from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
 sigma_info = []
 mu, sigma = estimate_gauss_params(255. * Xtr)
-for beta in [1.0, 0.9, 0.7, 0.5]:
+for beta in [1.0]:
     # gather information required for computing multivariate normal PDF under
     # different amounts of variance.
     sigma_beta = sigma * beta
@@ -638,7 +638,7 @@ for beta in [1.0, 0.9, 0.7, 0.5]:
                        'prec_U': U_beta,
                        'log_det_sigma': log_pdet_sigma_beta})
 print('computing whitening transform for fuzzy images')
-W, mu = estimate_whitening_transform((255. * Xtr), samples=2)
+W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
 WU, log_pdet_W = psd_pinv_decomposed_log_pdet(W)
 
 # quick test of log-likelihood for a basic Gaussian model...
@@ -664,9 +664,9 @@ Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 # whiten input
-# Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
-# Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
-Xg_whitened = Xg
+Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
+Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+# Xg_whitened = Xg
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -681,12 +681,12 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-# log_p_x = T.sum(log_prob_gaussian(
-#                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-#                 log_vars=log_var[0], do_sum=False), axis=1)
-prec_U = sigma_info[0]['prec_U']
-log_det_cov = sigma_info[0]['log_det_sigma']
-log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
+log_p_x = T.sum(log_prob_gaussian(
+                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
+                log_vars=log_var[0], do_sum=False), axis=1)
+# prec_U = sigma_info[0]['prec_U']
+# log_det_cov = sigma_info[0]['log_det_sigma']
+# log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
