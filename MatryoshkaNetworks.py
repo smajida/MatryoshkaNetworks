@@ -650,6 +650,7 @@ class InfGenModel(object):
             bu_src_name = self.merge_info[td_mod_name]['bu_source']
             im_src_name = self.merge_info[td_mod_name]['im_source']
             im_module = self.im_modules_dict[im_mod_name]  # this might be None
+            unif_post = False
             if td_mod_type in ['top', 'cond']:
                 if td_mod_type == 'top':
                     # top TD conditionals are based purely on BU info
@@ -670,6 +671,7 @@ class InfGenModel(object):
                             reparametrize_uniform(cond_mean_im, cond_logvar_im,
                                                   scale=bu_module.unif_post,
                                                   rng=cu_rng)
+                        unif_post = True
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
                                                noise=td_noise)
@@ -710,6 +712,7 @@ class InfGenModel(object):
                             reparametrize_uniform(cond_mean_im, cond_logvar_im,
                                                   scale=im_module.unif_post,
                                                   rng=cu_rng)
+                        unif_post = True
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
@@ -717,7 +720,7 @@ class InfGenModel(object):
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
-                if im_module.unif_post is None:
+                if not unif_post:
                     # record KLd info for the conditional distribution
                     kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
                                          T.flatten(cond_logvar_im, 2),
