@@ -13,8 +13,8 @@ from lib import activations
 from MatryoshkaModules import \
     BasicConvModule, GenTopModule, InfTopModule, \
     GenConvPertModule, BasicConvPertModule, \
-    GenConvGRUModule, InfConvMergeModuleIMS
-from MatryoshkaNetworks import InfGenModel, CondInfGenModel
+    GenConvGRUModule, InfConvMergeModuleIMS, ClassConvModule
+from MatryoshkaNetworks import InfGenModel, CondInfGenModel, InfGenModelSS
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
