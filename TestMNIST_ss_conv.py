@@ -26,7 +26,7 @@ from load import load_udm_ss
 #
 # Phil's business
 #
-from ModelBuilders import build_mnist_conv_res
+from ModelBuilders import build_mnist_conv_res, build_mnist_conv_res_ss
 
 sys.setrecursionlimit(100000)
 
@@ -49,13 +49,13 @@ data_path = "{}/data/".format(EXP_DIR)
 
 data_dict = load_udm_ss("{}mnist.pkl.gz".format(data_path), 100)
 Xtr_su = data_dict['Xtr_su']
-Ytr_su = data_dict['Ytr_su']
+Ytr_su = data_dict['Ytr_su'][:, np.newaxis]
 Xtr_un = data_dict['Xtr_un']
-Ytr_un = data_dict['Ytr_un']
+Ytr_un = data_dict['Ytr_un'][:, np.newaxis]
 Xva = data_dict['Xva']
-Yva = data_dict['Yva']
+Yva = data_dict['Yva'][:, np.newaxis]
 Xte = data_dict['Xte']
-Yte = data_dict['Yte']
+Yte = data_dict['Yte'][:, np.newaxis]
 
 print('Xtr_su.shape: {}'.format(Xtr_su.shape))
 print('Ytr_su.shape: {}'.format(Ytr_su.shape))
