@@ -76,8 +76,8 @@ niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_bn = True
 use_td_cond = False
-depth_7x7 = 1
-depth_14x14 = 1
+depth_7x7 = 3
+depth_14x14 = 3
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -132,8 +132,9 @@ def clip_sigmoid(x):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-lam_su_vae = sharedX(floatX([0.01]))
-lam_su_cls = sharedX(floatX([0.01]))
+lam_noise = sharedX(floatX([0.1]))
+lam_su_vae = sharedX(floatX([0.005]))
+lam_su_cls = sharedX(floatX([0.005]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -156,7 +157,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
 Xg = T.concatenate([Xg_un, Xg_su], axis=0)
-im_res_dict = inf_gen_model.apply_im(Xg)
+im_res_dict = inf_gen_model.apply_im(Xg, noise=lam_noise[0])
 Xg_recon = clip_sigmoid(im_res_dict['td_output'])
 cls_acts = im_res_dict['cls_acts']
 kld_dict = im_res_dict['kld_dict']
@@ -195,7 +196,9 @@ vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_obs_klds_un = vae_obs_klds[:Xg_un.shape[0]]
 vae_obs_klds_su = vae_obs_klds[Xg_un.shape[0]:]
-vae_kld_cost = T.mean(vae_obs_klds_un) + (lam_su_vae[0] * T.mean(vae_obs_klds_su))
+kld_cost_un = T.mean(vae_obs_klds_un)
+kld_cost_su = T.mean(vae_obs_klds_su)
+vae_kld_cost = kld_cost_un + (lam_su_vae[0] * kld_cost_su)
 
 # compute the KLd cost to use for optimization
 opt_kld_cost = lam_kld[0] * vae_kld_cost

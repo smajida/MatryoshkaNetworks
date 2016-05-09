@@ -1173,6 +1173,7 @@ def build_mnist_conv_res_ss(nz0=32, nz1=4, ngf=32, ngfc=128, class_count=10,
             im_modules=im_modules,
             cls_module=cls_module,
             merge_info=merge_info,
+            use_bu_noise=True,
             output_transform=noop)
 
     return inf_gen_model
