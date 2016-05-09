@@ -56,7 +56,7 @@ set_seed(123)       # seed for shared rngs
 nc = 3              # # of channels in image
 nbatch = 100        # # of examples in batch
 npx = 32            # # of pixels width/height of images
-nz0 = 32            # # of dim for Z0
+nz0 = 64            # # of dim for Z0
 nz1 = 4             # # of dim for Z1
 ngf = 32            # base # of filters for conv layers in generative stuff
 ngfc = 128          # # of filters in fully connected layers of generative stuff

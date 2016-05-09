@@ -14,6 +14,7 @@ import theano
 from lib.data_utils import shuffle
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 
+
 def row_shuffle(X):
     """
     Return a copy of X with shuffled rows.
@@ -23,27 +24,29 @@ def row_shuffle(X):
     X_shuf = X[shuf_idx]
     return X_shuf
 
+
 def mnist(data_dir):
     fd = open("{}/train-images.idx3-ubyte".format(data_dir))
-    loaded = np.fromfile(file=fd,dtype=np.uint8)
-    trX = loaded[16:].reshape((60000,28*28)).astype(float)
+    loaded = np.fromfile(file=fd, dtype=np.uint8)
+    trX = loaded[16:].reshape((60000, 28 * 28)).astype(float)
 
     fd = open("{}/train-labels.idx1-ubyte".format(data_dir))
-    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    loaded = np.fromfile(file=fd, dtype=np.uint8)
     trY = loaded[8:].reshape((60000))
 
     fd = open("{}/t10k-images.idx3-ubyte".format(data_dir))
-    loaded = np.fromfile(file=fd,dtype=np.uint8)
-    teX = loaded[16:].reshape((10000,28*28)).astype(float)
+    loaded = np.fromfile(file=fd, dtype=np.uint8)
+    teX = loaded[16:].reshape((10000, 28 * 28)).astype(float)
 
     fd = open("{}/t10k-labels.idx1-ubyte".format(data_dir))
-    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    loaded = np.fromfile(file=fd, dtype=np.uint8)
     teY = loaded[8:].reshape((10000))
 
     trY = np.asarray(trY)
     teY = np.asarray(teY)
 
     return trX, teX, trY, teY
+
 
 def mnist_with_valid_set(data_dir):
     trX, teX, trY, teY = mnist(data_dir)
@@ -53,11 +56,11 @@ def mnist_with_valid_set(data_dir):
     vaY = trY[50000:]
     trX = trX[:50000]
     trY = trY[:50000]
-
     return trX, vaX, teX, trY, vaY, teY
 
+
 def load_binarized_mnist(data_path='./'):
-    #binarized_mnist_test.amat  binarized_mnist_train.amat  binarized_mnist_valid.amat
+    # binarized_mnist_test.amat  binarized_mnist_train.amat  binarized_mnist_valid.amat
     print 'loading binary MNIST, sampled version (de Larochelle)'
     train_x = np.loadtxt(data_path + 'binarized_mnist_train.amat').astype('float32')
     valid_x = np.loadtxt(data_path + 'binarized_mnist_valid.amat').astype('float32')
@@ -67,6 +70,7 @@ def load_binarized_mnist(data_path='./'):
     valid_x = row_shuffle(valid_x)
     test_x = row_shuffle(test_x)
     return train_x, valid_x, test_x
+
 
 def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     """
@@ -79,12 +83,12 @@ def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     data_dict = io.loadmat(tr_file)
     Xtr = data_dict['X'].astype(theano.config.floatX)
     Ytr = data_dict['y'].astype(np.int32)
-    Xtr_vec = np.zeros((Xtr.shape[3], 32*32*3), dtype=theano.config.floatX)
+    Xtr_vec = np.zeros((Xtr.shape[3], 32 * 32 * 3), dtype=theano.config.floatX)
     for i in range(Xtr.shape[3]):
-        c_pix = 32*32
+        c_pix = 32 * 32
         for c in range(3):
-            Xtr_vec[i,c*c_pix:((c+1)*c_pix)] = \
-                    Xtr[:,:,c,i].reshape((32*32,))
+            Xtr_vec[i, c * c_pix:((c + 1) * c_pix)] = \
+                Xtr[:, :, c, i].reshape((32 * 32,))
     Xtr = Xtr_vec
     del data_dict
     gc.collect()
@@ -92,12 +96,12 @@ def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     data_dict = io.loadmat(te_file)
     Xte = data_dict['X'].astype(theano.config.floatX)
     Yte = data_dict['y'].astype(np.int32)
-    Xte_vec = np.zeros((Xte.shape[3], 32*32*3), dtype=theano.config.floatX)
+    Xte_vec = np.zeros((Xte.shape[3], 32 * 32 * 3), dtype=theano.config.floatX)
     for i in range(Xte.shape[3]):
-        c_pix = 32*32
+        c_pix = 32 * 32
         for c in range(3):
-            Xte_vec[i,c*c_pix:((c+1)*c_pix)] = \
-                    Xte[:,:,c,i].reshape((32*32,))
+            Xte_vec[i, c * c_pix:((c + 1) * c_pix)] = \
+                Xte[:, :, c, i].reshape((32 * 32,))
     Xte = Xte_vec
     del data_dict
     gc.collect()

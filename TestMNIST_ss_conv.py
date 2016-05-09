@@ -57,6 +57,10 @@ Yva = floatX(one_hot(data_dict['Yva'], 10))
 Xte = data_dict['Xte']
 Yte = floatX(one_hot(data_dict['Yte'], 10))
 
+# stack the supervised examples into the unsupervised set
+Xtr_un = np.concatenate([Xtr_su, Xtr_un], axis=0)
+Ytr_un = np.concatenate([Ytr_su, Ytr_un], axis=0)
+
 print('Xtr_su.shape: {}'.format(Xtr_su.shape))
 print('Ytr_su.shape: {}'.format(Ytr_su.shape))
 print('Xtr_un.shape: {}'.format(Xtr_un.shape))
@@ -104,6 +108,7 @@ def rand_gen(size, noise_type='normal'):
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
+softmax = T.nnet.softmax
 
 # BUILD THE MODEL
 inf_gen_model = \
@@ -127,6 +132,8 @@ def clip_sigmoid(x):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
+lam_su_vae = sharedX(floatX([0.1]))
+lam_su_cls = sharedX(floatX([0.1]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
@@ -156,32 +163,43 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
+# get observation reconstruction error for all samples
 log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
                 do_sum=False), axis=1)
 
+# get class prediction error for supervised samples
+p_y_su = softmax(cls_acts[Xg_un.shape[0]:, :])
+log_p_y_su = T.sum((Yg_su * T.log(p_y_su)), axis=1)  # Yg_su must be one-hot
+
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x + T.mean(T.sqr(cls_acts)) + T.mean(Yg_su)
-vae_nll_cost = T.mean(vae_obs_nlls)
+vae_obs_nlls = -1.0 * log_p_x
+vae_obs_nlls_un = vae_obs_nlls[:Xg_un.shape[0]]
+vae_obs_nlls_su = vae_obs_nlls[Xg_un.shape[0]:]
+nll_cost_un = T.mean(vae_obs_nlls_un)
+nll_cost_su = (lam_su_vae[0] * T.mean(vae_obs_nlls_su) -
+               lam_su_cls[0] * T.mean(log_p_y_su))
+# combine unsupervised and supervised reconstruction costs
+vae_nll_cost = nll_cost_un + nll_cost_su
 
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-# compute total per-observation KL-divergence part of cost
-vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-vae_kld_cost = T.mean(vae_obs_klds)
 
-# compute per-layer KL-divergence part of cost
-alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
-alt_kld_cost = T.mean(sum(alt_layer_klds))
+# split the KLd cost into unsupervised and supervised parts
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
+vae_obs_klds_un = vae_obs_klds[:Xg_un.shape[0]]
+vae_obs_klds_su = vae_obs_klds[Xg_un.shape[0]:]
+vae_kld_cost = T.mean(vae_obs_klds_un) + (lam_su_vae[0] * T.mean(vae_obs_klds_su))
 
 # compute the KLd cost to use for optimization
-opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+opt_kld_cost = lam_kld[0] * vae_kld_cost
 
 # combined cost for generator stuff
-vae_cost = vae_nll_cost + vae_kld_cost
-vae_obs_costs = vae_obs_nlls + vae_obs_klds
+vae_obs_costs = vae_obs_nlls_un + vae_obs_klds_un
+vae_cost = T.mean(vae_obs_costs)
+
 # cost used by the optimizer
 full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
 full_cost_inf = full_cost_gen
