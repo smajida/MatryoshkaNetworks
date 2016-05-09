@@ -628,8 +628,9 @@ sigma_info = []
 mu, sigma = estimate_gauss_params(255. * Xtr)
 for beta in [0.5, 0.7, 0.9, 1.0]:
     sigma_beta = sigma * beta
-    U, log_pdet_sigma_beta = psd_pinv_decomposed_log_pdet(sigma_beta)
-    sigma_info.append((sigma_beta, beta, U, log_pdet_sigma_beta))
+    U_beta, log_pdet_sigma_beta = psd_pinv_decomposed_log_pdet(sigma_beta)
+    pinv_sigma_beta = np.dot(U_beta, U_beta.T)
+    sigma_info.append((beta, sigma_beta, pinv_sigma_beta, log_pdet_sigma_beta))
 print('computing whitening transform for fuzzy images')
 W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
 
