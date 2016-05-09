@@ -157,7 +157,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
 Xg = T.concatenate([Xg_un, Xg_su], axis=0)
-im_res_dict = inf_gen_model.apply_im(Xg, noise=lam_noise[0])
+im_res_dict = inf_gen_model.apply_im(Xg, noise=lam_noise)
 Xg_recon = clip_sigmoid(im_res_dict['td_output'])
 cls_acts = im_res_dict['cls_acts']
 kld_dict = im_res_dict['kld_dict']
