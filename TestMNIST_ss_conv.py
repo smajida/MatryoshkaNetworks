@@ -133,8 +133,8 @@ def clip_sigmoid(x):
 ####################################
 lam_kld = sharedX(floatX([1.0]))
 lam_noise = sharedX(floatX([0.1]))
-lam_su_vae = sharedX(floatX([0.005]))
-lam_su_cls = sharedX(floatX([0.005]))
+lam_su_vae = sharedX(floatX([0.01]))
+lam_su_cls = sharedX(floatX([0.05]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
