@@ -72,9 +72,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 3
-depth_8x8 = 3
-depth_16x16 = 3
+depth_4x4 = 2
+depth_8x8 = 4
+depth_16x16 = 4
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -213,7 +213,7 @@ for i in range(depth_4x4):
 td_module_3 = \
     BasicConvModule(
         in_chans=(ngf * 4),
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 3),
         filt_shape=(3, 3),
         apply_bn=use_bn,
         stride='half',
@@ -226,9 +226,9 @@ for i in range(depth_8x8):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
     new_module = \
         GenConvPertModule(
-            in_chans=(ngf * 2),
-            out_chans=(ngf * 2),
-            conv_chans=(ngf * 2),
+            in_chans=(ngf * 3),
+            out_chans=(ngf * 3),
+            conv_chans=(ngf * 3),
             rand_chans=nz1,
             filt_shape=(3, 3),
             use_rand=multi_rand,
@@ -243,7 +243,7 @@ for i in range(depth_8x8):
 td_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=(ngf * 2),
+        in_chans=(ngf * 3),
         out_chans=(ngf * 2),
         apply_bn=use_bn,
         stride='half',
@@ -341,7 +341,7 @@ bu_modules_4x4.reverse()
 # (8, 8) -> (4, 4)
 bu_module_3 = \
     BasicConvModule(
-        in_chans=(ngf * 2),
+        in_chans=(ngf * 3),
         out_chans=(ngf * 4),
         filt_shape=(3, 3),
         apply_bn=use_bn,
@@ -355,9 +355,9 @@ for i in range(depth_8x8):
     mod_name = 'bu_mod_4{}'.format(alphabet[i])
     new_module = \
         BasicConvPertModule(
-            in_chans=(ngf * 2),
-            out_chans=(ngf * 2),
-            conv_chans=(ngf * 2),
+            in_chans=(ngf * 3),
+            out_chans=(ngf * 3),
+            conv_chans=(ngf * 3),
             filt_shape=(3, 3),
             use_conv=use_conv,
             apply_bn=use_bn,
@@ -372,7 +372,7 @@ bu_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=(ngf * 2),
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 3),
         apply_bn=use_bn,
         stride='double',
         act_func=act_func,
@@ -467,7 +467,7 @@ for i in range(depth_4x4):
 im_module_3 = \
     BasicConvModule(
         in_chans=(ngf * 4),
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 3),
         filt_shape=(3, 3),
         apply_bn=use_bn,
         stride='half',
@@ -480,11 +480,11 @@ for i in range(depth_8x8):
     mod_name = 'im_mod_4{}'.format(alphabet[i])
     new_module = \
         InfConvMergeModuleIMS(
-            td_chans=(ngf * 2),
-            bu_chans=(ngf * 2),
-            im_chans=(ngf * 2),
+            td_chans=(ngf * 3),
+            bu_chans=(ngf * 3),
+            im_chans=(ngf * 3),
             rand_chans=nz1,
-            conv_chans=(ngf * 2),
+            conv_chans=(ngf * 3),
             use_conv=True,
             use_td_cond=use_td_cond,
             apply_bn=use_bn,
@@ -496,7 +496,7 @@ for i in range(depth_8x8):
 # (8, 8) -> (16, 16)
 im_module_5 = \
     BasicConvModule(
-        in_chans=(ngf * 2),
+        in_chans=(ngf * 3),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
         apply_bn=use_bn,
