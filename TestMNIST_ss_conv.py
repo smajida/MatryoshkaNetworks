@@ -49,13 +49,13 @@ data_path = "{}/data/".format(EXP_DIR)
 
 data_dict = load_udm_ss("{}mnist.pkl.gz".format(data_path), 100)
 Xtr_su = data_dict['Xtr_su']
-Ytr_su = floatX(one_hot(data_dict['Ytr_su']))
+Ytr_su = floatX(one_hot(data_dict['Ytr_su'], 10))
 Xtr_un = data_dict['Xtr_un']
-Ytr_un = floatX(one_hot(data_dict['Ytr_un']))
+Ytr_un = floatX(one_hot(data_dict['Ytr_un'], 10))
 Xva = data_dict['Xva']
-Yva = floatX(one_hot(data_dict['Yva']))
+Yva = floatX(one_hot(data_dict['Yva'], 10))
 Xte = data_dict['Xte']
-Yte = floatX(one_hot(data_dict['Yte']))
+Yte = floatX(one_hot(data_dict['Yte'], 10))
 
 print('Xtr_su.shape: {}'.format(Xtr_su.shape))
 print('Ytr_su.shape: {}'.format(Ytr_su.shape))

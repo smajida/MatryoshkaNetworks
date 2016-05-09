@@ -624,8 +624,12 @@ g_params = gen_params + inf_params
 ###########################################################
 from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
+sigma_info = []
 mu, sigma = estimate_gauss_params(255. * Xtr)
-U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
+for beta in [0.5, 0.7, 0.9, 1.0]:
+    sigma_beta = sigma * beta
+    U, log_pdet_sigma_beta = psd_pinv_decomposed_log_pdet(sigma_beta)
+    sigma_info.append((sigma_beta, beta, U, log_pdet_sigma_beta))
 print('computing whitening transform for fuzzy images')
 W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
 
