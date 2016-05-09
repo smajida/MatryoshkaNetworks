@@ -40,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_white_input'
+desc = 'test_conv_baby_steps_gauss_error'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -72,9 +72,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = True
-depth_4x4 = 2
-depth_8x8 = 4
-depth_16x16 = 4
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -626,14 +626,19 @@ from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
 sigma_info = []
 mu, sigma = estimate_gauss_params(255. * Xtr)
-for beta in [0.5, 0.7, 0.9, 1.0]:
+for beta in [1.0, 0.9, 0.7, 0.5]:
+    # gather information required for computing multivariate normal PDF under
+    # different amounts of variance.
     sigma_beta = sigma * beta
     U_beta, log_pdet_sigma_beta = psd_pinv_decomposed_log_pdet(sigma_beta)
     pinv_sigma_beta = np.dot(U_beta, U_beta.T)
-    sigma_info.append((beta, sigma_beta, pinv_sigma_beta, log_pdet_sigma_beta))
+    sigma_info.append({'beta': beta,
+                       'sigma': sigma_beta,
+                       'prec': pinv_sigma_beta,
+                       'prec_U': U_beta,
+                       'log_det_sigma': log_pdet_sigma_beta})
 print('computing whitening transform for fuzzy images')
-W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
-
+W, mu = estimate_whitening_transform((255. * Xtr), samples=2)
 WU, log_pdet_W = psd_pinv_decomposed_log_pdet(W)
 
 # quick test of log-likelihood for a basic Gaussian model...
@@ -659,8 +664,9 @@ Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 # whiten input
-Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
-Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+# Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
+# Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+Xg_whitened = Xg
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -675,9 +681,12 @@ kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                log_vars=log_var[0], do_sum=False), axis=1)
+# log_p_x = T.sum(log_prob_gaussian(
+#                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
+#                 log_vars=log_var[0], do_sum=False), axis=1)
+prec_U = sigma_info[0]['prec_U']
+log_det_cov = sigma_inf0[0]['log_det_sigma']
+log_p_x = logpdf(Xg, Xg_recon, prec_U, log_det_cov)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x

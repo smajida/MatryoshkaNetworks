@@ -99,7 +99,7 @@ def logpdf(x, mean, prec_U, log_det_cov):
     ----------
     x      : 2d matrix of observations    shape=(nbatch, obs_dim)
     mean   : 2d matrix of "means"         shape=(nbatch, obs_dim)
-    prec_U : precision matrix             shape=(obs_dim, obs_dim)
+    U      : precision matrix is U*U^T    shape=(obs_dim, obs_dim)
     log_det_cov : log determinant of cov  (scalar)
     """
     dim = T.cast(x.shape[1], theano.config.floatX)
