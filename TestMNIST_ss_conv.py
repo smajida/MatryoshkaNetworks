@@ -179,6 +179,9 @@ vae_obs_nlls_su = vae_obs_nlls[Xg_un.shape[0]:]
 nll_cost_un = T.mean(vae_obs_nlls_un)
 nll_cost_su = (lam_su_vae[0] * T.mean(vae_obs_nlls_su) -
                lam_su_cls[0] * T.mean(log_p_y_su))
+
+su_nll_cost = lam_su_vae[0] * T.mean(vae_obs_nlls_su)
+su_cls_cost = -lam_su_cls[0] * T.mean(log_p_y_su)
 # combine unsupervised and supervised reconstruction costs
 vae_nll_cost = nll_cost_un + nll_cost_su
 
@@ -237,11 +240,11 @@ test_recons = recon_func(train_transform(Xtr_un[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
-                 vae_kld_cost, gen_grad_norm, inf_grad_norm,
+                 vae_kld_cost, su_nll_cost, su_cls_cost,
                  vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
-              'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
+              'vae_kld_cost', 'su_nll_cost', 'su_cls_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
@@ -268,12 +271,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
     #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
-    g_epoch_costs = [0. for i in range(5)]
-    v_epoch_costs = [0. for i in range(5)]
-    i_epoch_costs = [0. for i in range(5)]
+    g_epoch_costs = [0. for i in range(7)]
+    v_epoch_costs = [0. for i in range(7)]
+    i_epoch_costs = [0. for i in range(7)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-    gen_grad_norms = []
-    inf_grad_norms = []
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
@@ -292,11 +293,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         xsu_img = train_transform(Xtr_su)
         # train vae on training batch
         g_result = g_train_func(imb_img, xsu_img, Ytr_su)
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
+        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:7], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
-        gen_grad_norms.append(1. * g_result[5])
-        inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
@@ -306,7 +305,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # evaluate vae on validation batch
         if v_batch_count < 25:
             v_result = g_eval_func(vmb_img, xsu_img, Ytr_su)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:7], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
         # cut learning rate in half
@@ -328,18 +327,16 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
-    gen_grad_norms = np.asarray(gen_grad_norms)
-    inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:7])]
     str2 = " ".join(g_bc_strs)
     i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:7])]
     str2i = " ".join(i_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
