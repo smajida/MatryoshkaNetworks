@@ -2684,7 +2684,7 @@ class InfConvMergeModuleIMS(object):
             h2 = dnn_conv(h1, self.w2_td, subsample=(1, 1), border_mode=(1, 1))
             h3 = h2 + self.b2_td.dimshuffle('x', 0, 'x', 'x')
             out_mean = h3[:, :self.rand_chans, :, :]
-            out_logvar = 0.0 * h3[:, self.rand_chans:, :, :]  # use fixed logvar...
+            out_logvar = 0.0 * h3[:, self.rand_chans:, :, :]
         else:
             batch_size = td_input.shape[0]
             rows = td_input.shape[2]

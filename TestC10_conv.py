@@ -40,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_td_cond_unif_top'
+desc = 'test_conv_baby_steps_td_cond_gauss_top'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -318,7 +318,7 @@ bu_module_1 = \
         use_sc=False,
         apply_bn=use_bn,
         act_func=act_func,
-        unif_post=0.2,
+        unif_post=None,
         mod_name='bu_mod_1')
 
 # grow the (4, 4) -> (4, 4) part of network
