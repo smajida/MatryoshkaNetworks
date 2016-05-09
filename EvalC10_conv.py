@@ -138,6 +138,13 @@ def nats2bpp(nats):
     return bpp
 
 
+def np_log_mean_exp(x, axis=None):
+    assert (axis is not None), "please provide an axis..."
+    m = np.max(x, axis=axis, keepdims=True)
+    lme = m + np.log(np.mean(np.exp(x - m), axis=axis, keepdims=True))
+    return lme
+
+
 def iwae_multi_eval(x, iters, cost_func, iwae_num):
     # slow multi-pass evaluation of IWAE bound.
     log_p_x = []
