@@ -252,7 +252,7 @@ g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
                  vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
-              'vae_kld_cost', 'su_nll_cost', 'su_cls_cost', 'su_acc_y'
+              'vae_kld_cost', 'su_nll_cost', 'su_cls_cost', 'su_acc_y',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
