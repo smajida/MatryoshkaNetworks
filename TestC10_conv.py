@@ -696,7 +696,7 @@ log_p_x = T.sum(log_prob_gaussian(
 vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls) - log_pdet_W
 
-print('MIN BPP: {0:.2f}'.format(nats2bpp(-log_pdet_W)))
+print('BASE BPP: {0:.2f}'.format(nats2bpp(-log_pdet_W)))
 
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
@@ -722,7 +722,8 @@ full_cost_inf = full_cost_gen
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+td_output = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+Xd_model = td_output[:, :nc, :, :]
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
