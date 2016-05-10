@@ -354,7 +354,7 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
 def build_mnist_conv_res_hires(
         nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
         act_func='lrelu', use_td_cond=True,
-        depth_7x7=2, depth_14x14=2, depth_28x28):
+        depth_7x7=2, depth_14x14=2, depth_28x28=2):
 
     #########################################
     # Setup the top-down processing modules #

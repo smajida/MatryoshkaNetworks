@@ -69,8 +69,8 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_td_cond = True
-depth_7x7 = 6
-depth_14x14 = 6
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -105,10 +105,10 @@ bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
 inf_gen_model = \
-    build_mnist_conv_res(
+    build_mnist_conv_res_hires(
         nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
         act_func='lrelu', use_td_cond=use_td_cond,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+        depth_7x7=depth_7x7, depth_14x14=depth_14x14, depth_28x28=depth_14x14)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
