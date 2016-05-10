@@ -72,9 +72,9 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 2
-depth_8x8 = 3
-depth_16x16 = 4
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -286,7 +286,7 @@ td_module_8 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=(ngf * 1),
-        out_chans=nc,
+        out_chans=(nc * 2),
         apply_bn=False,
         rescale_output=True,
         use_noise=False,
@@ -677,14 +677,17 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
-Xg_recon = im_res_dict['td_output']
+td_output = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
+Xg_recon = td_output[:, :nc, :, :]
+Xg_lgvar = td_output[:, nc:, :, :]
+
 log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                log_vars=log_var[0], do_sum=False), axis=1)
+                log_vars=T.flatten(Xg_lgvar, 2), do_sum=False), axis=1)
 # prec_U = sigma_info[0]['prec_U']
 # log_det_cov = sigma_info[0]['log_det_sigma']
 # log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
