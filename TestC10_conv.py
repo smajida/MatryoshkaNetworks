@@ -696,6 +696,8 @@ log_p_x = T.sum(log_prob_gaussian(
 vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls) - log_pdet_W
 
+print('MIN BPP: {0:.2f}'.format(nats2bpp(-log_pdet_W)))
+
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
