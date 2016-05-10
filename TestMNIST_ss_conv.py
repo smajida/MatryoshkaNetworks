@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_ss_100'
+desc = 'test_conv_ss_100_3deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -134,7 +134,7 @@ def clip_sigmoid(x):
 lam_kld = sharedX(floatX([1.0]))
 lam_noise = sharedX(floatX([0.1]))
 lam_su_vae = sharedX(floatX([0.01]))
-lam_su_cls = sharedX(floatX([0.05]))
+lam_su_cls = sharedX(floatX([0.50]))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params

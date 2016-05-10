@@ -71,10 +71,10 @@ noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
-use_td_cond = True
+use_td_cond = False
 depth_4x4 = 2
 depth_8x8 = 3
-depth_16x16 = 3
+depth_16x16 = 4
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -767,7 +767,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.02, 1.0, 50)
+kld_weights = np.linspace(0.02, 1.0, 100)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
