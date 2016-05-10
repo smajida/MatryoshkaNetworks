@@ -526,6 +526,8 @@ class InfGenModel(object):
             rand_vals = [None for i in range(len(self.td_modules))]
         td_noise = noise if self.use_td_noise else None
         td_acts = []
+        result = None
+        dec_count = 0.
         for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
@@ -558,6 +560,17 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_acts[-1],
                                                rand_vals=rvs,
                                                noise=td_noise)
+                    if hasattr(td_module, 'has_decoder'):
+                        # TD modules with auxiliary decoder return two tensors
+                        td_act_i, dec_res_i = td_act_i
+                        dec_count = dec_count + 1.
+                        if result is None:
+                            # first decoder initializes output
+                            result = dec_res_i
+                        else:
+                            # final output is average of the decoders' outputs
+                            scale = 1. / dec_count
+                            result = (1. - scale) * result + (scale * dec_res_i)
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
                 # information from preceding TD modules (no rand input)
@@ -565,7 +578,10 @@ class InfGenModel(object):
                                            noise=td_noise)
             td_acts.append(td_act_i)
         # apply some transform (e.g. tanh or sigmoid) to final activations
-        result = self.output_transform(td_acts[-1])
+        if result is None:
+            result = self.output_transform(td_acts[-1])
+        else:
+            result = self.output_transform(result)
         return result
 
     def apply_bu(self, input, noise=None, sc_info=None):
@@ -643,6 +659,8 @@ class InfGenModel(object):
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
         td_acts = []
+        td_output = None
+        dec_count = 0.
         for i, td_module in enumerate(self.td_modules):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
@@ -717,6 +735,17 @@ class InfGenModel(object):
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
                                                noise=td_noise)
+                    if hasattr(td_module, 'has_decoder'):
+                        # TD modules with auxiliary decoder return two tensors
+                        td_act_i, dec_res_i = td_act_i
+                        dec_count = dec_count + 1.
+                        if td_output is None:
+                            # first decoder initializes output
+                            td_output = dec_res_i
+                        else:
+                            # final output is average of the decoders' outputs
+                            scale = 1. / dec_count
+                            td_output = (1. - scale) * td_output + (scale * dec_res_i)
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
@@ -758,7 +787,10 @@ class InfGenModel(object):
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply output transform (into observation space, presumably), to get
         # the final "reconstruction" produced by the merged BU/TD pass.
-        td_output = self.output_transform(td_acts[-1])
+        if td_output is None:
+            td_output = self.output_transform(td_acts[-1])
+        else:
+            td_output = self.output_transform(td_output)
         # package results into a handy dictionary
         im_res_dict = {}
         im_res_dict['td_output'] = td_output

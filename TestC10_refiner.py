@@ -74,7 +74,7 @@ inf_mt = 0
 use_td_cond = False
 depth_4x4 = 1
 depth_8x8 = 1
-depth_16x16 = 1
+depth_16x16 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -254,7 +254,11 @@ td_module_5 = \
 td_modules_16x16 = []
 for i in range(depth_16x16):
     mod_name = 'td_mod_6{}'.format(alphabet[i])
-    new_module = \
+    tdm_name = '{}-tdm'.format(mod_name)
+    dm1_name = '{}-dm1'.format(mod_name)
+    dm2_name = '{}-dm2'.format(mod_name)
+    # TD module
+    mod_tdm = \
         GenConvPertModule(
             in_chans=(ngf * 2),
             out_chans=(ngf * 2),
@@ -266,33 +270,35 @@ for i in range(depth_16x16):
             apply_bn=use_bn,
             act_func=act_func,
             us_stride=1,
+            mod_name=tdm_name)
+    # decoder module 1
+    mod_dm1 = \
+        BasicConvModule(
+            filt_shape=(3, 3),
+            in_chans=(ngf * 2),
+            out_chans=(ngf * 1),
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=dm1_name)
+    # decoder module 2
+    mod_dm2 = \
+        BasicConvModule(
+            filt_shape=(3, 3),
+            in_chans=(ngf * 1),
+            out_chans=(nc * 2),
+            apply_bn=False,
+            rescale_output=True,
+            use_noise=False,
+            stride='single',
+            act_func='ident',
+            mod_name=dm2_name)
+    wrap_mod = \
+        TDRefinerWrapper(
+            gen_module=mod_tdm,
+            mlp_modules=[mod_dm1, mod_dm2],
             mod_name=mod_name)
-    td_modules_16x16.append(new_module)
-# manual stuff for parameter sharing....
-
-# (16, 16) -> (32, 32)
-td_module_7 = \
-    BasicConvModule(
-        filt_shape=(3, 3),
-        in_chans=(ngf * 2),
-        out_chans=(ngf * 1),
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name='td_mod_7')
-
-# (32, 32) -> (32, 32)
-td_module_8 = \
-    BasicConvModule(
-        filt_shape=(3, 3),
-        in_chans=(ngf * 1),
-        out_chans=(nc * 2),
-        apply_bn=False,
-        rescale_output=True,
-        use_noise=False,
-        stride='single',
-        act_func='ident',
-        mod_name='td_mod_8')
+    td_modules_16x16.append(wrap_mod)
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1] + \
@@ -300,8 +306,7 @@ td_modules = [td_module_1] + \
              [td_module_3] + \
              td_modules_8x8 + \
              [td_module_5] + \
-             td_modules_16x16 + \
-             [td_module_7, td_module_8]
+             td_modules_16x16
 
 ##########################################
 # Setup the bottom-up processing modules #
@@ -542,12 +547,7 @@ merge_info = {
                  'bu_source': None, 'im_source': im_modules_4x4[-1].mod_name},
 
     'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
-                 'bu_source': None, 'im_source': im_modules_8x8[-1].mod_name},
-
-    'td_mod_7': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None},
-    'td_mod_8': {'td_type': 'pass', 'im_module': None,
-                 'bu_source': None, 'im_source': None}
+                 'bu_source': None, 'im_source': im_modules_8x8[-1].mod_name}
 }
 
 # add merge_info entries for the modules with latent variables
