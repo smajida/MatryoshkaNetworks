@@ -26,7 +26,7 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from ModelBuilders import build_mnist_conv_res
+from ModelBuilders import build_mnist_conv_res, build_mnist_conv_res_hires
 
 sys.setrecursionlimit(100000)
 
