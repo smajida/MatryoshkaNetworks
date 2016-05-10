@@ -40,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_td_cond_gauss_top'
+desc = 'test_conv_clean_input'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -81,11 +81,13 @@ alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 ntrain = Xtr.shape[0]
 
 
-def train_transform(X, add_fuzz=True):
+def train_transform(X, add_fuzz=True, shift=None):
     # transform vectorized observations into convnet inputs
     X = X * 255.  # scale X to be in [0, 255]
     if add_fuzz:
         X = fuzz_data(X, scale=1., rand_type='uniform')
+    if shift is not None:
+        X = X + shift
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -661,13 +663,16 @@ def whiten_data(X_sym, W_sym, mu_sym):
 ######################################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
+Xi = T.tensor4()  # symbolic var for inputs to the inferencer
+Xo = T.tensor4()  # symbolic var for target outputs from the generator
 Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 # whiten input
-Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
-Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
-# Xg_whitened = Xg
+Xi_whitened = whiten_data(T.flatten(Xi, 2), W, mu)
+Xi_whitened = Xi_whitened.reshape((Xi_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+Xo_whitened = whiten_data(T.flatten(Xo, 2), W, mu)
+Xo_whitened = Xo_whitened.reshape((Xo_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+# Xi_whitened = Xi
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -676,21 +681,21 @@ Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
+im_res_dict = inf_gen_model.apply_im(Xi_whitened, noise=noise)
 td_output = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
-Xg_recon = td_output[:, :nc, :, :]
-Xg_lgvar = td_output[:, nc:, :, :]
+Xi_recon = td_output[:, :nc, :, :]
+Xi_lgvar = td_output[:, nc:, :, :]
 
 log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                log_vars=T.flatten(Xg_lgvar, 2), do_sum=False), axis=1)
+                T.flatten(Xo_whitened, 2), T.flatten(Xi_recon, 2),
+                log_vars=T.flatten(Xi_lgvar, 2), do_sum=False), axis=1)
 # prec_U = sigma_info[0]['prec_U']
 # log_det_cov = sigma_info[0]['log_det_sigma']
-# log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
+# log_p_x = logpdf(T.flatten(Xi, 2), T.flatten(Xi_recon, 2), prec_U, log_det_cov)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
@@ -744,7 +749,7 @@ g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
 print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg], Xg_recon)
+recon_func = theano.function([Xi], Xi_recon)
 sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling training functions...")
@@ -758,9 +763,9 @@ g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
-i_train_func = theano.function([Xg], g_cost_outputs, updates=inf_updates)  # train inference only
-g_eval_func = theano.function([Xg], g_cost_outputs)                        # evaluate model costs
+g_train_func = theano.function([Xi, Xo], g_cost_outputs, updates=g_updates)
+i_train_func = theano.function([Xi, Xo], g_cost_outputs, updates=inf_updates)
+g_eval_func = theano.function([Xi, Xo], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
@@ -802,11 +807,12 @@ for epoch in range(1, (niter + niter_decay + 1)):
         else:
             vmb = Xva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform(imb)
-        vmb_img = train_transform(vmb)
+        imb_img = train_transform(imb, add_fuzz=False, shift=0.5)
+        imb_out = train_transform(imb, add_fuzz=True, shift=0.0)
+        vmb_img = train_transform(vmb, add_fuzz=False, shift=0.5)
+        vmb_out = train_transform(vmb, add_fuzz=True, shift=0.0)
         # train vae on training batch
-        noise.set_value(floatX([noise_std]))
-        g_result = g_train_func(floatX(imb_img))
+        g_result = g_train_func(imb_img, imb_out)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
@@ -824,8 +830,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            noise.set_value(floatX([0.0]))
-            v_result = g_eval_func(vmb_img)
+            v_result = g_eval_func(vmb_img, vmb_out)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 15) or (epoch == 50) or (epoch == 100):
@@ -892,8 +897,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         tr_rb = Xtr[0:100, :]
         va_rb = Xva[0:100, :]
         # get the model reconstructions
-        tr_rb = train_transform(tr_rb)
-        va_rb = train_transform(va_rb)
+        tr_rb = train_transform(tr_rb, add_fuzz=False, shift=0.5)
+        va_rb = train_transform(va_rb, add_fuzz=False, shift=0.5)
         tr_recons = recon_func(tr_rb)
         va_recons = recon_func(va_rb)
         # stripe data for nice display (each reconstruction next to its target)
