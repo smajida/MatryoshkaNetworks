@@ -3907,7 +3907,6 @@ class TDRefinerWrapper(object):
             else:
                 acts.append(mod.apply(acts[-1]))
         h2 = acts[-1]
-
         return h1, h2
 
 

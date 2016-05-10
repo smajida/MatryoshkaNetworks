@@ -726,7 +726,7 @@ def build_mnist_conv_res_hires(
 
         'td_mod_7': {'td_type': 'pass', 'im_module': None,
                      'bu_source': None, 'im_source': None},
-        'td_mod_7': {'td_type': 'pass', 'im_module': None,
+        'td_mod_8': {'td_type': 'pass', 'im_module': None,
                      'bu_source': None, 'im_source': None}
     }
 

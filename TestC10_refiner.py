@@ -29,10 +29,6 @@ from MatryoshkaModules import BasicConvModule, GenTopModule, InfTopModule, \
                               GenConvPertModule, BasicConvPertModule, \
                               GenConvGRUModule, InfConvMergeModuleIMS
 from MatryoshkaNetworks import InfGenModel
-from MatryoshkaNetworksNEW import DeepRefiner
-from MatryoshkaModulesNEW import \
-    IMModuleWrapperNEW, TDModuleWrapperNEW, BasicConvModuleNEW, \
-    GenConvModuleNEW, InfConvMergeModuleNEW
 
 sys.setrecursionlimit(100000)
 
@@ -44,7 +40,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './cifar10'
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_baby_steps_refine'
+desc = 'test_conv_baby_steps_td_cond_gauss_top'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -60,26 +56,25 @@ set_seed(123)       # seed for shared rngs
 nc = 3              # # of channels in image
 nbatch = 100        # # of examples in batch
 npx = 32            # # of pixels width/height of images
-nz0 = 128           # # of dim for Z0
+nz0 = 64            # # of dim for Z0
 nz1 = 4             # # of dim for Z1
 ngf = 32            # base # of filters for conv layers in generative stuff
-ngfc = 512          # # of filters in fully connected layers of generative stuff
+ngfc = 128          # # of filters in fully connected layers of generative stuff
 nx = npx * npx * nc   # # of dimensions in X
 niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
 multi_rand = True   # whether to use stochastic variables at multiple scales
 use_conv = True     # whether to use "internal" conv layers in gen/disc networks
-use_bn = False      # whether to use batch normalization throughout the model
+use_bn = False       # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 noise_std = 0.0     # amount of noise to inject in BU and IM modules
 use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
-use_td_cond = True
-depth_4x4 = 2
-depth_8x8 = 2
-depth_16x16 = 2
-refine_steps = 2
+use_td_cond = False
+depth_4x4 = 1
+depth_8x8 = 1
+depth_16x16 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -182,7 +177,7 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (8, 8)
+# FC -> (7, 7)
 td_module_1 = \
     GenTopModule(
         rand_dim=nz0,
@@ -194,10 +189,10 @@ td_module_1 = \
         act_func=act_func,
         mod_name='td_mod_1')
 
-# grow the (8, 8) -> (8, 8) part of network
-td_modules_8x8 = []
-for i in range(depth_8x8):
-    mod_name = 'td_mod_4{}'.format(alphabet[i])
+# grow the (4, 4) -> (4, 4) part of network
+td_modules_4x4 = []
+for i in range(depth_4x4):
+    mod_name = 'td_mod_2{}'.format(alphabet[i])
     new_module = \
         GenConvPertModule(
             in_chans=(ngf * 4),
@@ -211,14 +206,44 @@ for i in range(depth_8x8):
             act_func=act_func,
             us_stride=1,
             mod_name=mod_name)
-    td_modules_8x8.append(new_module)
+    td_modules_4x4.append(new_module)
 # manual stuff for parameter sharing....
+
+# (4, 4) -> (8, 8)
+td_module_3 = \
+    BasicConvModule(
+        in_chans=(ngf * 4),
+        out_chans=(ngf * 3),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='half',
+        act_func=act_func,
+        mod_name='td_mod_3')
+
+# grow the (8, 8) -> (8, 8) part of network
+td_modules_8x8 = []
+for i in range(depth_8x8):
+    mod_name = 'td_mod_4{}'.format(alphabet[i])
+    new_module = \
+        GenConvPertModule(
+            in_chans=(ngf * 3),
+            out_chans=(ngf * 3),
+            conv_chans=(ngf * 3),
+            rand_chans=nz1,
+            filt_shape=(3, 3),
+            use_rand=multi_rand,
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            act_func=act_func,
+            us_stride=1,
+            mod_name=mod_name)
+    td_modules_8x8.append(new_module)
 
 # (8, 8) -> (16, 16)
 td_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=(ngf * 4),
+        in_chans=(ngf * 3),
         out_chans=(ngf * 2),
         apply_bn=use_bn,
         stride='half',
@@ -250,9 +275,9 @@ td_module_7 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=(ngf * 2),
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 1),
         apply_bn=use_bn,
-        stride='half',
+        stride='single',
         act_func=act_func,
         mod_name='td_mod_7')
 
@@ -260,8 +285,8 @@ td_module_7 = \
 td_module_8 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=(ngf * 2),
-        out_chans=nc,
+        in_chans=(ngf * 1),
+        out_chans=(nc * 2),
         apply_bn=False,
         rescale_output=True,
         use_noise=False,
@@ -271,6 +296,8 @@ td_module_8 = \
 
 # modules must be listed in "evaluation order"
 td_modules = [td_module_1] + \
+             td_modules_4x4 + \
+             [td_module_3] + \
              td_modules_8x8 + \
              [td_module_5] + \
              td_modules_16x16 + \
@@ -281,7 +308,7 @@ td_modules = [td_module_1] + \
 # -- these do inference                  #
 ##########################################
 
-# (8, 8) -> FC
+# (4, 4) -> FC
 bu_module_1 = \
     InfTopModule(
         bu_chans=(ngf * 4 * 8 * 8),
@@ -291,12 +318,13 @@ bu_module_1 = \
         use_sc=False,
         apply_bn=use_bn,
         act_func=act_func,
+        unif_post=None,
         mod_name='bu_mod_1')
 
-# grow the (8, 8) -> (8, 8) part of network
-bu_modules_8x8 = []
-for i in range(depth_8x8):
-    mod_name = 'bu_mod_4{}'.format(alphabet[i])
+# grow the (4, 4) -> (4, 4) part of network
+bu_modules_4x4 = []
+for i in range(depth_4x4):
+    mod_name = 'bu_mod_2{}'.format(alphabet[i])
     new_module = \
         BasicConvPertModule(
             in_chans=(ngf * 4),
@@ -308,15 +336,44 @@ for i in range(depth_8x8):
             stride='single',
             act_func=act_func,
             mod_name=mod_name)
+    bu_modules_4x4.append(new_module)
+bu_modules_4x4.reverse()
+
+# (8, 8) -> (4, 4)
+bu_module_3 = \
+    BasicConvModule(
+        in_chans=(ngf * 3),
+        out_chans=(ngf * 4),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_3')
+
+# grow the (8, 8) -> (8, 8) part of network
+bu_modules_8x8 = []
+for i in range(depth_8x8):
+    mod_name = 'bu_mod_4{}'.format(alphabet[i])
+    new_module = \
+        BasicConvPertModule(
+            in_chans=(ngf * 3),
+            out_chans=(ngf * 3),
+            conv_chans=(ngf * 3),
+            filt_shape=(3, 3),
+            use_conv=use_conv,
+            apply_bn=use_bn,
+            stride='single',
+            act_func=act_func,
+            mod_name=mod_name)
     bu_modules_8x8.append(new_module)
 bu_modules_8x8.reverse()
 
-# (16, 16) -> (8, 8)
+# (8, 8) -> (16, 16)
 bu_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=(ngf * 2),
-        out_chans=(ngf * 4),
+        out_chans=(ngf * 3),
         apply_bn=use_bn,
         stride='double',
         act_func=act_func,
@@ -340,14 +397,14 @@ for i in range(depth_16x16):
     bu_modules_16x16.append(new_module)
 bu_modules_16x16.reverse()
 
-# (32, 32) -> (16, 16)
+# (16, 16) -> (32, 32)
 bu_module_7 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=(ngf * 2),
+        in_chans=(ngf * 1),
         out_chans=(ngf * 2),
         apply_bn=use_bn,
-        stride='double',
+        stride='single',
         act_func=act_func,
         mod_name='bu_mod_7')
 
@@ -356,7 +413,7 @@ bu_module_8 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=nc,
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 1),
         apply_bn=use_bn,
         stride='single',
         act_func=act_func,
@@ -367,6 +424,8 @@ bu_modules = [bu_module_8, bu_module_7] + \
              bu_modules_16x16 + \
              [bu_module_5] + \
              bu_modules_8x8 + \
+             [bu_module_3] + \
+             bu_modules_4x4 + \
              [bu_module_1]
 
 
@@ -374,7 +433,7 @@ bu_modules = [bu_module_8, bu_module_7] + \
 # Setup the information merging modules #
 #########################################
 
-# FC -> (8, 8)
+# FC -> (4, 4)
 im_module_1 = \
     GenTopModule(
         rand_dim=nz0,
@@ -386,10 +445,10 @@ im_module_1 = \
         act_func=act_func,
         mod_name='im_mod_1')
 
-# grow the (8, 8) -> (8, 8) part of network
-im_modules_8x8 = []
-for i in range(depth_8x8):
-    mod_name = 'im_mod_4{}'.format(alphabet[i])
+# grow the (4, 4) -> (4, 4) part of network
+im_modules_4x4 = []
+for i in range(depth_4x4):
+    mod_name = 'im_mod_2{}'.format(alphabet[i])
     new_module = \
         InfConvMergeModuleIMS(
             td_chans=(ngf * 4),
@@ -403,12 +462,42 @@ for i in range(depth_8x8):
             mod_type=inf_mt,
             act_func=act_func,
             mod_name=mod_name)
+    im_modules_4x4.append(new_module)
+
+# (4, 4) -> (8, 8)
+im_module_3 = \
+    BasicConvModule(
+        in_chans=(ngf * 4),
+        out_chans=(ngf * 3),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='half',
+        act_func=act_func,
+        mod_name='im_mod_3')
+
+# grow the (8, 8) -> (8, 8) part of network
+im_modules_8x8 = []
+for i in range(depth_8x8):
+    mod_name = 'im_mod_4{}'.format(alphabet[i])
+    new_module = \
+        InfConvMergeModuleIMS(
+            td_chans=(ngf * 3),
+            bu_chans=(ngf * 3),
+            im_chans=(ngf * 3),
+            rand_chans=nz1,
+            conv_chans=(ngf * 3),
+            use_conv=True,
+            use_td_cond=use_td_cond,
+            apply_bn=use_bn,
+            mod_type=inf_mt,
+            act_func=act_func,
+            mod_name=mod_name)
     im_modules_8x8.append(new_module)
 
 # (8, 8) -> (16, 16)
 im_module_5 = \
     BasicConvModule(
-        in_chans=(ngf * 4),
+        in_chans=(ngf * 3),
         out_chans=(ngf * 2),
         filt_shape=(3, 3),
         apply_bn=use_bn,
@@ -436,6 +525,8 @@ for i in range(depth_16x16):
     im_modules_16x16.append(new_module)
 
 im_modules = [im_module_1] + \
+             im_modules_4x4 + \
+             [im_module_3] + \
              im_modules_8x8 + \
              [im_module_5] + \
              im_modules_16x16
@@ -447,6 +538,9 @@ merge_info = {
     'td_mod_1': {'td_type': 'top', 'im_module': 'im_mod_1',
                  'bu_source': 'bu_mod_1', 'im_source': None},
 
+    'td_mod_3': {'td_type': 'pass', 'im_module': 'im_mod_3',
+                 'bu_source': None, 'im_source': im_modules_4x4[-1].mod_name},
+
     'td_mod_5': {'td_type': 'pass', 'im_module': 'im_mod_5',
                  'bu_source': None, 'im_source': im_modules_8x8[-1].mod_name},
 
@@ -457,11 +551,26 @@ merge_info = {
 }
 
 # add merge_info entries for the modules with latent variables
+for i in range(depth_4x4):
+    td_type = 'cond'
+    td_mod_name = 'td_mod_2{}'.format(alphabet[i])
+    im_mod_name = 'im_mod_2{}'.format(alphabet[i])
+    im_src_name = 'im_mod_1'
+    bu_src_name = 'bu_mod_3'
+    if i > 0:
+        im_src_name = 'im_mod_2{}'.format(alphabet[i - 1])
+    if i < (depth_4x4 - 1):
+        bu_src_name = 'bu_mod_2{}'.format(alphabet[i + 1])
+    # add entry for this TD module
+    merge_info[td_mod_name] = {
+        'td_type': td_type, 'im_module': im_mod_name,
+        'bu_source': bu_src_name, 'im_source': im_src_name
+    }
 for i in range(depth_8x8):
     td_type = 'cond'
     td_mod_name = 'td_mod_4{}'.format(alphabet[i])
     im_mod_name = 'im_mod_4{}'.format(alphabet[i])
-    im_src_name = 'im_mod_1'
+    im_src_name = 'im_mod_3'
     bu_src_name = 'bu_mod_5'
     if i > 0:
         im_src_name = 'im_mod_4{}'.format(alphabet[i - 1])
@@ -499,70 +608,7 @@ inf_gen_model = InfGenModel(
     use_sc=False
 )
 
-############################
-# Build the refiner model. #
-############################
-
-# TD modules for the refiner
-td_modules_refine = []
-for i in range(refine_steps):
-    rtd_td_i = \
-        GenConvModuleNEW(
-            in_chans=nc,
-            out_chans=(ngf * 2),
-            conv_chans=(ngf * 2),
-            rand_chans=nz1,
-            filt_shape=(3, 3),
-            act_func='lrelu',
-            mod_name='rtd_td_{}'.format(i))
-    rtd_cm_i = \
-        BasicConvModuleNEW(
-            in_chans=(ngf * 2),
-            out_chans=(nc + 1),
-            filt_shape=(3, 3),
-            stride='single',
-            act_func='ident',
-            mod_name='rtd_cm_{}'.format(i))
-    td_mod_refine_i = \
-        TDModuleWrapperNEW(
-            gen_module=rtd_td_i,
-            mlp_modules=[rtd_cm_i],
-            mod_name='td_mod_refine_{}'.format(i))
-    td_modules_refine.append(td_mod_refine_i)
-
-# IM modules for the refiner
-im_modules_refine = []
-for i in range(refine_steps):
-    rim_im_i = \
-        InfConvMergeModuleNEW(
-            td_chans=nc,
-            bu_chans=(ngf * 2),
-            rand_chans=nz1,
-            conv_chans=(ngf * 2),
-            act_func='lrelu',
-            use_td_cond=use_td_cond,
-            mod_name='rim_im_{}'.format(i))
-    rim_cm_i = \
-        BasicConvModuleNEW(
-            in_chans=(nc * 3),
-            out_chans=(ngf * 2),
-            filt_shape=(3, 3),
-            stride='single',
-            act_func='lrelu',
-            mod_name='rim_cm_{}'.format(i))
-    im_mod_refine_i = \
-        IMModuleWrapperNEW(
-            inf_module=rim_im_i,
-            mlp_modules=[rim_cm_i],
-            mod_name='im_mod_refine_{}'.format(i))
-    im_modules_refine.append(im_mod_refine_i)
-
-# BUILD THE REFINER
-refiner_model = \
-    DeepRefiner(
-        td_modules=td_modules_refine,
-        im_modules=im_modules_refine,
-        ndim=4)
+# inf_gen_model.load_params(inf_gen_param_file)
 
 ####################################
 # Setup the optimization objective #
@@ -570,8 +616,8 @@ refiner_model = \
 lam_kld = sharedX(floatX([1.0]))
 log_var = sharedX(floatX([1.0]))
 noise = sharedX(floatX([noise_std]))
-gen_params = inf_gen_model.gen_params + refiner_model.gen_params + [log_var]
-inf_params = inf_gen_model.inf_params + refiner_model.inf_params
+gen_params = inf_gen_model.gen_params + [log_var]
+inf_params = inf_gen_model.inf_params
 g_params = gen_params + inf_params
 
 ###########################################################
@@ -579,11 +625,21 @@ g_params = gen_params + inf_params
 ###########################################################
 from scipy_multivariate_normal import psd_pinv_decomposed_log_pdet, logpdf
 print('computing Gauss params and log-det for fuzzy images')
+sigma_info = []
 mu, sigma = estimate_gauss_params(255. * Xtr)
-U, log_pdet = psd_pinv_decomposed_log_pdet(sigma)
+for beta in [1.0]:
+    # gather information required for computing multivariate normal PDF under
+    # different amounts of variance.
+    sigma_beta = sigma * beta
+    U_beta, log_pdet_sigma_beta = psd_pinv_decomposed_log_pdet(sigma_beta)
+    pinv_sigma_beta = np.dot(U_beta, U_beta.T)
+    sigma_info.append({'beta': beta,
+                       'sigma': sigma_beta,
+                       'prec': pinv_sigma_beta,
+                       'prec_U': U_beta,
+                       'log_det_sigma': log_pdet_sigma_beta})
 print('computing whitening transform for fuzzy images')
 W, mu = estimate_whitening_transform((255. * Xtr), samples=10)
-
 WU, log_pdet_W = psd_pinv_decomposed_log_pdet(W)
 
 # quick test of log-likelihood for a basic Gaussian model...
@@ -611,6 +667,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 # whiten input
 Xg_whitened = whiten_data(T.flatten(Xg, 2), W, mu)
 Xg_whitened = Xg_whitened.reshape((Xg_whitened.shape[0], nc, npx, npx)).dimshuffle(0, 1, 2, 3)
+# Xg_whitened = Xg
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -620,49 +677,41 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
 im_res_dict = inf_gen_model.apply_im(Xg_whitened, noise=noise)
-xg_raw = im_res_dict['td_output']
+td_output = im_res_dict['td_output']
 kld_dict = im_res_dict['kld_dict']
+log_p_z = sum(im_res_dict['log_p_z'])
+log_q_z = sum(im_res_dict['log_q_z'])
 
-# run an inference and reconstruction pass through the refiner
-refine_dict = \
-    refiner_model.apply_im(
-        input_gen=xg_raw,
-        input_inf=Xg_whitened,
-        obs_transform=lambda x: x)
-kld_dict_r = refine_dict['kld_dict']
-Xg_recon = refine_dict['output']
+Xg_recon = td_output[:, :nc, :, :]
+Xg_lgvar = td_output[:, nc:, :, :]
 
-# compute reconstruction error
-log_p_x1 = T.sum(log_prob_gaussian(
-                 T.flatten(Xg_whitened, 2), T.flatten(xg_raw, 2),
-                 log_vars=log_var[0], do_sum=False), axis=1)
-
-log_p_x2 = T.sum(log_prob_gaussian(
-                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                 log_vars=log_var[0], do_sum=False), axis=1)
+log_p_x = T.sum(log_prob_gaussian(
+                T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
+                log_vars=T.flatten(Xg_lgvar, 2), do_sum=False), axis=1)
+# prec_U = sigma_info[0]['prec_U']
+# log_det_cov = sigma_info[0]['log_det_sigma']
+# log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
 
 # compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * (0.2 * log_p_x1 + 0.8 * log_p_x2)
+vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls) - log_pdet_W
+
+print('BASE BPP: {0:.2f}'.format(nats2bpp(-log_pdet_W)))
 
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
-
-# get KL-divergences from refiner
-kld_tuples_r = [(mod_name, mod_kld) for mod_name, mod_kld in kld_dict_r.items()]
-vae_layer_klds_r = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples_r])
-vae_layer_names_r = [mod_name for mod_name, mod_kld in kld_tuples_r]
-
 # compute total per-observation KL-divergence part of cost
-obs_kld_1 = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-obs_kld_2 = sum([mod_kld for mod_name, mod_kld in kld_tuples_r])
-vae_obs_klds = 0.2 * obs_kld_1 + 0.8 * (obs_kld_1 + obs_kld_2)
+vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
+# compute per-layer KL-divergence part of cost
+alt_layer_klds = [T.sum(mod_kld**2.0, axis=1) for mod_name, mod_kld in kld_dict.items()]
+alt_kld_cost = T.mean(sum(alt_layer_klds))
+
 # compute the KLd cost to use for optimization
-opt_kld_cost = lam_kld[0] * vae_kld_cost
+opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
@@ -673,7 +722,8 @@ full_cost_inf = full_cost_gen
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+td_output = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+Xd_model = td_output[:, :nc, :, :]
 
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
@@ -701,11 +751,11 @@ print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
                  vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs, vae_layer_klds, vae_layer_klds_r]
+                 vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
               'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs', 'vae_layer_klds', 'vae_layer_klds_r']
+              'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
@@ -723,7 +773,7 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.04, 1.00, 50)
+kld_weights = np.linspace(0.02, 1.0, 100)
 sample_z0mb = rand_gen(size=(200, nz0))
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
@@ -737,7 +787,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_epoch_costs = [0. for i in range(5)]
     i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-    epoch_layer_klds_r = [0. for i in range(len(vae_layer_names_r))]
     gen_grad_norms = []
     inf_grad_norms = []
     vae_nlls = []
@@ -765,9 +814,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
-        batch_layer_klds_r = g_result[9]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
-        epoch_layer_klds_r = [(v1 + v2) for v1, v2 in zip(batch_layer_klds_r, epoch_layer_klds_r)]
         g_batch_count += 1
         # train inference model on samples from the generator
         # if epoch > 5:
@@ -807,7 +854,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
-    epoch_layer_klds_r = [(c / g_batch_count) for c in epoch_layer_klds_r]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
@@ -829,11 +875,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
-    kld_strs_r = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names_r, epoch_layer_klds_r)]
-    str7_r = "    refine kld -- {}".format(" ".join(kld_strs_r))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, bpp: {2:.2f}, vfe/iwae: {3:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], nats2bpp(v_epoch_costs[2]), v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str7_r, str8])
+    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
