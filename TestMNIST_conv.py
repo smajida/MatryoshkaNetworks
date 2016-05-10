@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best_6deep'
+desc = 'test_conv_best_2deep_hires'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
