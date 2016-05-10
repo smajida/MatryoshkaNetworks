@@ -27,7 +27,8 @@ from load import load_binarized_mnist, load_udm, load_cifar10
 #
 from MatryoshkaModules import BasicConvModule, GenTopModule, InfTopModule, \
                               GenConvPertModule, BasicConvPertModule, \
-                              GenConvGRUModule, InfConvMergeModuleIMS
+                              GenConvGRUModule, InfConvMergeModuleIMS, \
+                              TDRefinerWrapper
 from MatryoshkaNetworks import InfGenModel
 
 sys.setrecursionlimit(100000)
