@@ -3848,6 +3848,67 @@ class ClassConvModule(object):
         return class_preds
 
 
+class TDRefinerWrapper(object):
+    '''
+    Wrapper around a TD module and a "decoder" with one hidden layer.
+    -- This is for "full-res refinement".
+
+    Params:
+        gen_module: the first module in this TD module to apply. Inputs are
+                    a top-down input and a latent input.
+        mlp_modules: a list of the modules to apply to the output of gen_module.
+    '''
+    def __init__(self, gen_module, mlp_modules=None, mod_name='no_name'):
+        assert not (mod_name == 'no_name')
+        self.gen_module = gen_module
+        self.params = [p for p in gen_module.params]
+        if mlp_modules is not None:
+            # use some extra post-processing modules
+            self.mlp_modules = [m for m in mlp_modules]
+            for mlp_mod in self.mlp_modules:
+                self.params.extend(mlp_mod.params)
+        else:
+            # don't use any extra post-processing modules
+            self.mlp_modules = None
+        self.mod_name = mod_name
+        self.has_decoder = True
+        return
+
+    def dump_params(self):
+        '''
+        Dump params for later reloading by self.load_params.
+        '''
+        mod_param_dicts = [self.gen_module.dump_params()]
+        if self.mlp_modules is not None:
+            mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
+        return mod_param_dicts
+
+    def load_params(self, param_dict=None):
+        '''
+        Load params from the output of self.dump_params.
+        '''
+        self.gen_module.load_params(param_dict=param_dict[0])
+        if self.mlp_modules is not None:
+            for pdict, mod in zip(param_dict[1:], self.mlp_modules):
+                mod.load_params(param_dict=pdict)
+        return
+
+    def apply(self, input, rand_vals, noise=None):
+        '''
+        Process the gen_module, then apply self.mlp_modules.
+        '''
+        # apply the basic TD module
+        h1 = self.gen_module.apply(input=input, rand_vals=rand_vals)
+        # apply the "decoder"
+        acts = None
+        for mod in self.mlp_modules:
+            if acts is None:
+                acts = [mod.apply(h1)]
+            else:
+                acts.append(mod.apply(acts[-1]))
+        h2 = acts[-1]
+
+        return h1, h2
 
 
 ##############

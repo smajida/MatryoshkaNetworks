@@ -481,7 +481,7 @@ def build_mnist_conv_res_hires(
     td_modules.extend(td_modules_7x7)
     td_modules.extend([td_module_3])
     td_modules.extend(td_modules_14x14)
-    td_modules.extend(td_modules_5)
+    td_modules.extend([td_module_5])
     td_modules.extend(td_modules_28x28)
     td_modules.extend([td_module_7, td_module_8])
 
