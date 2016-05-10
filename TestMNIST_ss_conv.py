@@ -114,7 +114,7 @@ softmax = T.nnet.softmax
 inf_gen_model = \
     build_mnist_conv_res_ss(
         nz0=nz0, nz1=4, ngf=32, ngfc=128, class_count=10,
-        act_func='lrelu', use_bn=True, use_td_cond=True,
+        act_func='lrelu', use_bn=True, use_td_cond=False,
         depth_7x7=depth_7x7, depth_14x14=depth_14x14)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
