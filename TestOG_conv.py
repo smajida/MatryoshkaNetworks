@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_2deep'
+desc = 'test_conv_5deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -55,8 +55,8 @@ nc = 1               # # of channels in image
 nz0 = 32             # # of dim in top-most latent variables
 npx = 28             # # of pixels width/height of images
 nx = npx * npx * nc  # # of dimensions in X
-niter = 150          # # of iter at starting learning rate
-niter_decay = 150    # # of iter to linearly decay learning rate to zero
+niter = 300          # # of iter at starting learning rate
+niter_decay = 200    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
 depth_7x7 = 5
 depth_14x14 = 5
@@ -272,7 +272,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
             v_result = g_eval_func(vmb_img)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+    if (epoch == 10) or (epoch == 25) or (epoch == 50) or (epoch == 150):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
