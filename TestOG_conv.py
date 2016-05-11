@@ -26,7 +26,7 @@ from load import load_omniglot
 #
 # Phil's business
 #
-from ModelBuilders import build_mnist_conv_res, build_mnist_conv_res_hires
+from ModelBuilders import build_og_conv_res
 
 sys.setrecursionlimit(100000)
 
