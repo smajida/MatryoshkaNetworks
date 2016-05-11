@@ -52,7 +52,7 @@ set_seed(123)        # seed for shared rngs
 nbatch = 10         # # of examples in batch
 nc = 1               # # of channels in image
 nz0 = 32             # # of dim in top-most latent variables
-nz1 = 6              # # of dim in intermediate latent variables
+nz1 = 4              # # of dim in intermediate latent variables
 ngf = 32             # base # of filters for conv layers
 ngfc = 256           # # of dim in top-most hidden layer
 npx = 28             # # of pixels width/height of images
@@ -381,7 +381,7 @@ for epoch in range(5):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 500,
+            iwae_bounds = iwae_multi_eval(imb_img, 25,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
