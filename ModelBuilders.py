@@ -244,8 +244,6 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
     im_modules_7x7 = []
     for i in range(depth_7x7):
         mod_name = 'im_mod_2{}'.format(alphabet[i])
-        # use act_func only at bottom of perturbation meta-module
-        af_i = act_func if (i == (depth_7x7 - 1)) else 'ident'
         new_module = \
             InfConvMergeModuleIMS(
                 td_chans=(ngf * 2),
@@ -257,7 +255,7 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 use_td_cond=use_td_cond,
                 apply_bn=use_bn,
                 mod_type=0,
-                act_func=af_i,
+                act_func=act_func,
                 mod_name=mod_name)
         im_modules_7x7.append(new_module)
 
@@ -276,8 +274,6 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
     im_modules_14x14 = []
     for i in range(depth_14x14):
         mod_name = 'im_mod_4{}'.format(alphabet[i])
-        # use act_func only at bottom of perturbation meta-module
-        af_i = act_func if (i == (depth_14x14 - 1)) else 'ident'
         new_module = \
             InfConvMergeModuleIMS(
                 td_chans=(ngf * 2),
@@ -289,7 +285,7 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 use_td_cond=use_td_cond,
                 apply_bn=use_bn,
                 mod_type=0,
-                act_func=af_i,
+                act_func=act_func,
                 mod_name=mod_name)
         im_modules_14x14.append(new_module)
 
