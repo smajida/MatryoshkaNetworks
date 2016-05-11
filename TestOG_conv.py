@@ -58,8 +58,8 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 150          # # of iter at starting learning rate
 niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 2
-depth_14x14 = 2
+depth_7x7 = 5
+depth_14x14 = 5
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -93,7 +93,7 @@ bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
 inf_gen_model = \
-    build_mnist_conv_res(
+    build_og_conv_res(
         nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
         act_func='lrelu', use_td_cond=use_td_cond,
         depth_7x7=depth_7x7, depth_14x14=depth_14x14)
@@ -262,10 +262,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        # if epoch > 5:
-        #     smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-        #     i_result = i_train_func(smb_img)
-        #     i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        if epoch > 5:
+            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+            i_result = i_train_func(smb_img)
+            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
