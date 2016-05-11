@@ -807,9 +807,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         else:
             vmb = Xva[0:nbatch, :]
         # transform noisy training batch and carry buffer to "image format"
-        imb_img = train_transform(imb, add_fuzz=False, shift=0.5)
+        imb_img = train_transform(imb, add_fuzz=True, shift=0.0)
         imb_out = train_transform(imb, add_fuzz=True, shift=0.0)
-        vmb_img = train_transform(vmb, add_fuzz=False, shift=0.5)
+        vmb_img = train_transform(vmb, add_fuzz=True, shift=0.0)
         vmb_out = train_transform(vmb, add_fuzz=True, shift=0.0)
         # train vae on training batch
         g_result = g_train_func(imb_img, imb_out)
