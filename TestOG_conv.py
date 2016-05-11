@@ -96,7 +96,7 @@ inf_gen_model = \
     build_mnist_conv_res(
         nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
         act_func='lrelu', use_td_cond=use_td_cond,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14, depth_28x28=depth_14x14)
+        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
