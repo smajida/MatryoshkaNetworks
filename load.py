@@ -128,10 +128,11 @@ def load_svhn(tr_file, te_file, ex_file=None, ex_count=None):
     print("np.max(Xtr): {0:.4f}, np.min(Xtr): {1:.4f}".format(np.max(Xtr), np.min(Xtr)))
 
     # package data up for easy returnage
-    data_dict = {'Xtr': Xtr, 'Ytr': Ytr, \
-                 'Xte': Xte, 'Yte': Yte, \
+    data_dict = {'Xtr': Xtr, 'Ytr': Ytr,
+                 'Xte': Xte, 'Yte': Yte,
                  'Xex': Xex}
     return data_dict
+
 
 def load_svhn_ss(tr_file, te_file, ex_file=None, ex_count=None):
     """
@@ -397,3 +398,27 @@ def load_cifar10(data_dir, va_split=5000, dtype='float32', grayscale=False):
         t_test = x_src[:va_split]
 
     return x_train, t_train, x_test, t_test
+
+
+def load_omniglot(data_dir, target_type='char'):
+    '''
+    Load Omniglot data in the form of Yura Burda.
+    '''
+    import scipy
+    from scipy.io import loadmat
+
+    def reshape_data(data):
+        return data.reshape((-1, 28, 28)).reshape((-1, 28 * 28), order='fortran')
+
+    # load data from .mat file
+    omni_raw = loadmat('chardata.mat')
+    Xtr = reshape_data(omni_raw['data'].T.astype('float32'))
+    Xte = reshape_data(omni_raw['testdata'].T.astype('float32'))
+
+    if target_type == 'char':
+        Ytr = omni_raw['targetchar'].T.astype(np.int32)
+        Yte = omni_raw['testtargetchar'].T.astype(np.int32)
+    else:
+        Ytr = omni_raw['target'].T.astype(np.float32)
+        Yte = omni_raw['testtarget'].T.astype(np.float32)
+    return Xtr, Ytr, Xte, Yte
