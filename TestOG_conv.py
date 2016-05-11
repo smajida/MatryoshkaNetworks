@@ -53,6 +53,9 @@ set_seed(123)        # seed for shared rngs
 nbatch = 100         # # of examples in batch
 nc = 1               # # of channels in image
 nz0 = 32             # # of dim in top-most latent variables
+nz1 = 6              # # of dim in intermediate latent variables
+ngf = 32             # base # of filters for conv layers
+ngfc = 256           # # of dim in top-most hidden layer
 npx = 28             # # of pixels width/height of images
 nx = npx * npx * nc  # # of dimensions in X
 niter = 300          # # of iter at starting learning rate
@@ -94,7 +97,7 @@ bce = T.nnet.binary_crossentropy
 # BUILD THE MODEL
 inf_gen_model = \
     build_og_conv_res(
-        nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
+        nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, use_bn=False,
         act_func='lrelu', use_td_cond=use_td_cond,
         depth_7x7=depth_7x7, depth_14x14=depth_14x14)
 td_modules = inf_gen_model.td_modules
