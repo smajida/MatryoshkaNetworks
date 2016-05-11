@@ -74,7 +74,7 @@ use_td_noise = False
 inf_mt = 0
 use_td_cond = False
 depth_4x4 = 2
-depth_8x8 = 3
+depth_8x8 = 4
 depth_16x16 = 4
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -277,27 +277,15 @@ for i in range(depth_16x16):
         BasicConvModule(
             filt_shape=(3, 3),
             in_chans=(ngf * 2),
-            out_chans=(ngf * 1),
+            out_chans=(nc * 2),
             apply_bn=use_bn,
             stride='single',
             act_func=act_func,
             mod_name=dm1_name)
-    # decoder module 2
-    mod_dm2 = \
-        BasicConvModule(
-            filt_shape=(3, 3),
-            in_chans=(ngf * 1),
-            out_chans=(nc * 2),
-            apply_bn=False,
-            rescale_output=True,
-            use_noise=False,
-            stride='single',
-            act_func='ident',
-            mod_name=dm2_name)
     wrap_mod = \
         TDRefinerWrapper(
             gen_module=mod_tdm,
-            mlp_modules=[mod_dm1, mod_dm2],
+            mlp_modules=[mod_dm1],
             mod_name=mod_name)
     td_modules_16x16.append(wrap_mod)
 
