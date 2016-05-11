@@ -26,7 +26,7 @@ from load import load_omniglot
 #
 # Phil's business
 #
-from ModelBuilders import build_og_conv_res
+from ModelBuilders import build_og_conv_res, build_og_conv_res_hires
 
 sys.setrecursionlimit(100000)
 
@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_5deep'
+desc = 'test_conv_4deep_hires'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,8 +61,9 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 300          # # of iter at starting learning rate
 niter_decay = 200    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 4
+depth_14x14 = 4
+depth_28x28 = 4
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -95,11 +96,18 @@ sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
-inf_gen_model = \
-    build_og_conv_res(
-        nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, use_bn=False,
-        act_func='lrelu', use_td_cond=use_td_cond,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+if depth_28x28 is None:
+    inf_gen_model = \
+        build_og_conv_res(
+            nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, use_bn=False,
+            act_func='lrelu', use_td_cond=use_td_cond,
+            depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+else:
+    inf_gen_model = \
+        build_og_conv_res_hires(
+            nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, use_bn=False,
+            act_func='lrelu', use_td_cond=use_td_cond,
+            depth_7x7=depth_7x7, depth_14x14=depth_14x14, depth_28x28=depth_28x28)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
