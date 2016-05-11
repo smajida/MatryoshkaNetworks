@@ -411,7 +411,7 @@ def load_omniglot(data_dir, target_type='char'):
         return data.reshape((-1, 28, 28)).reshape((-1, 28 * 28), order='fortran')
 
     # load data from .mat file
-    omni_raw = loadmat('chardata.mat')
+    omni_raw = loadmat('{}chardata.mat'.format(data_dir))
     Xtr = reshape_data(omni_raw['data'].T.astype('float32'))
     Xte = reshape_data(omni_raw['testdata'].T.astype('float32'))
 
