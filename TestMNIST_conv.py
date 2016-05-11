@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./mnist"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_best_3deep_hires'
+desc = 'test_conv_best_3deep_lores'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -105,10 +105,10 @@ bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
 inf_gen_model = \
-    build_mnist_conv_res_hires(
+    build_mnist_conv_res(
         nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
         act_func='lrelu', use_td_cond=use_td_cond,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14, depth_28x28=depth_14x14)
+        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
