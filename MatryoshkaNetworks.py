@@ -411,8 +411,9 @@ class InfGenModel(object):
                             td_output = dec_res_i
                         else:
                             # final output is average of the decoders' outputs
-                            scale = 1. / dec_count
-                            td_output = (1. - scale) * td_output + (scale * dec_res_i)
+                            # scale = 1. / dec_count
+                            # td_output = (1. - scale) * td_output + (scale * dec_res_i)
+                            td_output = td_output + dec_res
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
