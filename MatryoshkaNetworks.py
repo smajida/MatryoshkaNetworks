@@ -1341,7 +1341,7 @@ class InfGenModelSS(object):
         im_modules: modules for merging bottom-up and top-down information
                     to put conditionals over Gaussian latent variables that
                     participate in the top-down computation.
-        cls_module: module that forks the BU info stream to generate predictions
+        mix_module: that represents a mixture prior over the top-most latents
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
@@ -1350,7 +1350,7 @@ class InfGenModelSS(object):
         train_dist_scale: whether to train rescaling param (for testing)
     """
     def __init__(self,
-                 bu_modules, td_modules, im_modules, cls_module,
+                 bu_modules, td_modules, im_modules, mix_module,
                  merge_info, output_transform,
                  use_td_noise=False,
                  use_bu_noise=False,
@@ -1359,7 +1359,7 @@ class InfGenModelSS(object):
         self.bu_modules = [m for m in bu_modules]
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
-        self.cls_module = cls_module
+        self.mix_module = mix_module
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
@@ -1371,7 +1371,7 @@ class InfGenModelSS(object):
             self.inf_params.extend(module.params)
         for module in self.im_modules:
             self.inf_params.extend(module.params)
-        self.inf_params.extend(cls_module.params)
+        self.gen_params.extend(mix_module.params)
         # filter redundant parameters, to allow parameter sharing
         p_dict = {}
         for p in self.gen_params:
@@ -1421,7 +1421,7 @@ class InfGenModelSS(object):
         mod_param_dicts = [m.dump_params() for m in self.im_modules]
         cPickle.dump(mod_param_dicts, f_handle, protocol=-1)  # dump IM modules
         # dump class module params
-        cPickle.dump(self.cls_module.dump_params(), f_handle, protocol=-1)
+        cPickle.dump(self.mix_module.dump_params(), f_handle, protocol=-1)
         # dump dist_scale parameter
         ds_ary = self.dist_scale.get_value(borrow=False)
         cPickle.dump(ds_ary, f_handle, protocol=-1)
@@ -1445,7 +1445,7 @@ class InfGenModelSS(object):
         for param_dict, mod in zip(mod_param_dicts, self.im_modules):
             mod.load_params(param_dict=param_dict)
         # load class module params
-        self.cls_module.load_params(param_dict=cPickle.load(pickle_file))
+        self.mix_module.load_params(param_dict=cPickle.load(pickle_file))
         # load dist_scale parameter
         ds_ary = cPickle.load(pickle_file)
         self.dist_scale.set_value(floatX(ds_ary))
@@ -1656,8 +1656,8 @@ class InfGenModelSS(object):
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
         # apply class module to the output of some BU module
-        # bu_cls_info = bu_res_dict[self.cls_module.bu_source]
-        # cls_acts = self.cls_module.apply(bu_cls_info)
+        # bu_cls_info = bu_res_dict[self.mix_module.bu_source]
+        # cls_acts = self.mix_module.apply(bu_cls_info)
         # apply output transform (into observation space, presumably), to get
         # the final "reconstruction" produced by the merged BU/TD pass.
         td_output = self.output_transform(td_acts[-1])

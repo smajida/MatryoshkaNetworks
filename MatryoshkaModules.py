@@ -1274,7 +1274,8 @@ class GenTopModule(object):
     """
     def __init__(self,
                  rand_dim, fc_dim, out_shape,
-                 use_fc, use_sc=False, apply_bn=True,
+                 rand_shape=None,
+                 use_fc=True, use_sc=False, apply_bn=True,
                  unif_drop=0.0,
                  act_func='relu',
                  use_bn_params=True,
@@ -1290,6 +1291,7 @@ class GenTopModule(object):
         else:
             # output goes to conv layer
             self.out_dim = out_shape[0] * out_shape[1] * out_shape[2]
+        self.rand_shape = rand_shape
         self.fc_dim = fc_dim
         self.use_fc = use_fc
         self.use_sc = use_sc
@@ -2069,6 +2071,7 @@ class InfConvGRUModuleIMS(object):
     """
     def __init__(self,
                  td_chans, bu_chans, im_chans, rand_chans,
+                 rand_shape=None,
                  act_func='tanh',
                  unif_drop=0.0,
                  chan_drop=0.0,
@@ -2083,6 +2086,7 @@ class InfConvGRUModuleIMS(object):
         self.bu_chans = bu_chans
         self.im_chans = im_chans
         self.rand_chans = rand_chans
+        self.rand_shape = rand_shape
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -2325,6 +2329,7 @@ class InfFCGRUModuleIMS(object):
     """
     def __init__(self,
                  td_chans, bu_chans, im_chans, rand_chans,
+                 rand_shape=None,
                  act_func='relu', unif_drop=0.0, apply_bn=True,
                  use_td_cond=False, use_bn_params=True,
                  unif_post=None,
@@ -2335,6 +2340,7 @@ class InfFCGRUModuleIMS(object):
         self.bu_chans = bu_chans
         self.im_chans = im_chans
         self.rand_chans = rand_chans
+        self.rand_shape = rand_shape
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -2491,10 +2497,11 @@ class InfFCGRUModuleIMS(object):
 
         # compute the conditional distribution from the new GRU state
         h3 = T.dot(out_im, self.w3)
-        h3 = h3 + self.b3.dimshuffle('x',0)
-        out_mean = h3[:,:self.rand_chans]
-        out_logvar = h3[:,self.rand_chans:]
+        h3 = h3 + self.b3.dimshuffle('x', 0)
+        out_mean = h3[:, :self.rand_chans]
+        out_logvar = h3[:, self.rand_chans:]
         return out_mean, out_logvar, out_im
+
 
 #########################################
 # GENERATOR DOUBLE CONVOLUTIONAL MODULE #
@@ -2522,6 +2529,7 @@ class InfConvMergeModuleIMS(object):
     """
     def __init__(self,
                  td_chans, bu_chans, im_chans, rand_chans, conv_chans,
+                 rand_shape=None,
                  use_conv=True, act_func='relu',
                  unif_drop=0.0, chan_drop=0.0,
                  apply_bn=True,
@@ -2537,6 +2545,7 @@ class InfConvMergeModuleIMS(object):
         self.im_chans = im_chans
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
+        self.rand_shape = rand_shape
         self.use_conv = use_conv
         if act_func == 'ident':
             self.act_func = lambda x: x
@@ -2790,6 +2799,7 @@ class InfConvMergeModule(object):
     """
     def __init__(self,
                  td_chans, bu_chans, im_chans, rand_chans, conv_chans,
+                 rand_shape=None,
                  use_conv=True, act_func='relu',
                  unif_drop=0.0, chan_drop=0.0,
                  apply_bn=True,
@@ -2805,6 +2815,7 @@ class InfConvMergeModule(object):
         self.im_chans = im_chans
         self.rand_chans = rand_chans
         self.conv_chans = conv_chans
+        self.rand_shape = rand_shape
         self.use_conv = use_conv
         if act_func == 'ident':
             self.act_func = lambda x: x
@@ -3041,6 +3052,7 @@ class InfFCMergeModuleIMS(object):
     """
     def __init__(self,
                  td_chans, bu_chans, im_chans, fc_chans, rand_chans,
+                 rand_shape=None,
                  use_fc=True, act_func='relu',
                  unif_drop=0.0,
                  apply_bn=True,
@@ -3056,6 +3068,7 @@ class InfFCMergeModuleIMS(object):
         self.im_chans = im_chans
         self.rand_chans = rand_chans
         self.fc_chans = fc_chans
+        self.rand_shape = rand_shape
         self.use_fc = use_fc
         if act_func == 'ident':
             self.act_func = lambda x: x
@@ -3300,6 +3313,7 @@ class InfFCMergeModule(object):
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, td_chans, bu_chans, fc_chans, rand_chans,
+                 rand_shape=None,
                  use_fc=True, use_sc=True, act_func='relu',
                  unif_drop=0.0, apply_bn=True,
                  use_td_cond=False,
@@ -3312,6 +3326,7 @@ class InfFCMergeModule(object):
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
         self.rand_chans = rand_chans
+        self.rand_shape = rand_shape
         self.use_fc = use_fc
         self.use_sc = use_sc
         if act_func == 'ident':
@@ -3550,6 +3565,7 @@ class InfTopModule(object):
         mod_name: text name for identifying module in theano graph
     """
     def __init__(self, bu_chans, fc_chans, rand_chans,
+                 rand_shape=None,
                  use_fc=True, use_sc=False, act_func='relu',
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True,
@@ -3560,6 +3576,7 @@ class InfTopModule(object):
         self.bu_chans = bu_chans
         self.fc_chans = fc_chans
         self.rand_chans = rand_chans
+        self.rand_shape = rand_shape
         self.use_fc = use_fc
         self.use_sc = use_sc
         if act_func == 'ident':

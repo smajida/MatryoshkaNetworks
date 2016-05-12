@@ -281,7 +281,6 @@ if fine_tune_inf_net:
 
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg = T.tensor4()  # symbolic var for inputs to bottom-up inference network
-Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 
 ######################
 # Compute IWAE bound #
@@ -336,17 +335,33 @@ vae_bound = vae_nll_cost + vae_kld_cost
 # get simple reconstruction, for other purposes
 im_rd = inf_gen_model.apply_im(Xg)
 Xg_recon = clip_sigmoid(im_rd['td_output'])
-# run an un-grounded pass through generative stuff for sampling from model
-td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+# get shape of each latent variable, and make appropriate symbolic variable
+latent_vars = []
+latent_shapes = []
+for td_mod in td_modules:
+    if hasattr(td_mod, 'rand_shape'):
+        rand_shape = td_mod.rand_shape
+        if len(rand_shape) == 1:
+            latent_vars.append(T.matrix())
+        elif len(rand_shape) == 3:
+            latent_vars.append(T.tensor4())
+        else:
+            raise Exception('strange rand_shape: {}'.format(rand_shape))
+        latent_shapes.append([None] + [d for d in rand_shape])
+    else:
+        latent_vars.append(None)
+# pass through model with user-provided latent samples
+Xd_model = inf_gen_model.apply_td(rand_vals=latent_vars, batch_size=None)
 Xd_model = clip_sigmoid(Xd_model)
+# sort out the "dummy latent vars
+latent_vars = [lv for lv in latent_vars if lv is not None]
 
 
 # build training cost and update functions
 t = time()
 print("Compiling sampling and reconstruction functions...")
 recon_func = theano.function([Xg], Xg_recon)
-sample_func = theano.function([Z0], Xd_model)
+sample_func = theano.function(latent_vars, Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling cost computing functions...")
 # collect costs for generator parameters
@@ -381,7 +396,7 @@ for epoch in range(5):
             # evaluate costs
             g_result = g_eval_func(imb_img)
             # evaluate costs more thoroughly
-            iwae_bounds = iwae_multi_eval(imb_img, 25,
+            iwae_bounds = iwae_multi_eval(imb_img, 5,
                                           cost_func=iwae_cost_func,
                                           iwae_num=iwae_samples)
             g_result[4] = np.mean(iwae_bounds)  # swap in tighter bound
@@ -405,9 +420,22 @@ for epoch in range(5):
         ######################
         # DRAW SOME PICTURES #
         ######################
-        sample_z0mb = np.repeat(rand_gen(size=(20, nz0)), 20, axis=0)
-        samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}.png".format(result_dir, epoch, block_num))
+        for i in range(min(6, len(latent_shapes))):
+            lvar_samps = []
+            # generate the "fixed" latent variables
+            for j in range(len(latent_shapes)):
+                samp_shape = [d for d in latent_shapes[j]]
+                if j < i:
+                    samp_shape[0] = 20
+                    z_samps = rand_gen(size=tuple(samp_shape))
+                    z_samps = np.repeat(z_samps, 20, axis=0)
+                else:
+                    samp_shape[0] = 400
+                    z_samps = rand_gen(size=tuple(samp_shape))
+                lvar_samps.append(z_samps)
+            # sample using the generated latent variables
+            samples = np.asarray(sample_func(*lvar_samps))
+            grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}_{}fix.png".format(result_dir, epoch, block_num, i))
     epoch_vae_cost = epoch_vae_cost / len(Xva_blocks)
     epoch_iwae_cost = epoch_iwae_cost / len(Xva_blocks)
     str1 = "EPOCH {0:d} -- vae: {1:.2f}, iwae: {2:.2f}".format(epoch, epoch_vae_cost, epoch_iwae_cost)
