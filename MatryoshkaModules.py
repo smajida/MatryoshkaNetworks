@@ -1451,6 +1451,7 @@ class GenConvPertModule(object):
     """
     def __init__(self,
                  in_chans, out_chans, conv_chans, rand_chans, filt_shape,
+                 rand_shape=None,
                  use_rand=True, use_conv=True, us_stride=2,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
                  use_bn_params=True, act_func='relu',
@@ -1467,6 +1468,7 @@ class GenConvPertModule(object):
         self.out_chans = out_chans
         self.conv_chans = conv_chans
         self.rand_chans = rand_chans
+        self.rand_shape = rand_shape
         self.filt_dim = filt_shape[0]
         self.use_rand = use_rand
         self.use_conv = use_conv
@@ -1665,7 +1667,7 @@ class GenConvGRUModule(object):
     """
     def __init__(self,
                  in_chans, out_chans, rand_chans, filt_shape,
-                 use_rand=True,
+                 rand_shape=None, use_rand=True,
                  unif_drop=0.0, chan_drop=0.0, apply_bn=True,
                  use_bn_params=True, act_func='relu',
                  mod_name='gm_conv'):
@@ -1679,6 +1681,7 @@ class GenConvGRUModule(object):
         self.out_chans = out_chans
         self.rand_chans = rand_chans
         self.filt_dim = filt_shape[0]
+        self.rand_shape = rand_shape
         self.use_rand = use_rand
         self.unif_drop = unif_drop
         self.chan_drop = chan_drop
@@ -1874,7 +1877,7 @@ class GenFCPertModule(object):
     """
     def __init__(self,
                  in_chans, out_chans, rand_chans, fc_chans,
-                 use_rand=True, use_fc=True,
+                 rand_shape=None, use_rand=True, use_fc=True,
                  unif_drop=0.0, apply_bn=True,
                  use_bn_params=True, act_func='relu',
                  mod_name='gm_fc'):
@@ -1884,6 +1887,7 @@ class GenFCPertModule(object):
         self.out_chans = out_chans
         self.rand_chans = rand_chans
         self.fc_chans = fc_chans
+        self.rand_shape = rand_shape
         self.use_rand = use_rand
         self.use_fc = use_fc
         self.unif_drop = unif_drop
