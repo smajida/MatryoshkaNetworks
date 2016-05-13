@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.random as npr
 import theano
 import theano.tensor as T
 from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool
@@ -3978,6 +3979,27 @@ class GMMPriorModule(object):
                                             (2. * T.exp(in_logvars)))
         log_q_z = T.sum(log_q_z, axis=1)
         return kld_apprx, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
+
+    def sample_mix_comps(self, comp_idx=None, batch_size=None):
+        '''
+        Sample either from a given sequence of mixture components, or from
+        components sampled at random.
+
+        Inputs:
+            comp_idx: a sequence of component IDs to sample from.
+            batch_size: number of independent samples to draw.
+        '''
+        M_np = self.M.get_value(borrow=False).T
+        V_np = self.V.get_value(borrow=False).T
+        if (comp_idx is None) and (batch_size is not None):
+            comp_idx = npr.randint(low=0, high=M_np.shape[0], size=(batch_size,))
+        # get means and log variances for samples
+        M_samp = M_np.take(comp_idx, axis=0)
+        V_samp = V_np.take(comp_idx, axis=0)
+        # sample ZMUV Gaussian vars, then reparametrize
+        z_zmuv = np_rng.normal(size=M_samp.shape)
+        z_samp = M_samp + (T.exp(0.5 * V_samp) * z_zmuv)
+        return floatX(z_samp)
 
 
 class TDRefinerWrapper(object):
