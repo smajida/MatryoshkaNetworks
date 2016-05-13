@@ -1152,9 +1152,9 @@ class InfGenModelGMM(object):
                     print('type(td_module): {}'.format(type(td_module)))
                     print('type(rvs): {}'.format(type(rvs)))
                     print('type(td_noise): {}'.format(type(td_noise)))
-                    td_act_i, cls_acts = td_module.apply(rand_vals=rvs,
-                                                         batch_size=batch_size,
-                                                         noise=td_noise)
+                    td_act_i = td_module.apply(rand_vals=rvs,
+                                               batch_size=batch_size,
+                                               noise=td_noise)
                 else:
                     # feedforward through an internal TD module
                     cond_mean_td, cond_logvar_td = \
