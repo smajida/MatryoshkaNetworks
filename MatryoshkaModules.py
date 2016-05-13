@@ -3896,7 +3896,7 @@ class GMMPriorModule(object):
         """
         Initialize parameters for the layers in this module.
         """
-        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        weight_ifn = inits.Normal(loc=0., scale=0.1)
         self.M = weight_ifn((self.mix_dim, self.mix_comps),
                             "{}_M".format(self.mod_name))
         self.V = weight_ifn((self.mix_dim, self.mix_comps),
