@@ -160,7 +160,7 @@ def get_masked_data(xi,
         # don't apply fully-random occlusion
         xm_rand = np.ones(xi.shape)
     # sample rectangular occlusion masks
-    if len(im_shape == 3):
+    if len(im_shape) == 3:
         # 3 channel images
         im_dim = im_shape[0] * im_shape[1] * im_shape[2]
         if occ_shape is None:
@@ -174,9 +174,10 @@ def get_masked_data(xi,
                                    patch_count=occ_count)
             # expand masks to cover all channels.
             # -- assume 3 channel ims are (chans, rows, cols)
+            xm_patch = xm_patch.reshape((obs_count, im_shape[1], im_shape[2]))
             xm_patch = xm_patch[:, np.newaxis, :, :]
             xm_patch = np.repeat(xm_patch, im_shape[0], axis=1)
-    elif len(im_shape == 2):
+    elif len(im_shape) == 2:
         # 1 channel images
         im_dim = im_shape[0] * im_shape[1]
         if occ_shape is None:

@@ -34,7 +34,7 @@ sys.setrecursionlimit(100000)
 #
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./faces_celeba"
+EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
