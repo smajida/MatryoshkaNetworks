@@ -1222,6 +1222,8 @@ class InfGenModelGMM(object):
         # samples from a conditional distribution over the latent variables.
         kld_dict = {}
         z_dict = {}
+        mix_post_ent = None
+        mix_comp_weight = None
         logz_dict = {'log_p_z': [], 'log_q_z': []}
         # first, run the bottom-up pass
         bu_res_dict = self.apply_bu(input=input, noise=bu_noise)
@@ -1265,7 +1267,7 @@ class InfGenModelGMM(object):
                     #    desired KL, and the exact log probabilities required #
                     #    for an unbiased Monte-Carlo approximation.           #
                     # #########################################################
-                    kld_i, log_p_z, log_q_z = \
+                    kld_i, log_p_z, log_q_z, mix_post_ent, mix_comp_weight = \
                         self.mix_module.compute_kld_info(cond_mean_im,
                                                          cond_logvar_im,
                                                          cond_rvs)
@@ -1345,6 +1347,8 @@ class InfGenModelGMM(object):
         im_res_dict = {}
         im_res_dict['td_output'] = td_output
         im_res_dict['kld_dict'] = kld_dict
+        im_res_dict['mix_post_ent'] = mix_post_ent
+        im_res_dict['mix_comp_weight'] = mix_comp_weight
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict

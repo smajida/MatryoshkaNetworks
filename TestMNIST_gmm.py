@@ -150,6 +150,8 @@ Xg_recon = clip_sigmoid(im_res_dict['td_output'])
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
+mix_post_ent = T.mean(im_res_dict['mix_post_ent'])
+mix_comp_weight = im_res_dict['mix_comp_weight']
 
 log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
@@ -178,8 +180,7 @@ opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
-full_cost_gen = vae_nll_cost + opt_kld_cost + vae_reg_cost
-full_cost_inf = full_cost_gen
+full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -199,8 +200,8 @@ inf_updater = updates.Adam(lr=lrt, b1=b1t, b2=0.98, e=1e-4, clipnorm=1000.0)
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-gen_updates, gen_grads = gen_updater(gen_params, full_cost_gen, return_grads=True)
-inf_updates, inf_grads = inf_updater(inf_params, full_cost_inf, return_grads=True)
+gen_updates, gen_grads = gen_updater(gen_params, full_cost, return_grads=True)
+inf_updates, inf_grads = inf_updater(inf_params, full_cost, return_grads=True)
 g_updates = gen_updates + inf_updates
 gen_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in gen_grads]))
 inf_grad_norm = T.sqrt(sum([T.sum(g**2.) for g in inf_grads]))
@@ -210,11 +211,11 @@ sample_func = theano.function([Z0], Xd_model)
 test_recons = recon_func(train_transform(Xtr[0:100, :]))
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_basic_costs = [full_cost_gen, full_cost_inf, vae_cost, vae_nll_cost,
+g_basic_costs = [full_cost, mix_post_ent, vae_cost, vae_nll_cost,
                  vae_kld_cost, gen_grad_norm, inf_grad_norm,
                  vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost_gen', 'full_cost_inf', 'vae_cost', 'vae_nll_cost',
+g_bc_names = ['full_cost', 'mix_post_ent', 'vae_cost', 'vae_nll_cost',
               'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
