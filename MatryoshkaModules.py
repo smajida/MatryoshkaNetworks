@@ -1392,6 +1392,9 @@ class GenTopModule(object):
             "need either batch_size or rand_vals"
         assert ((batch_size is None) or (rand_vals is None)), \
             "need either batch_size or rand_vals"
+
+        print('flag 1')
+
         if rand_vals is None:
             # we need to generate some latent variables
             rand_shape = (batch_size, self.rand_dim)
@@ -1402,6 +1405,9 @@ class GenTopModule(object):
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape
+
+        print('flag 2')
+
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
             if self.apply_bn:
@@ -1433,6 +1439,9 @@ class GenTopModule(object):
             result = [h2, rand_shape]
         else:
             result = h2
+
+        print('flag 3')
+
         if self.aux_dim is not None:
             # compute auxiliary output as a linear function of the  hidden
             # layer's activations.
