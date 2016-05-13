@@ -64,7 +64,7 @@ use_td_cond = False
 depth_7x7 = 4
 depth_14x14 = 4
 depth_28x28 = 4
-mix_comps = 32
+mix_comps = 50
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -338,12 +338,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
     #################################
     if (epoch < 20) or (((epoch - 1) % 20) == 0):
         # generate some samples from the model prior
-        comp_idx = np.arange(mix_comps).repeat(200 // mix_comps)
-        if comp_idx.shape[0] < 200:
-            comp_idx = np.concatenate([comp_idx, np.arange(200 - comp_idx.shape[0])])
+        comp_idx = np.arange(mix_comps).repeat(10)
         sample_z0mb = mix_module.sample_mix_comps(comp_idx)
         samples = np.asarray(sample_func(sample_z0mb))
-        grayscale_grid_vis(draw_transform(samples), (10, 20), "{}/gen_{}.png".format(result_dir, epoch))
+        grayscale_grid_vis(draw_transform(samples), (mix_comps, 10),
+                           "{}/gen_{}.png".format(result_dir, epoch))
         # test reconstruction performance (inference + generation)
         tr_rb = Xtr[0:100, :]
         va_rb = Xva[0:100, :]
