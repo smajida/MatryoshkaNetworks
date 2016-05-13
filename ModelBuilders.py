@@ -692,8 +692,7 @@ def build_mnist_conv_res_gmm(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
             im_modules=im_modules,
             mix_module=mix_module,
             merge_info=merge_info,
-            output_transform=noop,
-            use_sc=False)
+            output_transform=noop)
 
     return inf_gen_model
 
