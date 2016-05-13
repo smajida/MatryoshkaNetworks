@@ -116,11 +116,10 @@ def sample_masks(X, drop_prob=0.3):
     return mask.astype(theano.config.floatX)
 
 
-def sample_patch_masks(X, im_shape, patch_shape, patch_count=1):
+def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1):
     """
     Sample a random patch mask for each image in X.
     """
-    obs_count = X.shape[0]
     rows = patch_shape[0]
     cols = patch_shape[1]
     off_row = npr.randint(1, high=(im_shape[0] - rows - 1),
@@ -128,46 +127,75 @@ def sample_patch_masks(X, im_shape, patch_shape, patch_count=1):
     off_col = npr.randint(1, high=(im_shape[1] - cols - 1),
                           size=(obs_count, patch_count))
     dummy = np.zeros(im_shape)
-    mask = np.ones(X.shape)
+    mask = np.ones((obs_count, im_shape[0] * im_shape[1]))
     for i in range(obs_count):
         for j in range(patch_count):
             # reset the dummy mask
-            dummy = (0.0 * dummy) + 1.0
+            dummy = (0. * dummy) + 1.
             # select a random patch in the dummy mask
-            dummy[off_row[i, j]:(off_row[i, j] + rows), off_col[i, j]:(off_col[i, j] + cols)] = 0.0
+            dummy[off_row[i, j]:(off_row[i, j] + rows), off_col[i, j]:(off_col[i, j] + cols)] = 0.
             # turn off the patch in the final mask
             mask[i, :] = mask[i, :] * dummy.ravel()
     return mask.astype(theano.config.floatX)
 
 
 def get_masked_data(xi,
+                    im_shape,
                     drop_prob=0.0,
                     occ_shape=None,
                     occ_count=1,
                     data_mean=None):
     """
     Construct randomly masked data from xi.
+
+    Assume data is passed as a 2d matrix whose rows must be reshaped
+    to get either 1 channel or 3 channel images.
     """
-    if data_mean is None:
-        data_mean = np.zeros((xi.shape[1],))
-    im_dim = int(xi.shape[1]**0.5)  # images should be square
-    xo = xi.copy()
+    obs_count = xi.shape[0]
+    # sample uniform random masks
     if drop_prob > 0.0:
         # apply fully-random occlusion
         xm_rand = sample_masks(xi, drop_prob=drop_prob)
     else:
         # don't apply fully-random occlusion
         xm_rand = np.ones(xi.shape)
-    if occ_shape is None:
-        # don't apply rectangular occlusion
-        xm_patch = np.ones(xi.shape)
-    else:
-        # apply rectangular occlusion
-        xm_patch = \
-            sample_patch_masks(xi,
-                               (im_dim, im_dim),
-                               occ_shape,
-                               patch_count=occ_count)
+    # sample rectangular occlusion masks
+    if len(im_shape == 3):
+        # 3 channel images
+        im_dim = im_shape[0] * im_shape[1] * im_shape[2]
+        if occ_shape is None:
+            xm_patch = np.ones(xi.shape)
+        else:
+            # apply rectangular occlusion to 1 channel imgs
+            xm_patch = \
+                sample_patch_masks(obs_count,
+                                   (im_shape[1], im_shape[2]),
+                                   occ_shape,
+                                   patch_count=occ_count)
+            # expand masks to cover all channels.
+            # -- assume 3 channel ims are (chans, rows, cols)
+            xm_patch = xm_patch[:, np.newaxis, :, :]
+            xm_patch = np.repeat(xm_patch, im_shape[0], axis=1)
+    elif len(im_shape == 2):
+        # 1 channel images
+        im_dim = im_shape[0] * im_shape[1]
+        if occ_shape is None:
+            # don't apply rectangular occlusion
+            xm_patch = np.ones(xi.shape)
+        else:
+            # apply rectangular occlusion to 1 channel imgs
+            xm_patch = \
+                sample_patch_masks(obs_count,
+                                   (im_shape[0], im_shape[1]),
+                                   occ_shape,
+                                   patch_count=occ_count)
+    # flatten rectangular occlusion masks
+    xm_patch = xm_patch.reshape(xi.shape)
+    # compute data mean to swap in for masked values
+    if data_mean is None:
+        data_mean = np.zeros((im_dim,))
+    # apply masks to images
+    xo = xi.copy()
     xm = xm_rand * xm_patch
     xi = (xm * xi) + ((1.0 - xm) * data_mean)
     xi = to_fX(xi)
