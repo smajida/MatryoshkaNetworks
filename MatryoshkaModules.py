@@ -3946,13 +3946,13 @@ class GMMPriorModule(object):
                  self.shared_mask.dimshuffle('x', 0, 'x'))
         V_mix = (self.V.dimshuffle('x', 0, 1) *
                  self.shared_mask.dimshuffle('x', 0, 'x'))
-        # compute mix_klds, with shape: (n_batch, mix_comps)
-        mix_klds = 0.5 * (V_mix - V_in +
-                          (T.exp(V_in) / T.exp(V_mix)) +
-                          ((M_in - M_mix)**2. / T.exp(V_mix)) - 1.)
-        mix_klds = T.sum(mix_klds, axis=1)
+        # compute mix_comp_kld, with shape: (n_batch, mix_comps)
+        mix_comp_kld = 0.5 * (V_mix - V_in +
+                              (T.exp(V_in) / T.exp(V_mix)) +
+                              ((M_in - M_mix)**2. / T.exp(V_mix)) - 1.)
+        mix_comp_kld = T.sum(mix_comp_kld, axis=1)
         # compute KL(q || p) approximation
-        kld_apprx = -log_mean_exp(-mix_klds, axis=1).flatten()
+        mix_kld_apprx = -log_mean_exp(-mix_comp_kld, axis=1).flatten()
 
         # compute compute log p1(z), log p2(z) for each mixture component
         log_mix_z = C - (0.5 * V_mix) - \
@@ -3967,7 +3967,7 @@ class GMMPriorModule(object):
         ws_mat = log_mix_z - T.max(log_mix_z, axis=1, keepdims=True)
         ws_mat = T.exp(ws_mat)
         ws_mat = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-        ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
+        # ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
         # ws_mat.shape: (n_batch, mix_comps)
 
         # entropy of mixture posteriors    -- shape: (n_batch,)
@@ -3985,7 +3985,7 @@ class GMMPriorModule(object):
         log_q_z = C - (0.5 * in_logvars) - ((z_vals - in_means)**2. /
                                             (2. * T.exp(in_logvars)))
         log_q_z = T.sum(log_q_z, axis=1)
-        return kld_apprx, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
+        return mix_kld_apprx, mix_comp_kld, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
 
     def sample_mix_comps(self, comp_idx=None, batch_size=None):
         '''
