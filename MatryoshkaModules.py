@@ -3878,10 +3878,16 @@ class GMMPriorModule(object):
     Class for managing a Gaussian Mixture Model prior over the top-most latent
     variables in a deep generative model.
     '''
-    def __init__(self, mix_comps, mix_dim, mod_name='no_name'):
+    def __init__(self, mix_comps, mix_dim, shared_dim=None, mod_name='no_name'):
         assert not (mod_name == 'no_name')
         self.mix_comps = mix_comps
         self.mix_dim = mix_dim
+        self.shared_dim = shared_dim
+        # make a (non-trainable) mask to force some dimensions to be shared
+        smask = np.ones((self.mix_dim,))
+        if (self.shared_dim is not None) and (self.shared_dim > 0):
+            smask[:self.shared_dim] = 0.  # block inter-component variation on shared dims
+        self.shared_mask = sharedX(smask)
         self.mod_name = mod_name
         self._init_params()
         return
@@ -3936,9 +3942,10 @@ class GMMPriorModule(object):
         M_in = in_means.dimshuffle(0, 1, 'x')
         V_in = in_logvars.dimshuffle(0, 1, 'x')
         Z_in = z_vals.dimshuffle(0, 1, 'x')
-        M_mix = self.M.dimshuffle('x', 0, 1)
-        V_mix = self.V.dimshuffle('x', 0, 1)
-
+        M_mix = (self.M.dimshuffle('x', 0, 1) *
+                 self.shared_mask.dimshuffle('x', 0, 'x'))
+        V_mix = (self.V.dimshuffle('x', 0, 1) *
+                 self.shared_mask.dimshuffle('x', 0, 'x'))
         # compute mix_klds, with shape: (n_batch, mix_comps)
         mix_klds = 0.5 * (V_mix - V_in +
                           (T.exp(V_in) / T.exp(V_mix)) +
