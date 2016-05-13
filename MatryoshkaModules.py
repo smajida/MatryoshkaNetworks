@@ -7,7 +7,7 @@ from lib import activations
 from lib import inits
 from lib.rng import py_rng, np_rng, t_rng, cu_rng
 from lib.ops import batchnorm, conv_cond_concat, deconv, dropout, \
-                    add_noise
+                    add_noise, log_mean_exp
 
 from lib.theano_utils import floatX, sharedX
 
@@ -3867,6 +3867,108 @@ class ClassConvModule(object):
         # get class predictions via channel-wise max pooling (over all space)
         class_preds = T.max(T.max(h1, axis=2), axis=2)
         return class_preds
+
+
+class GMMPriorModule(object):
+    '''
+    Class for managing a Gaussian Mixture Model prior over the top-most latent
+    variables in a deep generative model.
+    '''
+    def __init__(self, mix_comps, mix_dim, mod_name='no_name'):
+        assert not (mod_name == 'no_name')
+        self.mix_comps = mix_comps
+        self.mix_dim = mix_dim
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        """
+        Initialize parameters for the layers in this module.
+        """
+        weight_ifn = inits.Normal(loc=0., scale=0.02)
+        self.M = weight_ifn((self.mix_dim, self.mix_comps),
+                            "{}_M".format(self.mod_name))
+        self.V = weight_ifn((self.mix_dim, self.mix_comps),
+                            "{}_V".format(self.mod_name))
+        self.params = [self.M, self.V]
+        return
+
+    def load_params(self, param_dict):
+        """
+        Load module params directly from a dict of numpy arrays.
+        """
+        self.M.set_value(floatX(param_dict['M']))
+        self.V.set_value(floatX(param_dict['V']))
+        return
+
+    def dump_params(self):
+        """
+        Dump module params directly to a dict of numpy arrays.
+        """
+        param_dict = {}
+        param_dict['M'] = self.M.get_value(borrow=False)
+        param_dict['V'] = self.V.get_value(borrow=False)
+        return param_dict
+
+    def compute_kld_info(self, in_means, in_logvars, z_vals):
+        '''
+        Compute information about KL divergence between distributions with
+        the given parameters and this GMM. Use z samples in z_vals.
+
+        Note: all returned values are shape (n_batch,)
+        '''
+        #
+        # use analytical approximation:
+        # KL(q || p) ~ -log_mean_exp(-KL(q || p1), -KL(q || p2), ..., -KL(q || pN))
+        #
+        # we assume mixtures over '1D' latent vars, i.e. params are matrices
+        #
+        # for now, we assume uniform mixture component weights
+        C = -0.918939  # -log(2 * pi) / 2
+
+        # compute elementwise vals at shape: (n_batch, mix_dim, mix_comps)
+        M_in = in_means.dimshuffle(0, 1, 'x')
+        V_in = in_logvars.dimshuffle(0, 1, 'x')
+        Z_in = z_vals.dimshuffle(0, 1, 'x')
+        M_mix = self.M.dimshuffle('x', 0, 1)
+        V_mix = self.V.dimshuffle('x', 0, 1)
+
+        # compute mix_klds, with shape: (n_batch, mix_comps)
+        mix_klds = 0.5 * (V_mix - V_in +
+                          (T.exp(V_in) / T.exp(V_mix)) +
+                          ((M_in - M_mix)**2. / T.exp(V_mix)) - 1.)
+        mix_klds = T.sum(mix_klds, axis=1)
+        # compute KL(q || p) approximation
+        kld_apprx = -T.log(log_mean_exp(-mix_klds, axis=1)).flatten()
+
+        # compute compute log p1(z), log p2(z) for each mixture component
+        log_mix_z = C - (0.5 * V_mix) - \
+            ((M_mix - Z_in)**2. / 2. * T.exp(V_mix))
+        log_mix_z = T.sum(log_mix_z, axis=1)
+        # log_mix_z.shape: (n_batch, mix_comps)
+
+        # compute log p(z) for full mixture using log-mean-exp
+        log_p_z = log_mean_exp(log_mix_z, axis=1).flatten()
+
+        # # compute exact posteriors over mixture components
+        # ws_mat = log_mix_z - T.max(log_mix_z, axis=1, keepdims=True)
+        # ws_mat = T.exp(ws_mat)
+        # ws_mat = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
+        # ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
+        # # ws_mat.shape: (n_batch, mix_comps)
+
+        # # marginalize free-energy over the true posterior, assuming a uniform
+        # # prior over z. I.e., we assume uniform mixture weights
+        # # -- we get E_{p(z|x)}[log p(x|z)] - KL(p(z|x) || p(z))
+        # log_p_z = T.sum((ws_mat_dcg * log_mix_z), axis=1) - \
+        #     T.sum(ws_mat * T.log(ws_mat + 1e-5), axis=1)
+
+        # compute log q(z)
+        log_q_z = C - (0.5 * in_logvars) - ((z_vals - in_means)**2. /
+                                            (2. * T.exp(in_logvars)))
+        log_q_z = T.sum(log_q_z, axis=1)
+        return kld_apprx, log_p_z, log_q_z
 
 
 class TDRefinerWrapper(object):

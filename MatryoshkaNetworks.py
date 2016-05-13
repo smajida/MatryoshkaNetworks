@@ -998,7 +998,7 @@ class SimpleInfMLP(object):
         return hs[-1]
 
 
-class InfGenModelSS(object):
+class InfGenModelGMM(object):
     """
     A deep, hierarchical generator network. This provides a wrapper around a
     collection of bottom-up, top-down, and info-merging Matryoshka modules.
@@ -1199,7 +1199,7 @@ class InfGenModelSS(object):
         res_dict['bu_acts'] = bu_acts
         return res_dict
 
-    def apply_im(self, input, noise=None):
+    def apply_im(self, input, kl_mode='analytical', noise=None):
         """
         Compute the merged pass over this model's bottom-up, top-down, and
         information merging modules.
@@ -1260,6 +1260,22 @@ class InfGenModelSS(object):
                     if not (im_module is None):
                         im_act_i = im_module.apply(rand_vals=cond_rvs,
                                                    noise=bu_noise)
+                    ###########################################################
+                    # Compute log p(z) and KL(q || p) for a GMM prior         #
+                    # -- This must return an analytical approximation to the  #
+                    #    desired KL, and the exact log probabilities required #
+                    #    for an unbiased Monte-Carlo approximation.           #
+                    # #########################################################
+                    kld_i, log_p_z, log_q_z = \
+                        self.mix_module.compute_kld_info(cond_mean_im,
+                                                         cond_logvar_im,
+                                                         cond_rvs)
+                    if kl_mode == 'monte-carlo':
+                        # use unbiased monte-carlo approximation of KL(q || p)
+                        kld_i = log_q_z - log_p_z
+                    # spread out the kld, to make it compatible with elem-wise klds
+                    kld_i = T.repeat(kld_i.dimshuffle(0, 'x'), cond_rvs.shape[1], axis=1)
+                    kld_i = (1. / T.cast(cond_rvs.shape[1])) * kld_i
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]               # info from TD pass
@@ -1285,26 +1301,26 @@ class InfGenModelSS(object):
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
                                                noise=td_noise)
+                    # record KLd info for the conditional distribution
+                    kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
+                                         T.flatten(cond_logvar_im, 2),
+                                         T.flatten(cond_mean_td, 2),
+                                         T.flatten(cond_logvar_td, 2))
+                    # get the log likelihood of the current latent samples under
+                    # both the proposal distribution q(z | x) and the prior p(z).
+                    # -- these are used when computing the IWAE bound.
+                    log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                                T.flatten(cond_mean_td, 2),
+                                                log_vars=T.flatten(cond_logvar_td, 2),
+                                                do_sum=True)
+                    log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
+                                                T.flatten(cond_mean_im, 2),
+                                                log_vars=T.flatten(cond_logvar_im, 2),
+                                                do_sum=True)
                 # record top-down activations produced by IM and TD modules
                 td_acts.append(td_act_i)
                 im_res_dict[im_mod_name] = im_act_i
-                # record KLd info for the conditional distribution
-                kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
-                                     T.flatten(cond_logvar_im, 2),
-                                     T.flatten(cond_mean_td, 2),
-                                     T.flatten(cond_logvar_td, 2))
                 kld_dict[td_mod_name] = kld_i
-                # get the log likelihood of the current latent samples under
-                # both the proposal distribution q(z | x) and the prior p(z).
-                # -- these are used when computing the IWAE bound.
-                log_p_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_td, 2),
-                                            log_vars=T.flatten(cond_logvar_td, 2),
-                                            do_sum=True)
-                log_q_z = log_prob_gaussian(T.flatten(cond_rvs, 2),
-                                            T.flatten(cond_mean_im, 2),
-                                            log_vars=T.flatten(cond_logvar_im, 2),
-                                            do_sum=True)
                 logz_dict['log_p_z'].append(log_p_z)
                 logz_dict['log_q_z'].append(log_q_z)
                 z_dict[td_mod_name] = cond_rvs
