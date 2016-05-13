@@ -213,11 +213,11 @@ print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [full_cost, mix_post_ent, vae_cost, vae_nll_cost,
                  vae_kld_cost, gen_grad_norm, inf_grad_norm,
-                 vae_obs_costs, vae_layer_klds]
+                 vae_obs_costs, vae_layer_klds, mix_comp_weight]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['full_cost', 'mix_post_ent', 'vae_cost', 'vae_nll_cost',
               'vae_kld_cost', 'gen_grad_norm', 'inf_grad_norm',
-              'vae_obs_costs', 'vae_layer_klds']
+              'vae_obs_costs', 'vae_layer_klds', 'mix_comp_weight']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg], g_cost_outputs, updates=g_updates)    # train inference and generator
@@ -248,8 +248,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_epoch_costs = [0. for i in range(5)]
     i_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-    gen_grad_norms = []
-    inf_grad_norms = []
+    epoch_comp_weights = [0. for i in range(mix_comps)]
     vae_nlls = []
     vae_klds = []
     g_batch_count = 0.
@@ -270,11 +269,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
-        gen_grad_norms.append(1. * g_result[5])
-        inf_grad_norms.append(1. * g_result[6])
         batch_obs_costs = g_result[7]
         batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
+        batch_comp_weights = g_result[9]
+        epoch_comp_weights = [(v1 + v2) for v1, v2 in zip(batch_comp_weights, epoch_comp_weights)]
         g_batch_count += 1
         # train inference model on samples from the generator
         if epoch > 5:
@@ -307,36 +306,32 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
-    gen_grad_norms = np.asarray(gen_grad_norms)
-    inf_grad_norms = np.asarray(inf_grad_norms)
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     i_epoch_costs = [(c / i_batch_count) for c in i_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
+    epoch_comp_weights = [(c / g_batch_count) for c in epoch_comp_weights]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
     i_bc_strs = ["{0:s}: {1:.2f},".format(c_name, i_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
-    str2i = " ".join(i_bc_strs)
-    ggn_qtiles = np.percentile(gen_grad_norms, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](ggn): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ggn_qtiles[0], ggn_qtiles[1], ggn_qtiles[2], ggn_qtiles[3], np.max(gen_grad_norms))
-    ign_qtiles = np.percentile(inf_grad_norms, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](ign): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        ign_qtiles[0], ign_qtiles[1], ign_qtiles[2], ign_qtiles[3], np.max(inf_grad_norms))
+    str3 = " ".join(i_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
-    str5 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+    str4 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
     kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
-    str6 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+    str5 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
+    mcw_qtiles = np.percentile(epoch_comp_weights, [20., 40., 60., 80.])
+    str6 = "    [q20, q40, q60, q80, max](mcw): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+        mcw_qtiles[0], mcw_qtiles[1], mcw_qtiles[2], mcw_qtiles[3], np.max(epoch_comp_weights))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
     str7 = "    module kld -- {}".format(" ".join(kld_strs))
     str8 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
         v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str2i, str3, str4, str5, str6, str7, str8])
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6, str7, str8])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()

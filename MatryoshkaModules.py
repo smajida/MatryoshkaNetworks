@@ -3962,9 +3962,10 @@ class GMMPriorModule(object):
         ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
         # ws_mat.shape: (n_batch, mix_comps)
 
-        # compute entropy of mixture posteriors
+        # entropy of mixture posteriors    -- shape: (n_batch,)
         mix_post_ent = -T.sum(ws_mat * T.log(ws_mat + 1e-5), axis=1)
-        mix_comp_weight = T.sum(ws_mat, axis=0)
+        # batch estimate of misture weight -- shape: (mix_comps,)
+        mix_comp_weight = T.mean(ws_mat, axis=0)
 
         # # marginalize free-energy over the true posterior, assuming a uniform
         # # prior over z. I.e., we assume uniform mixture weights
