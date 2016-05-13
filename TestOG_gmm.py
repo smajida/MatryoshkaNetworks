@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_4deep_hires_gmm'
+desc = 'test_conv_3deep_lores_gmm'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,9 +61,9 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 200          # # of iter at starting learning rate
 niter_decay = 200    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 4
-depth_14x14 = 4
-depth_28x28 = 4
+depth_7x7 = 3
+depth_14x14 = 3
+depth_28x28 = None
 mix_comps = 50
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -149,6 +149,7 @@ Xg_recon = clip_sigmoid(im_res_dict['td_output'])
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
+mix_comp_kld = im_res_dict['mix_comp_kld']
 mix_post_ent = T.mean(im_res_dict['mix_post_ent'])
 mix_comp_weight = im_res_dict['mix_comp_weight']
 
@@ -179,7 +180,7 @@ opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
-full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
+full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (1. * mix_post_ent)
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
@@ -274,10 +275,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
         epoch_comp_weights = [(v1 + v2) for v1, v2 in zip(batch_comp_weights, epoch_comp_weights)]
         g_batch_count += 1
         # train inference model on samples from the generator
-        if epoch > 5:
-            smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
-            i_result = i_train_func(smb_img)
-            i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
+        # if epoch > 5:
+        #     smb_img = binarize_data(sample_func(rand_gen(size=(100, nz0))))
+        #     i_result = i_train_func(smb_img)
+        #     i_epoch_costs = [(v1 + v2) for v1, v2 in zip(i_result[:5], i_epoch_costs)]
         i_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
