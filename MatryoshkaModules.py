@@ -3944,7 +3944,7 @@ class GMMPriorModule(object):
                           ((M_in - M_mix)**2. / T.exp(V_mix)) - 1.)
         mix_klds = T.sum(mix_klds, axis=1)
         # compute KL(q || p) approximation
-        kld_apprx = -T.log(log_mean_exp(-mix_klds, axis=1)).flatten()
+        kld_apprx = T.log(log_mean_exp(-mix_klds, axis=1)).flatten()
 
         # compute compute log p1(z), log p2(z) for each mixture component
         log_mix_z = C - (0.5 * V_mix) - \
