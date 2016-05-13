@@ -25,7 +25,8 @@ sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
 
-def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, mix_comps=0,
+def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128,
+                         mix_comps=0, shared_dim=None,
                          use_bn=False, act_func='lrelu', use_td_cond=True,
                          depth_7x7=5, depth_14x14=5):
     #########################################
@@ -360,7 +361,8 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, mix_comps=0,
                 use_sc=False)
     else:
         # Gaussian mixture model prior
-        mix_module = GMMPriorModule(mix_comps, nz0, mod_name='gmm_prior_mod')
+        mix_module = GMMPriorModule(mix_comps, nz0, shared_dim=shared_dim,
+                                    mod_name='gmm_prior_mod')
         inf_gen_model = \
             InfGenModelGMM(
                 bu_modules=bu_modules,
@@ -373,7 +375,8 @@ def build_mnist_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, mix_comps=0,
 
 
 def build_mnist_conv_res_hires(
-        nz0=32, nz1=4, ngf=32, ngfc=128, mix_comps=0,
+        nz0=32, nz1=4, ngf=32, ngfc=128,
+        mix_comps=0, shared_dim=None,
         use_bn=False, act_func='lrelu', use_td_cond=True,
         depth_7x7=2, depth_14x14=2, depth_28x28=2):
 
