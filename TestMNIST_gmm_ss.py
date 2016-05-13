@@ -159,8 +159,9 @@ mix_post_ent = T.mean(im_res_dict['mix_post_ent'])
 mix_comp_weight = im_res_dict['mix_comp_weight']
 
 # get mixture component posteriors and KLds for the supervised inputs
-Yh_su = mix_comp_post[Xg_un.shape[0]:, :]
-mix_comp_kld_su = mix_comp_kld[Xg_un.shape[0]:, :]
+num_unsu = Xg_un.shape[0]
+Yh_su = mix_comp_post[num_unsu:, :]
+mix_comp_kld_su = mix_comp_kld[num_unsu:, :]
 
 # compute various metrics associated with the supervised inputs
 cls_nll_su = -T.mean(T.log(T.sum(Yg_su * Yh_su, axis=1)))
@@ -172,7 +173,7 @@ log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg, 2), T.flatten(Xg_recon, 2),
                 do_sum=False), axis=1)
 vae_obs_nlls = -1.0 * log_p_x
-vae_nll_cost = T.mean(vae_obs_nlls)
+vae_nll_cost = T.mean(vae_obs_nlls[:num_unsu]) + 0.01 * T.mean(vae_obs_nlls[num_unsu:])
 
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, T.sum(mod_kld, axis=1)) for mod_name, mod_kld in kld_dict.items()]
@@ -180,7 +181,7 @@ vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in 
 vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 # compute total per-observation KL-divergence part of cost
 vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
-vae_kld_cost = T.mean(vae_obs_klds)
+vae_kld_cost = T.mean(vae_obs_klds[:num_unsu]) + 0.01 * T.mean(vae_obs_klds[num_unsu:])
 
 # compute the KLd cost to use for optimization
 opt_kld_cost = lam_kld[0] * vae_kld_cost
@@ -189,7 +190,7 @@ opt_kld_cost = lam_kld[0] * vae_kld_cost
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
-full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.1 * cls_nll_su)
+full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.2 * cls_nll_su)
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
