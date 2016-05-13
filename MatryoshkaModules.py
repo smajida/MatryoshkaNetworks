@@ -3994,11 +3994,11 @@ class GMMPriorModule(object):
         if (comp_idx is None) and (batch_size is not None):
             comp_idx = npr.randint(low=0, high=M_np.shape[0], size=(batch_size,))
         # get means and log variances for samples
-        M_samp = M_np.take(comp_idx, axis=0)
-        V_samp = V_np.take(comp_idx, axis=0)
+        M_samp = M_np[comp_idx, :]
+        V_samp = V_np[comp_idx, :]
         # sample ZMUV Gaussian vars, then reparametrize
         z_zmuv = np_rng.normal(size=M_samp.shape)
-        z_samp = M_samp + (T.exp(0.5 * V_samp) * z_zmuv)
+        z_samp = M_samp + (np.exp(0.5 * V_samp) * z_zmuv)
         return floatX(z_samp)
 
 

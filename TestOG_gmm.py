@@ -21,12 +21,12 @@ from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import shuffle, iter_data
-from load import load_binarized_mnist, load_udm
+from load import load_omniglot
 
 #
 # Phil's business
 #
-from ModelBuilders import build_mnist_conv_res, build_mnist_conv_res_hires
+from ModelBuilders import build_og_conv_res, build_og_conv_res_hires
 
 sys.setrecursionlimit(100000)
 
@@ -35,43 +35,36 @@ sys.setrecursionlimit(100000)
 #
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./mnist"
+EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_gmm'
+desc = 'test_conv_4deep_hires_gmm'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
-fixed_binarization = True
 # load MNIST dataset, either fixed or dynamic binarization
 data_path = "{}/data/".format(EXP_DIR)
-if fixed_binarization:
-    Xtr, Xva, Xte = load_binarized_mnist(data_path=data_path)
-    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
-    Xva = Xte
-else:
-    dataset = load_udm("{}mnist.pkl.gz".format(data_path), to_01=True)
-    Xtr = dataset[0][0]
-    Xva = dataset[1][0]
-    Xte = dataset[2][0]
-    Xtr = np.concatenate([Xtr, Xva], axis=0).copy()
-    Xva = Xte
+Xtr, Ytr, Xva, Yva = load_omniglot(data_path, target_type='one-hot')
 
 
 set_seed(123)        # seed for shared rngs
 nbatch = 100         # # of examples in batch
 nc = 1               # # of channels in image
 nz0 = 32             # # of dim in top-most latent variables
+nz1 = 6              # # of dim in intermediate latent variables
+ngf = 32             # base # of filters for conv layers
+ngfc = 256           # # of dim in top-most hidden layer
 npx = 28             # # of pixels width/height of images
 nx = npx * npx * nc  # # of dimensions in X
-niter = 150          # # of iter at starting learning rate
-niter_decay = 150    # # of iter to linearly decay learning rate to zero
+niter = 200          # # of iter at starting learning rate
+niter_decay = 200    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-mix_comps = 10
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 4
+depth_14x14 = 4
+depth_28x28 = 4
+mix_comps = 32
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -80,8 +73,7 @@ ntrain = Xtr.shape[0]
 
 def train_transform(X):
     # transform vectorized observations into convnet inputs
-    if not fixed_binarization:
-        X = binarize_data(X)
+    X = binarize_data(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -105,11 +97,18 @@ sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
 
 # BUILD THE MODEL
-inf_gen_model = \
-    build_mnist_conv_res(
-        nz0=nz0, nz1=4, ngf=32, ngfc=128, use_bn=False,
-        act_func='lrelu', use_td_cond=use_td_cond, mix_comps=mix_comps,
-        depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+if depth_28x28 is None:
+    inf_gen_model = \
+        build_og_conv_res(
+            nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, mix_comps=mix_comps,
+            use_bn=False, act_func='lrelu', use_td_cond=use_td_cond,
+            depth_7x7=depth_7x7, depth_14x14=depth_14x14)
+else:
+    inf_gen_model = \
+        build_og_conv_res_hires(
+            nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc, mix_comps=mix_comps,
+            use_bn=False, act_func='lrelu', use_td_cond=use_td_cond,
+            depth_7x7=depth_7x7, depth_14x14=depth_14x14, depth_28x28=depth_28x28)
 td_modules = inf_gen_model.td_modules
 bu_modules = inf_gen_model.bu_modules
 im_modules = inf_gen_model.im_modules
