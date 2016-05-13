@@ -3955,12 +3955,16 @@ class GMMPriorModule(object):
         # compute log p(z) for full mixture using log-mean-exp
         log_p_z = log_mean_exp(log_mix_z, axis=1).flatten()
 
-        # # compute exact posteriors over mixture components
-        # ws_mat = log_mix_z - T.max(log_mix_z, axis=1, keepdims=True)
-        # ws_mat = T.exp(ws_mat)
-        # ws_mat = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
-        # ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
-        # # ws_mat.shape: (n_batch, mix_comps)
+        # compute exact posteriors over mixture components
+        ws_mat = log_mix_z - T.max(log_mix_z, axis=1, keepdims=True)
+        ws_mat = T.exp(ws_mat)
+        ws_mat = ws_mat / T.sum(ws_mat, axis=1, keepdims=True)
+        ws_mat_dcg = theano.gradient.disconnected_grad(ws_mat)
+        # ws_mat.shape: (n_batch, mix_comps)
+
+        # compute entropy of mixture posteriors
+        mix_post_ent = -T.sum(ws_mat * T.log(ws_mat + 1e-5), axis=1)
+        mix_comp_weight = T.sum(ws_mat, axis=0)
 
         # # marginalize free-energy over the true posterior, assuming a uniform
         # # prior over z. I.e., we assume uniform mixture weights
@@ -3972,7 +3976,7 @@ class GMMPriorModule(object):
         log_q_z = C - (0.5 * in_logvars) - ((z_vals - in_means)**2. /
                                             (2. * T.exp(in_logvars)))
         log_q_z = T.sum(log_q_z, axis=1)
-        return kld_apprx, log_p_z, log_q_z
+        return kld_apprx, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
 
 
 class TDRefinerWrapper(object):
