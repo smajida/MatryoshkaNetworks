@@ -1275,7 +1275,7 @@ class InfGenModelGMM(object):
                         kld_i = log_q_z - log_p_z
                     # spread out the kld, to make it compatible with elem-wise klds
                     kld_i = T.repeat(kld_i.dimshuffle(0, 'x'), cond_rvs.shape[1], axis=1)
-                    kld_i = (1. / T.cast(cond_rvs.shape[1])) * kld_i
+                    kld_i = (1. / T.cast(cond_rvs.shape[1], 'floatX')) * kld_i
                 else:
                     # handle conditionals based on merging BU and TD info
                     td_info = td_acts[-1]               # info from TD pass
