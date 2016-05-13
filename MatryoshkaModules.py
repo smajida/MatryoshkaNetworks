@@ -1393,8 +1393,6 @@ class GenTopModule(object):
         assert ((batch_size is None) or (rand_vals is None)), \
             "need either batch_size or rand_vals"
 
-        print('flag 1')
-
         if rand_vals is None:
             # we need to generate some latent variables
             rand_shape = (batch_size, self.rand_dim)
@@ -1405,8 +1403,6 @@ class GenTopModule(object):
             rand_shape = (rand_vals.shape[0], self.rand_dim)
         rand_vals = rand_vals.reshape(rand_shape)
         rand_shape = rand_vals.shape
-
-        print('flag 2')
 
         if self.use_fc:
             h1 = T.dot(rand_vals, self.w1)
@@ -1439,8 +1435,6 @@ class GenTopModule(object):
             result = [h2, rand_shape]
         else:
             result = h2
-
-        print('flag 3')
 
         if self.aux_dim is not None:
             # compute auxiliary output as a linear function of the  hidden
@@ -3934,6 +3928,7 @@ class GMMPriorModule(object):
         # we assume mixtures over '1D' latent vars, i.e. params are matrices
         #
         # for now, we assume uniform mixture component weights
+        #
         C = -0.918939  # -log(2 * pi) / 2
 
         # compute elementwise vals at shape: (n_batch, mix_dim, mix_comps)
