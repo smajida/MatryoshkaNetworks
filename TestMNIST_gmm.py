@@ -145,7 +145,7 @@ Z0 = T.matrix()   # symbolic var for "noise" inputs to the generative stuff
 vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in g_params])
 
 # run an inference and reconstruction pass through the generative stuff
-im_res_dict = inf_gen_model.apply_im(Xg)
+im_res_dict = inf_gen_model.apply_im(Xg, kl_mode='monte-carlo')
 Xg_recon = clip_sigmoid(im_res_dict['td_output'])
 kld_dict = im_res_dict['kld_dict']
 log_p_z = sum(im_res_dict['log_p_z'])
