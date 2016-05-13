@@ -3974,6 +3974,7 @@ class GMMPriorModule(object):
         mix_post_ent = -T.sum(ws_mat * T.log(ws_mat + 1e-5), axis=1)
         # batch estimate of misture weight -- shape: (mix_comps,)
         mix_comp_weight = T.mean(ws_mat, axis=0)
+        mix_comp_post = ws_mat
 
         # # marginalize free-energy over the true posterior, assuming a uniform
         # # prior over z. I.e., we assume uniform mixture weights
@@ -3985,7 +3986,7 @@ class GMMPriorModule(object):
         log_q_z = C - (0.5 * in_logvars) - ((z_vals - in_means)**2. /
                                             (2. * T.exp(in_logvars)))
         log_q_z = T.sum(log_q_z, axis=1)
-        return mix_kld_apprx, mix_comp_kld, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
+        return mix_kld_apprx, mix_comp_kld, mix_comp_post, log_p_z, log_q_z, mix_post_ent, mix_comp_weight
 
     def sample_mix_comps(self, comp_idx=None, batch_size=None):
         '''

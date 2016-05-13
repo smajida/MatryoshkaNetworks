@@ -1267,7 +1267,7 @@ class InfGenModelGMM(object):
                     #    desired KL, and the exact log probabilities required #
                     #    for an unbiased Monte-Carlo approximation.           #
                     # #########################################################
-                    kld_i, mix_comp_kld, log_p_z, log_q_z, mix_post_ent, mix_comp_weight = \
+                    kld_i, mix_comp_kld, mix_comp_post, log_p_z, log_q_z, mix_post_ent, mix_comp_weight = \
                         self.mix_module.compute_kld_info(cond_mean_im,
                                                          cond_logvar_im,
                                                          cond_rvs)
@@ -1348,6 +1348,7 @@ class InfGenModelGMM(object):
         im_res_dict['td_output'] = td_output
         im_res_dict['kld_dict'] = kld_dict
         im_res_dict['mix_comp_kld'] = mix_comp_kld
+        im_res_dict['mix_comp_post'] = mix_comp_post
         im_res_dict['mix_post_ent'] = mix_post_ent
         im_res_dict['mix_comp_weight'] = mix_comp_weight
         im_res_dict['td_acts'] = td_acts

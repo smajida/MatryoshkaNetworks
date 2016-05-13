@@ -180,7 +180,7 @@ opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
-full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.1 * mix_post_ent)
+full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.2 * mix_post_ent)
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
