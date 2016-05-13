@@ -1231,7 +1231,6 @@ class InfGenModelGMM(object):
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
         td_acts = []
-        cls_acts = None
         for i, td_module in enumerate(self.td_modules):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
@@ -1339,9 +1338,6 @@ class InfGenModelGMM(object):
                     im_res_dict[im_mod_name] = im_act_i
             else:
                 assert False, "BAD td_mod_type: {}".format(td_mod_type)
-        # apply class module to the output of some BU module
-        # bu_cls_info = bu_res_dict[self.mix_module.bu_source]
-        # cls_acts = self.mix_module.apply(bu_cls_info)
         # apply output transform (into observation space, presumably), to get
         # the final "reconstruction" produced by the merged BU/TD pass.
         td_output = self.output_transform(td_acts[-1])
@@ -1349,7 +1345,6 @@ class InfGenModelGMM(object):
         im_res_dict = {}
         im_res_dict['td_output'] = td_output
         im_res_dict['kld_dict'] = kld_dict
-        im_res_dict['cls_acts'] = cls_acts
         im_res_dict['td_acts'] = td_acts
         im_res_dict['bu_acts'] = bu_res_dict['bu_acts']
         im_res_dict['z_dict'] = z_dict
