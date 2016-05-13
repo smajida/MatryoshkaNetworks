@@ -48,14 +48,14 @@ if not os.path.exists(result_dir):
 data_path = "{}/data/".format(EXP_DIR)
 
 dataset = load_udm_ss("{}mnist.pkl.gz".format(data_path), sup_count=100)
-Xtr_un = dataset['Xtr_un']
-Ytr_un = 0. * one_hot(dataset['Ytr_un'], n=10)
-Xtr_su = dataset['Xtr_su']
-Ytr_su = 1. * one_hot(dataset['Ytr_su'], n=10)
-Xva = dataset['Xva']
-Yva = 0. * one_hot(dataset['Yva'], n=10)
-Xte = dataset['Xte']
-Yte = 0. * one_hot(dataset['Yte'], n=10)
+Xtr_un = floatX(dataset['Xtr_un'])
+Ytr_un = floatX(0. * one_hot(dataset['Ytr_un'], n=10))
+Xtr_su = floatX(dataset['Xtr_su'])
+Ytr_su = floatX(1. * one_hot(dataset['Ytr_su'], n=10))
+Xva = floatX(dataset['Xva'])
+Yva = floatX(1. * one_hot(dataset['Yva'], n=10))
+Xte = floatX(dataset['Xte'])
+Yte = floatX(1. * one_hot(dataset['Yte'], n=10))
 
 
 set_seed(123)        # seed for shared rngs
@@ -69,8 +69,8 @@ niter_decay = 150    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
 use_bn = True
 mix_comps = 10
-depth_7x7 = 5
-depth_14x14 = 5
+depth_7x7 = 2
+depth_14x14 = 2
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -135,11 +135,9 @@ g_params = gen_params + inf_params
 # Setup symbolic vars for the model inputs, outputs, and costs
 Xg_un = T.tensor4()
 Xg_su = T.tensor4()
-Yg_un = T.matrix()
 Yg_su = T.matrix()
 
-Xg = T.concatenate([Xg_un, Xg_su], axis=1)
-Yg = T.concatenate([Yg_un, Yg_su], axis=1)
+Xg = T.concatenate([Xg_un, Xg_su], axis=0)
 Yg = T.tensor4()
 Z0 = T.matrix()
 
@@ -166,7 +164,7 @@ mix_comp_kld_su = mix_comp_kld[Xg_un.shape[0]:, :]
 
 # compute various metrics associated with the supervised inputs
 cls_nll_su = -T.mean(T.log(T.sum(Yg_su * Yh_su, axis=1)))
-acc_su = T.sum(T.cast(T.argmax(Yg_su, axis=1) == T.argmax(Yh_su, axis=1), 'floatX')) / T.sum(Yg_su)
+acc_su = T.sum(T.cast(T.eq(T.argmax(Yg_su, axis=1), T.argmax(Yh_su, axis=1)), 'floatX')) / T.sum(Yg_su)
 kld_su = T.mean(T.sum(Yg_su * mix_comp_kld_su, axis=1))
 
 # compute reconstruction error part of free-energy
@@ -236,8 +234,8 @@ g_bc_names = ['full_cost', 'mix_post_ent', 'vae_cost', 'vae_nll_cost',
               'vae_obs_costs', 'vae_layer_klds', 'mix_comp_weight']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
-g_train_func = theano.function([Xg_un, Yg_un, Xg_su, Yg_su], g_cost_outputs, updates=g_updates)
-g_eval_func = theano.function([Xg_un, Yg_un, Xg_su, Yg_su], g_cost_outputs)
+g_train_func = theano.function([Xg_un, Xg_su, Yg_su], g_cost_outputs, updates=g_updates)
+g_eval_func = theano.function([Xg_un, Xg_su, Yg_su], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 # make file for recording test progress
@@ -283,7 +281,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         vmb_img = train_transform(vmb_x)
         vmb_cls = vmb_y
         # train vae on training batch
-        g_result = g_train_func(imb_img, imb_cls, smb_img, smb_cls)
+        g_result = g_train_func(imb_img, smb_img, smb_cls)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:7], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
         vae_klds.append(1. * g_result[4])
@@ -295,7 +293,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         g_batch_count += 1
         # evaluate vae on validation batch
         if v_batch_count < 25:
-            v_result = g_eval_func(vmb_img, 0. * vmb_cls, vmb_img, vmb_cls)
+            v_result = g_eval_func(vmb_img, vmb_img, vmb_cls)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:7], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
