@@ -1149,6 +1149,9 @@ class InfGenModelGMM(object):
                 if td_mod_type == 'top':
                     # feedforward through the top-most generator module.
                     # this module has a fixed ZMUV Gaussian prior.
+                    print('type(td_module): {}'.format(type(td_module)))
+                    print('type(rvs): {}'.format(type(rvs)))
+                    print('type(td_noise): {}'.format(type(td_noise)))
                     td_act_i, cls_acts = td_module.apply(rand_vals=rvs,
                                                          batch_size=batch_size,
                                                          noise=td_noise)
