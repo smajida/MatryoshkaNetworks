@@ -59,8 +59,8 @@ nbatch = 100        # # of examples in batch
 npx = 32            # # of pixels width/height of images
 nz0 = 64            # # of dim for Z0
 nz1 = 6             # # of dim for Z1
-ngf = 48            # base # of filters for conv layers in generative stuff
-ngfc = 128          # # of filters in fully connected layers of generative stuff
+ngf = 32            # base # of filters for conv layers in generative stuff
+ngfc = 256          # # of filters in fully connected layers of generative stuff
 nx = npx * npx * nc   # # of dimensions in X
 niter = 150         # # of iter at starting learning rate
 niter_decay = 250   # # of iter to linearly decay learning rate to zero
@@ -73,8 +73,8 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_4x4 = 3
-depth_8x8 = 4
+depth_4x4 = 2
+depth_8x8 = 2
 depth_16x16 = 5
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -178,7 +178,7 @@ bce = T.nnet.binary_crossentropy
 # -- these do generation                #
 #########################################
 
-# FC -> (7, 7)
+# FC -> (8, 8)
 td_module_1 = \
     GenTopModule(
         rand_dim=nz0,
@@ -190,7 +190,7 @@ td_module_1 = \
         act_func=act_func,
         mod_name='td_mod_1')
 
-# grow the (4, 4) -> (4, 4) part of network
+# grow the (8, 8) -> (8, 8) part of network
 td_modules_4x4 = []
 for i in range(depth_4x4):
     mod_name = 'td_mod_2{}'.format(alphabet[i])
@@ -210,7 +210,7 @@ for i in range(depth_4x4):
     td_modules_4x4.append(new_module)
 # manual stuff for parameter sharing....
 
-# (4, 4) -> (8, 8)
+# (8, 8) -> (16, 16)
 td_module_3 = \
     BasicConvModule(
         in_chans=(ngf * 4),
@@ -221,7 +221,7 @@ td_module_3 = \
         act_func=act_func,
         mod_name='td_mod_3')
 
-# grow the (8, 8) -> (8, 8) part of network
+# grow the (16, 16) -> (16, 16) part of network
 td_modules_8x8 = []
 for i in range(depth_8x8):
     mod_name = 'td_mod_4{}'.format(alphabet[i])
@@ -240,7 +240,7 @@ for i in range(depth_8x8):
             mod_name=mod_name)
     td_modules_8x8.append(new_module)
 
-# (8, 8) -> (16, 16)
+# (16, 16) -> (32, 32)
 td_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
@@ -251,7 +251,7 @@ td_module_5 = \
         act_func=act_func,
         mod_name='td_mod_5')
 
-# grow the (16, 16) -> (16, 16) part of network
+# grow the (32, 32) -> (32, 32) part of network
 td_modules_16x16 = []
 for i in range(depth_16x16):
     mod_name = 'td_mod_6{}'.format(alphabet[i])
@@ -305,7 +305,7 @@ td_modules = [td_module_1] + \
 # (4, 4) -> FC
 bu_module_1 = \
     InfTopModule(
-        bu_chans=(ngf * 4 * 8 * 8),
+        bu_chans=(ngf * 5 * 4 * 4),
         fc_chans=ngfc,
         rand_chans=nz0,
         use_fc=True,
@@ -315,25 +315,18 @@ bu_module_1 = \
         unif_post=None,
         mod_name='bu_mod_1')
 
-# grow the (4, 4) -> (4, 4) part of network
-bu_modules_4x4 = []
-for i in range(depth_4x4):
-    mod_name = 'bu_mod_2{}'.format(alphabet[i])
-    new_module = \
-        BasicConvPertModule(
-            in_chans=(ngf * 4),
-            out_chans=(ngf * 4),
-            conv_chans=(ngf * 4),
-            filt_shape=(3, 3),
-            use_conv=use_conv,
-            apply_bn=use_bn,
-            stride='single',
-            act_func=act_func,
-            mod_name=mod_name)
-    bu_modules_4x4.append(new_module)
-bu_modules_4x4.reverse()
-
 # (8, 8) -> (4, 4)
+bu_module_2 = \
+    BasicConvModule(
+        in_chans=(ngf * 4),
+        out_chans=(ngf * 5),
+        filt_shape=(3, 3),
+        apply_bn=use_bn,
+        stride='double',
+        act_func=act_func,
+        mod_name='bu_mod_2')
+
+# (16, 16) -> (8, 8)
 bu_module_3 = \
     BasicConvModule(
         in_chans=(ngf * 3),
@@ -344,26 +337,8 @@ bu_module_3 = \
         act_func=act_func,
         mod_name='bu_mod_3')
 
-# grow the (8, 8) -> (8, 8) part of network
-bu_modules_8x8 = []
-for i in range(depth_8x8):
-    mod_name = 'bu_mod_4{}'.format(alphabet[i])
-    new_module = \
-        BasicConvPertModule(
-            in_chans=(ngf * 3),
-            out_chans=(ngf * 3),
-            conv_chans=(ngf * 3),
-            filt_shape=(3, 3),
-            use_conv=use_conv,
-            apply_bn=use_bn,
-            stride='single',
-            act_func=act_func,
-            mod_name=mod_name)
-    bu_modules_8x8.append(new_module)
-bu_modules_8x8.reverse()
-
-# (8, 8) -> (16, 16)
-bu_module_5 = \
+# (32, 32) -> (16, 16)
+bu_module_4 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=(ngf * 2),
@@ -371,56 +346,29 @@ bu_module_5 = \
         apply_bn=use_bn,
         stride='double',
         act_func=act_func,
-        mod_name='bu_mod_5')
+        mod_name='bu_mod_4')
 
-# grow the (16, 16) -> (16, 16) part of network
-bu_modules_16x16 = []
-for i in range(depth_16x16):
-    mod_name = 'bu_mod_6{}'.format(alphabet[i])
-    new_module = \
-        BasicConvPertModule(
-            in_chans=(ngf * 2),
-            out_chans=(ngf * 2),
-            conv_chans=(ngf * 2),
-            filt_shape=(3, 3),
-            use_conv=use_conv,
-            apply_bn=use_bn,
-            stride='single',
-            act_func=act_func,
-            mod_name=mod_name)
-    bu_modules_16x16.append(new_module)
-bu_modules_16x16.reverse()
 
-# (16, 16) -> (32, 32)
-bu_module_7 = \
+# (32, 32) -> (32, 32)
+bu_module_5 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=(ngf * 1),
+        in_chans=nc,
         out_chans=(ngf * 2),
         apply_bn=use_bn,
         stride='single',
         act_func=act_func,
-        mod_name='bu_mod_7')
-
-# (32, 32) -> (32, 32)
-bu_module_8 = \
-    BasicConvModule(
-        filt_shape=(3, 3),
-        in_chans=nc,
-        out_chans=(ngf * 1),
-        apply_bn=use_bn,
-        stride='single',
-        act_func=act_func,
-        mod_name='bu_mod_8')
+        mod_name='bu_mod_5')
 
 # modules must be listed in "evaluation order"
-bu_modules = [bu_module_8, bu_module_7] + \
-             bu_modules_16x16 + \
-             [bu_module_5] + \
-             bu_modules_8x8 + \
-             [bu_module_3] + \
-             bu_modules_4x4 + \
-             [bu_module_1]
+# bu_modules = [bu_module_8, bu_module_7] + \
+#              bu_modules_16x16 + \
+#              [bu_module_5] + \
+#              bu_modules_8x8 + \
+#              [bu_module_3] + \
+#              bu_modules_4x4 + \
+#              [bu_module_1]
+bu_modules = [bu_module_5, bu_module_4, bu_module_3, bu_module_2, bu_module_1]
 
 
 #########################################
@@ -548,8 +496,8 @@ for i in range(depth_4x4):
     bu_src_name = 'bu_mod_3'
     if i > 0:
         im_src_name = 'im_mod_2{}'.format(alphabet[i - 1])
-    if i < (depth_4x4 - 1):
-        bu_src_name = 'bu_mod_2{}'.format(alphabet[i + 1])
+    # if i < (depth_4x4 - 1):
+    #     bu_src_name = 'bu_mod_2{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -560,11 +508,11 @@ for i in range(depth_8x8):
     td_mod_name = 'td_mod_4{}'.format(alphabet[i])
     im_mod_name = 'im_mod_4{}'.format(alphabet[i])
     im_src_name = 'im_mod_3'
-    bu_src_name = 'bu_mod_5'
+    bu_src_name = 'bu_mod_4'
     if i > 0:
         im_src_name = 'im_mod_4{}'.format(alphabet[i - 1])
-    if i < (depth_8x8 - 1):
-        bu_src_name = 'bu_mod_4{}'.format(alphabet[i + 1])
+    # if i < (depth_8x8 - 1):
+    #     bu_src_name = 'bu_mod_4{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -575,11 +523,11 @@ for i in range(depth_16x16):
     td_mod_name = 'td_mod_6{}'.format(alphabet[i])
     im_mod_name = 'im_mod_6{}'.format(alphabet[i])
     im_src_name = 'im_mod_5'
-    bu_src_name = 'bu_mod_7'
+    bu_src_name = 'bu_mod_5'
     if i > 0:
         im_src_name = 'im_mod_6{}'.format(alphabet[i - 1])
-    if i < (depth_16x16 - 1):
-        bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
+    # if i < (depth_16x16 - 1):
+    #     bu_src_name = 'bu_mod_6{}'.format(alphabet[i + 1])
     # add entry for this TD module
     merge_info[td_mod_name] = {
         'td_type': td_type, 'im_module': im_mod_name,
@@ -672,11 +620,11 @@ log_p_z = sum(im_res_dict['log_p_z'])
 log_q_z = sum(im_res_dict['log_q_z'])
 
 Xg_recon = td_output[:, :nc, :, :]
-Xg_lgvar = td_output[:, nc:, :, :]
+# Xg_lgvar = td_output[:, nc:, :, :]
 
 log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_whitened, 2), T.flatten(Xg_recon, 2),
-                log_vars=T.flatten(Xg_lgvar, 2), do_sum=False), axis=1)
+                log_vars=log_var[0], do_sum=False), axis=1)
 # prec_U = sigma_info[0]['prec_U']
 # log_det_cov = sigma_info[0]['log_det_sigma']
 # log_p_x = logpdf(T.flatten(Xg, 2), T.flatten(Xg_recon, 2), prec_U, log_det_cov)
