@@ -77,6 +77,16 @@ def scale_to_tanh_range(X):
     return X, X_std
 
 
+def scale_to_01(X):
+    """
+    Scale the given 2d array to be in [0, 1].
+    """
+    X = X - np.min(X)
+    X = X / np.max(X)
+    X_std = np.std(X, axis=0, keepdims=True)
+    return X, X_std
+
+
 def load_and_scale_data(npy_file_name):
     """
     Load and scale data from the given npy file, and compute standard deviation
@@ -84,14 +94,15 @@ def load_and_scale_data(npy_file_name):
     """
     np_ary = np.load(npy_file_name)
     np_ary = np_ary.astype(theano.config.floatX)
-    X, X_std = scale_to_tanh_range(np_ary)
+    X, X_std = scale_to_01(np_ary)
     return X, X_std
 
 
 def train_transform(X, add_fuzz=True):
-    # transform vectorized observations into convnet inputs
+    # transform vectorized observations into convnet inputs, assume X in [0, 1]
     if add_fuzz:
-        X = X + ((2. / 256.) * npr.uniform(size=X.shape))
+        X = X + ((1. / 256.) * npr.uniform(size=X.shape))
+    X = scale_to_tanh_range(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -112,6 +123,17 @@ def rand_gen(size, noise_type='normal'):
         assert False, "unrecognized noise type!"
     return r_vals
 
+
+def rand_fill(x, m):
+    '''
+    Fill masked parts of x, indicated by m, using uniform noise.
+    -- assume data is in [0, 1]
+    '''
+    x = scale_to_01(x)
+    m = scale_to_01(m)
+    nz = np_rng.uniform(size=x.shape)
+    x_nz = (m * nz) + ((1. - m) * x)
+    return x_nz
 
 # load some sample data
 Xtr, Xtr_std = load_and_scale_data(data_files[0])
@@ -449,9 +471,6 @@ for epoch in range(1, (niter + niter_decay + 1)):
     vae_klds = []
     g_batch_count = 0.
     for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
-        # transform training batch validation batch to model input format
-        imb_input = make_model_input(imb)
-        # train vae on training batch
         if epoch < -11:
             # don't train adversary in early epochs
             adv_lr = 0. * lrt.get_value(borrow=False)
@@ -460,6 +479,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
             # then, allow adversary to train...
             adv_lr = 0.02 * lrt.get_value(borrow=False)
             adv_lrt.set_value(floatX(adv_lr))
+        # transform training batch to model input format
+        imb_input = make_model_input(imb)
+        # compute loss and apply updates for this batch
         g_result = g_train_func(*imb_input)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])
@@ -513,6 +535,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # sample some reconstructions directly from the conditional model
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
         xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
+        # highlight missing patches, for punchier viz
+        xg_gen = rand_fill(xg_gen, xm_gen)
         # stripe data for nice display (each reconstruction next to its target)
         tr_vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
