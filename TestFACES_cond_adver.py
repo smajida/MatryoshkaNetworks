@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_vgg_impute_adversarial_maxnorm100'
+desc = 'test_faces_impute_adversarial_maxnorm50'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -124,14 +124,14 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 
-def rand_fill(x, m):
+def rand_fill(x, m, scale=1.):
     '''
     Fill masked parts of x, indicated by m, using uniform noise.
     -- assume data is in [0, 1]
     '''
     x, x_std = scale_to_01(x)
     m, m_std = scale_to_01(m)
-    nz = np_rng.uniform(size=x.shape)
+    nz = scale * np_rng.uniform(size=x.shape)
     x_nz = (m * nz) + ((1. - m) * x)
     return x_nz
 
@@ -191,7 +191,7 @@ ac_mod_1 = \
         out_chans=32,
         stride='single',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_1')
 
 # (64, 64) -> (64, 64)
@@ -202,7 +202,7 @@ ac_mod_2 = \
         out_chans=32,
         stride='single',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_2')
 
 # (64, 64) -> (32, 32)
@@ -213,7 +213,7 @@ ac_mod_3 = \
         out_chans=64,
         stride='double',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_3')
 
 # (32, 32) -> (32, 32)
@@ -224,10 +224,10 @@ ac_mod_4 = \
         out_chans=64,
         stride='single',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_4')
 
-# (32, 32) -> (16, 16) -- 28672 dim when out_chans=112
+# (32, 32) -> (16, 16)
 ac_mod_5 = \
     BasicConvModule(
         filt_shape=(2, 2),
@@ -235,7 +235,7 @@ ac_mod_5 = \
         out_chans=96,
         stride='double',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_5')
 
 # (16, 16) -> (16, 16)
@@ -246,10 +246,10 @@ ac_mod_6 = \
         out_chans=96,
         stride='double',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_6')
 
-# (16, 16) -> (8, 8)  -- 11264 dim when out_chans=176
+# (16, 16) -> (8, 8)
 ac_mod_7 = \
     BasicConvModule(
         filt_shape=(2, 2),
@@ -257,7 +257,7 @@ ac_mod_7 = \
         out_chans=128,
         stride='double',
         apply_bn=False,
-        act_func='elu',
+        act_func='lrelu',
         mod_name='ac_mod_7')
 
 ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4,
@@ -283,6 +283,15 @@ def make_model_input(x_in):
     xg_inf = train_transform(xg_inf)
     xm_inf = train_transform(xm_inf, add_fuzz=False)
     return xg_gen, xm_gen, xg_inf, xm_inf
+
+
+def obs_fix(obs_conv, max_norm=10.):
+    obs_flat = T.flatten(obs_conv, 2)
+    obs_cent = obs_flat - T.mean(obs_flat, axis=1, keepdims=True)
+    norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
+    rescale = T.minimum((max_norm / norms), 1.)
+    obs_bnd_norm = rescale * obs_cent
+    return obs_bnd_norm
 
 ####################################
 # Setup the optimization objective #
@@ -327,30 +336,32 @@ Xm_inf_mask = 1. * (Xm_inf > 1e-3)
 Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
 #           -- imputed values --          -- known values --
 
+# compute pixel-level reconstruction error on missing pixels
+# -- We'll bound the norms of the reconstructions and targets in both pixel
+#    and adversarial spaces, to keep their errors sort of comparable.
+x_truth = obs_fix(Xg_inf, max_norm=50.)
+x_guess = obs_fix(Xg_guess, max_norm=50.)
+pix_loss = T.sum(log_prob_gaussian(
+                 x_truth, x_guess,
+                 log_vars=log_var[0], mask=T.flatten(Xm_inf_mask, 2),
+                 do_sum=False), axis=1)
+
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
 adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 
-
-def obs_fix(obs_conv, max_norm=5.):
-    obs_flat = T.flatten(obs_conv, 2)
-    obs_cent = obs_flat - T.mean(obs_flat, axis=1, keepdims=True)
-    norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
-    rescale = T.minimum((max_norm / norms), 1.)
-    obs_bnd_norm = rescale * obs_cent
-    return obs_bnd_norm
-
+# compute adversarial reconstruction losses
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=100.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=100.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
     # compute adversarial distribution matching cost
     acl_log_p_x = T.sum(log_prob_gaussian(
                         x_truth, x_guess,
                         log_vars=log_var[0], do_sum=False), axis=1)
     adv_losses.append(ac_cost_weight * acl_log_p_x)
-log_p_x = sum(adv_losses)
+log_p_x = (0.9 * sum(adv_losses)) + (0.1 * pix_loss)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
@@ -536,7 +547,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
         xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
         # highlight missing patches, for punchier viz
-        xg_gen = rand_fill(xg_gen, xm_gen)
+        xg_gen = rand_fill(xg_gen, xm_gen, scale=0.5)
         # stripe data for nice display (each reconstruction next to its target)
         tr_vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
