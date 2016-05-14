@@ -124,20 +124,35 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 
-def rand_fill(x, m, scale=1.):
+def rand_fill(x, m, simple=True, scale=1.):
     '''
     Fill masked parts of x, indicated by m, using uniform noise.
-    -- assume data is in [0, 1]
+    -- force data to be in [0, 1] if not 'simple'
     '''
-    x, x_std = scale_to_01(x)
-    m, m_std = scale_to_01(m)
-    nz = scale * np_rng.uniform(size=x.shape)
-    x_nz = (m * nz) + ((1. - m) * x)
+    if simple:
+        m = 1. * (m > 1e-3)
+        nz = (scale * (np_rng.uniform(size=x.shape) - 0.5))
+        x_nz = (m * nz) + ((1. - m) * x)
+    else:
+        x, x_std = scale_to_01(x)
+        m, m_std = scale_to_01(m)
+        nz = (scale * (np_rng.uniform(size=x.shape) - 0.5)) + np.mean(x)
+        x_nz = (m * nz) + ((1. - m) * x)
     return x_nz
 
-# load some sample data
-Xtr, Xtr_std = load_and_scale_data(data_files[0])
+# load all data into memory
+print('LOADING DATA...')
+Xtr = []
+for df in data_files:
+    xtr, _ = load_and_scale_data(df)
+    Xtr.append(xtr)
+Xtr = np.concatenate(Xtr, axis=0)
 Xmu = np.mean(Xtr, axis=0)
+Xtr = shuffle(Xtr)
+# split into training and validation samples
+Xva = Xtr[:2500, :]
+Xtr = Xtr[2500:, :]
+print('DONE')
 
 
 set_seed(123)      # seed for shared rngs
@@ -354,8 +369,8 @@ adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=25.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=25.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
     # compute adversarial distribution matching cost
     acl_log_p_x = T.sum(log_prob_gaussian(
                         x_truth, x_guess,
@@ -408,10 +423,10 @@ print('DONE.')
 # stuff for performing updates
 lrt = sharedX(0.0005)
 b1t = sharedX(0.9)
-updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
+updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=100.0)
 # for adversary
 adv_lrt = sharedX(0.0)
-adv_updater = updates.Adam(lr=adv_lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
+adv_updater = updates.Adam(lr=adv_lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=100.0)
 
 # build training cost and update functions
 t = time()
@@ -462,34 +477,27 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-n_check = 0
-n_updates = 0
+batches_per_epoch = 1000
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 10)
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
-    Xtr, Xtr_std = load_and_scale_data(data_files[epoch % len(data_files)])
     Xtr = shuffle(Xtr)
-    ntrain = Xtr.shape[0]
+    Xva = shuffle(Xva)
+    Xtr_epoch = Xtr[:(nbatch * batches_per_epoch), :]
     # mess with the KLd cost
-    # if ((epoch-1) < len(kld_weights)):
-    #     lam_kld.set_value(floatX([kld_weights[epoch-1]]))
     lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
+    v_epoch_costs = [0. for i in range(5)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     vae_nlls = []
     vae_klds = []
-    g_batch_count = 0.
-    for imb in tqdm(iter_data(Xtr, size=nbatch), total=(ntrain / nbatch)):
-        if epoch < -11:
-            # don't train adversary in early epochs
-            adv_lr = 0. * lrt.get_value(borrow=False)
-            adv_lrt.set_value(floatX(adv_lr))
-        else:
-            # then, allow adversary to train...
-            adv_lr = 0.02 * lrt.get_value(borrow=False)
-            adv_lrt.set_value(floatX(adv_lr))
+    g_batch_count = 0
+    v_batch_count = 0
+    for imb in tqdm(iter_data(Xtr_epoch, size=nbatch), total=batches_per_epoch):
+        # set adversary to be slow relative to generator...
+        adv_lr = 0.05 * lrt.get_value(borrow=False)
+        adv_lrt.set_value(floatX(adv_lr))
         # transform training batch to model input format
         imb_input = make_model_input(imb)
         # compute loss and apply updates for this batch
@@ -501,7 +509,14 @@ for epoch in range(1, (niter + niter_decay + 1)):
         batch_layer_klds = g_result[6]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+        # run a smallish number of validation batches per epoch
+        if v_batch_count < 25:
+            vmb = Xva[v_batch_count * nbatch:(v_batch_count + 1) * nbatch, :]
+            vmb_input = make_model_input(vmb)
+            v_result = g_eval_func(*vmb_input)
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
+            v_batch_count += 1
+    if (epoch == 5) or (epoch == 15) or (epoch == 50) or (epoch == 100):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
@@ -522,41 +537,45 @@ for epoch in range(1, (niter + niter_decay + 1)):
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
     str2 = " ".join(g_bc_strs)
+    v_bc_strs = ["{0:s}: {1:.2f},".format(c_name, v_epoch_costs[c_idx])
+                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+    str3 = " ".join(v_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+    str4 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
     kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+    str5 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
-    str5 = "    module kld -- {}".format(" ".join(kld_strs))
-    joint_str = "\n".join([str1, str2, str3, str4, str5])
+    str6 = "    module kld -- {}".format(" ".join(kld_strs))
+    joint_str = "\n".join([str1, str2, str3, str4, str5, str6])
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
     ######################
     # DRAW SOME PICTURES #
     ######################
-    if (epoch < 20) or (((epoch - 1) % 20) == 0):
+    if (epoch < 20) or (((epoch - 1) % 10) == 0):
         # sample some reconstructions directly from the conditional model
-        xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
+        xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
         xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
-        # highlight missing patches, for punchier viz
-        xg_gen = rand_fill(xg_gen, xm_gen, scale=0.5)
+        # put noise in missing region of xg_gen
+        xg_gen = rand_fill(xg_gen, xm_gen, simple=True, scale=0.2)
         # stripe data for nice display (each reconstruction next to its target)
-        tr_vis_batch = np.zeros((200, nc, npx, npx))
+        vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
             idx_in = 2 * rec_pair
             idx_out = 2 * rec_pair + 1
-            tr_vis_batch[idx_in, :, :, :] = xg_gen[rec_pair, :, :, :]
-            tr_vis_batch[idx_out, :, :, :] = xg_rec[rec_pair, :, :, :]
+            vis_batch[idx_in, :, :, :] = xg_gen[rec_pair, :, :, :]
+            vis_batch[idx_out, :, :, :] = xg_rec[rec_pair, :, :, :]
         # draw images...
-        color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/gen_tr_{}.png".format(result_dir, epoch))
+        color_grid_vis(draw_transform(vis_batch), (10, 20), "{}/gen_va_{}.png".format(result_dir, epoch))
 
 
 ##############
