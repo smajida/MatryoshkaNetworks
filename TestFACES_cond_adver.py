@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_vgg_impute_adversarial'
+desc = 'test_faces_vgg_impute_adversarial_maxnorm100'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -343,8 +343,8 @@ def obs_fix(obs_conv, max_norm=5.):
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=10.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=10.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=100.)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=100.)
     # compute adversarial distribution matching cost
     acl_log_p_x = T.sum(log_prob_gaussian(
                         x_truth, x_guess,
