@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm25'
+desc = 'test_faces_impute_adversarial_maxnorm50_2xKL'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -171,6 +171,7 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
+kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
@@ -485,7 +486,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     Xva = shuffle(Xva)
     Xtr_epoch = Xtr[:(nbatch * batches_per_epoch), :]
     # mess with the KLd cost
-    lam_kld.set_value(floatX([1.0]))
+    lam_kld.set_value(floatX([kld_weight]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
