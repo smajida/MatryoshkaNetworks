@@ -422,6 +422,7 @@ def sample_func(xg_gen, xm_gen, model):
     x_out = recon_func(xg_gen, xm_gen, xg_gen, xm_gen)
     model.set_sample_switch(source='inf')
     # get the blended input and predictions for missing pixels
+    xm_gen = 1. * (xm_gen > 1e-3)
     x_out = (xm_gen * x_out) + ((1. - xm_gen) * xg_gen)
     return x_out
 
