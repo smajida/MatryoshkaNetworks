@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_1xKL'
+desc = 'test_faces_impute_adversarial_maxnorm50_2xKL'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -143,7 +143,7 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
-kld_weight = 1.
+kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
