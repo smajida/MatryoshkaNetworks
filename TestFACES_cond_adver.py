@@ -26,6 +26,8 @@ from lib.data_utils import \
 # Phil's business
 #
 from ModelBuilders import build_faces_cond_res
+from MatryoshkaModules import BasicConvModule
+from MatryoshkaNetworks import SimpleMLP
 
 sys.setrecursionlimit(100000)
 
@@ -132,9 +134,9 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
-depth_8x8 = 1
-depth_16x16 = 1
-depth_32x32 = 1
+depth_8x8 = 2
+depth_16x16 = 2
+depth_32x32 = 2
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -157,7 +159,91 @@ bu_modules_inf = inf_gen_model.bu_modules_inf
 im_modules_inf = inf_gen_model.im_modules_inf
 
 # setup a simple down-sampling convolutional net to act as the
-# "distributional adversary"
+# "distributional adversary" -- modules listed from bottom to top
+
+# (64, 64) -> (64, 64)
+ac_mod_1 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=3,
+        out_chans=48,
+        stride='single',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_1')
+
+# (64, 64) -> (64, 64)
+ac_mod_2 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=48,
+        out_chans=48,
+        stride='single',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_2')
+
+# (64, 64) -> (32, 32)
+ac_mod_3 = \
+    BasicConvModule(
+        filt_shape=(2, 2),
+        in_chans=48,
+        out_chans=80,
+        stride='double',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_3')
+
+# (32, 32) -> (32, 32)
+ac_mod_4 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=80,
+        out_chans=80,
+        stride='single',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_4')
+
+# (32, 32) -> (16, 16) -- 28672 dim when out_chans=112
+ac_mod_5 = \
+    BasicConvModule(
+        filt_shape=(2, 2),
+        in_chans=80,
+        out_chans=112,
+        stride='double',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_5')
+
+# (16, 16) -> (16, 16)
+ac_mod_6 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=112,
+        out_chans=112,
+        stride='double',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_6')
+
+# (16, 16) -> (8, 8)  -- 11264 dim when out_chans=176
+ac_mod_7 = \
+    BasicConvModule(
+        filt_shape=(2, 2),
+        in_chans=112,
+        out_chans=176,
+        stride='double',
+        apply_bn=False,
+        act_func='elu',
+        mod_name='ac_mod_7')
+
+ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4,
+              ac_mod_5, ac_mod_6, ac_mod_7]
+ac_cost_layers = ['ac_mod_5', 'ac_mod_7']
+ac_cost_weights = [0.05, 0.10]
+
+adv_conv = SimpleMLP(modules=ac_modules)
 
 
 # grab data to feed into the model
@@ -165,7 +251,7 @@ def make_model_input(x_in):
     # construct "imputational upsampling" masks
     xg_gen, xg_inf, xm_gen = \
         get_masked_data(x_in, im_shape=(nc, npx, npx), drop_prob=0.,
-                        occ_shape=(16, 16), occ_count=3,
+                        occ_shape=(20, 20), occ_count=3,
                         data_mean=Xmu)
     # reshape and process data for use as model input
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
@@ -180,11 +266,12 @@ def make_model_input(x_in):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-log_var = sharedX(floatX([1.0]))
+log_var = sharedX(floatX([0.0]))
 X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
 all_params = inf_gen_model.all_params + [log_var, X_init]
+adv_params = adv_conv.params
 
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
@@ -212,12 +299,26 @@ Xg_recon = im_res_dict['output']
 kld_dict = im_res_dict['kld_dict']
 Xg_recon = tanh(Xg_recon)
 
-Xm_inf_indicator = 1. * (Xm_inf > 1e-3)
-# compute reconstruction error on missing pixels
-log_p_x = T.sum(log_prob_gaussian(
-                T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
-                log_vars=log_var[0], mask=T.flatten(Xm_inf_indicator, 2),
-                do_sum=False), axis=1)
+# apply occlusion mask to get the full imputed image
+Xm_inf_mask = 1. * (Xm_inf > 1e-3)
+Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
+#           -- imputed values --          -- known values --
+
+# feed original observation and reconstruction into conv net
+adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
+adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
+
+adv_losses = []
+for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
+    # apply tanh for a quick-and-dirty bound on loss
+    x_truth = tanh(adv_dict_truth[ac_cost_layer])
+    x_guess = tanh(adv_dict_guess[ac_cost_layer])
+    # compute adversarial distribution matching cost
+    acl_log_p_x = T.sum(log_prob_gaussian(
+                        T.flatten(x_truth, 2), T.flatten(x_guess, 2),
+                        log_vars=log_var[0], do_sum=False), axis=1)
+    adv_log_p_x.append(ac_cost_weight * acl_log_p_x)
+log_p_x = sum(adv_losses)
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
@@ -243,6 +344,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
+adv_cost = -full_cost
 
 #
 # test the model implementation
@@ -264,11 +366,18 @@ print('DONE.')
 lrt = sharedX(0.0005)
 b1t = sharedX(0.9)
 updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
+# for adversary
+adv_lrt = sharedX(0.0)
+adv_updater = updates.Adam(lr=adv_lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
 
 # build training cost and update functions
 t = time()
 print("Computing gradients...")
-all_updates, all_grads = updater(all_params, full_cost, return_grads=True)
+all_updates = updater(all_params, full_cost, return_grads=False)
+adv_updates = adv_updater(adv_params, adv_cost, return_grads=False)
+jnt_updates = {k: v for k, v in all_updates.items()}
+for k, v in adv_updates.items():
+    jnt_updates[k] = v
 
 print("Compiling sampling and reconstruction functions...")
 # sampling requires a wrapper around the reconstruction function which
@@ -302,7 +411,7 @@ g_bc_names = ['full_cost', 'full_cost', 'vae_cost', 'vae_nll_cost',
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs,
-                               updates=all_updates)
+                               updates=jnt_updates)
 g_eval_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
@@ -335,6 +444,14 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # transform training batch validation batch to model input format
         imb_input = make_model_input(imb)
         # train vae on training batch
+        if epoch < 11:
+            # don't train adversary in early epochs
+            adv_lr = 0. * lrt.get_value(borrow=False)
+            adv_lrt.set_value(floatX(adv_lr))
+        else:
+            # then, allow adversary to train...
+            adv_lr = 0.1 * lrt.get_value(borrow=False)
+            adv_lrt.set_value(floatX(adv_lr))
         g_result = g_train_func(*imb_input)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
         vae_nlls.append(1. * g_result[3])

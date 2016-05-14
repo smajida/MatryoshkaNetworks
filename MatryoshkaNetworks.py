@@ -483,64 +483,6 @@ class InfGenModel(object):
         return sample_func
 
 
-class SimpleMLP(object):
-    """
-    A simple feedforward network. This wraps a sequence of fully connected
-    modules from MatryoshkaModules.py.
-
-    Params:
-        modules: a list of the modules that make up this SimpleMLP.
-    """
-    def __init__(self, modules=None):
-        assert not (modules is None), "Don't be a dunce! Supply modules!"
-        self.modules = [m for m in modules]
-        self.params = []
-        for module in self.modules:
-            self.params.extend(module.params)
-        return
-
-    def dump_params(self, f_name=None):
-        """
-        Dump params to a file for later reloading by self.load_params.
-        """
-        mod_param_dicts = [m.dump_params() for m in self.modules]
-        if not (f_name is None):
-            # dump param dict to the given file
-            f_handle = file(f_name, 'wb')
-            cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-            f_handle.close()
-        return mod_param_dicts
-
-    def load_params(self, f_name=None, mod_param_dicts=None):
-        """
-        Load params from a file saved via self.dump_params.
-        """
-        # reload the parameter dicts for all modules in this network
-        if not (f_name is None):
-            # reload params from a file
-            pickle_file = open(f_name)
-            mod_param_dicts = cPickle.load(pickle_file)
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-            pickle_file.close()
-        else:
-            # reload params from a dict
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-        return
-
-    def apply(self, input, noise=None):
-        """
-        Apply this SimpleMLP to some input and return the output of
-        its final layer.
-        """
-        hs = [input]
-        for i, module in enumerate(self.modules):
-            hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
-            hs.append(hi)
-        return hs[-1]
-
-
 class CondInfGenModel(object):
     '''
     A deep, hierarchical conditional generator network. This provides a wrapper
@@ -867,122 +809,6 @@ class CondInfGenModel(object):
         im_res_dict['log_pz_dict'] = log_pz_dict
         im_res_dict['log_qz_dict'] = log_qz_dict
         return im_res_dict
-
-
-class SimpleMLP(object):
-    """
-    A simple feedforward network. This wraps a sequence of fully connected
-    modules from MatryoshkaModules.py.
-
-    Params:
-        modules: a list of the modules that make up this SimpleMLP.
-    """
-    def __init__(self, modules=None):
-        assert not (modules is None), "Don't be a dunce! Supply modules!"
-        self.modules = [m for m in modules]
-        self.params = []
-        for module in self.modules:
-            self.params.extend(module.params)
-        return
-
-    def dump_params(self, f_name=None):
-        """
-        Dump params to a file for later reloading by self.load_params.
-        """
-        mod_param_dicts = [m.dump_params() for m in self.modules]
-        if not (f_name is None):
-            # dump param dict to the given file
-            f_handle = file(f_name, 'wb')
-            cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-            f_handle.close()
-        return mod_param_dicts
-
-    def load_params(self, f_name=None, mod_param_dicts=None):
-        """
-        Load params from a file saved via self.dump_params.
-        """
-        # reload the parameter dicts for all modules in this network
-        if not (f_name is None):
-            # reload params from a file
-            pickle_file = open(f_name)
-            mod_param_dicts = cPickle.load(pickle_file)
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-            pickle_file.close()
-        else:
-            # reload params from a dict
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-        return
-
-    def apply(self, input, noise=None):
-        """
-        Apply this SimpleMLP to some input and return the output of
-        its final layer.
-        """
-        hs = [input]
-        for i, module in enumerate(self.modules):
-            hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
-            hs.append(hi)
-        return hs[-1]
-
-
-class SimpleInfMLP(object):
-    """
-    A simple feedforward network. This wraps a sequence of fully connected
-    modules from MatryoshkaModules.py. Assume the final module is InfTopModule.
-
-    Params:
-        modules: a list of the modules that make up this SimpleMLP.
-    """
-    def __init__(self, modules=None):
-        assert not (modules is None), "Don't be a dunce! Supply modules!"
-        self.modules = [m for m in modules]
-        self.params = []
-        for module in self.modules:
-            self.params.extend(module.params)
-        return
-
-    def dump_params(self, f_name=None):
-        """
-        Dump params to a file for later reloading by self.load_params.
-        """
-        mod_param_dicts = [m.dump_params() for m in self.modules]
-        if not (f_name is None):
-            # dump param dict to the given file
-            f_handle = file(f_name, 'wb')
-            cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
-            f_handle.close()
-        return mod_param_dicts
-
-    def load_params(self, f_name=None, mod_param_dicts=None):
-        """
-        Load params from a file saved via self.dump_params.
-        """
-        # reload the parameter dicts for all modules in this network
-        if not (f_name is None):
-            # reload params from a file
-            pickle_file = open(f_name)
-            mod_param_dicts = cPickle.load(pickle_file)
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-            pickle_file.close()
-        else:
-            # reload params from a dict
-            for param_dict, mod in zip(mod_param_dicts, self.modules):
-                mod.load_params(param_dict=param_dict)
-        return
-
-    def apply(self, input, noise=None):
-        """
-        Apply this SimpleMLP to some input and return the output of
-        its final layer.
-        """
-        hs = [input]
-        for i, module in enumerate(self.modules):
-            hi = module.apply(T.flatten(hs[-1], 2), noise=noise)
-            hs.append(hi)
-        return hs[-1]
 
 
 class InfGenModelGMM(object):
@@ -1358,7 +1184,70 @@ class InfGenModelGMM(object):
         return sample_func
 
 
+class SimpleMLP(object):
+    """
+    A simple feedforward network. This wraps a sequence of modules.
 
+    -- The modules need to be self-aware of whether they'll be receiving
+       convolutional or fully-connected inputs. We won't handle that here.
+
+    Params:
+        modules: a list of the modules that make up this SimpleMLP.
+    """
+    def __init__(self, modules=None):
+        assert not (modules is None), "Don't be a dunce! Supply modules!"
+        self.modules = [m for m in modules]
+        self.params = []
+        for module in self.modules:
+            self.params.extend(module.params)
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        mod_param_dicts = [m.dump_params() for m in self.modules]
+        if not (f_name is None):
+            # dump param dict to the given file
+            f_handle = file(f_name, 'wb')
+            cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+            f_handle.close()
+        return mod_param_dicts
+
+    def load_params(self, f_name=None, mod_param_dicts=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        # reload the parameter dicts for all modules in this network
+        if not (f_name is None):
+            # reload params from a file
+            pickle_file = open(f_name)
+            mod_param_dicts = cPickle.load(pickle_file)
+            for param_dict, mod in zip(mod_param_dicts, self.modules):
+                mod.load_params(param_dict=param_dict)
+            pickle_file.close()
+        else:
+            # reload params from a dict
+            for param_dict, mod in zip(mod_param_dicts, self.modules):
+                mod.load_params(param_dict=param_dict)
+        return
+
+    def apply(self, input, return_dict=False, noise=None):
+        """
+        Apply this SimpleMLP to some input and return the output of
+        its final layer.
+        """
+        hs = [input]
+        act_dict = {}
+        for i, module in enumerate(self.modules):
+            hi = module.apply(hs[-1], noise=noise)
+            act_dict[module.mod_name] = hi
+            hs.append(hi)
+        if return_dict:
+            result = act_dict
+        else:
+            result = hs[-1]
+        return result
 
 
 

@@ -64,7 +64,7 @@ use_td_cond = False
 depth_7x7 = 3
 depth_14x14 = 3
 depth_28x28 = None
-mix_comps = 50
+mix_comps = 25
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 

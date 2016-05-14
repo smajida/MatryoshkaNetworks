@@ -726,7 +726,8 @@ class BasicConvModule(object):
                  use_bn_params=True, rescale_output=False,
                  use_noise=True,
                  mod_name='basic_conv'):
-        assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
+        if not (filt_shape[0] == 2):
+            assert ((filt_shape[0] % 2) > 0), "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
             "stride should be 'single', 'double', or 'half'."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
@@ -795,7 +796,14 @@ class BasicConvModule(object):
         Apply this convolutional module to the given input.
         """
         noise = noise if self.use_noise else None
-        bm = int((self.filt_dim - 1) / 2)  # use "same" mode convolutions
+        if (self.filt_dim == 2):
+            # when self.filt_dim == 2, we should be doing downsampling, and
+            # when we do this, we set the padding width to 0.
+            bm = 0
+
+        else:
+            bm = int((self.filt_dim - 1) / 2)
+
         # apply uniform and/or channel-wise dropout if desired
         input = conv_drop_func(input, self.unif_drop, self.chan_drop,
                                share_mask=share_mask)
