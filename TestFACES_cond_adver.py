@@ -134,9 +134,9 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
-depth_8x8 = 2
-depth_16x16 = 2
-depth_32x32 = 2
+depth_8x8 = 1
+depth_16x16 = 1
+depth_32x32 = 1
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -309,14 +309,23 @@ Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
 adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 
+
+def obs_fix(obs_conv, max_norm=5.):
+    obs_flat = T.flatten(obs_conv, 2)
+    obs_cent = obs_flat - T.mean(obs_flat, axis=1, keepdims=True)
+    norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
+    rescale = T.minimum((max_norm / norms), 1.)
+    obs_bnd_norm = rescale * obs_cent
+    return obs_bnd_nrm
+
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
-    x_truth = tanh(adv_dict_truth[ac_cost_layer])
-    x_guess = tanh(adv_dict_guess[ac_cost_layer])
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=10.)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=10.)
     # compute adversarial distribution matching cost
     acl_log_p_x = T.sum(log_prob_gaussian(
-                        T.flatten(x_truth, 2), T.flatten(x_guess, 2),
+                        x_truth, x_guess,
                         log_vars=log_var[0], do_sum=False), axis=1)
     adv_losses.append(ac_cost_weight * acl_log_p_x)
 log_p_x = sum(adv_losses)
@@ -443,13 +452,13 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # transform training batch validation batch to model input format
         imb_input = make_model_input(imb)
         # train vae on training batch
-        if epoch < 11:
+        if epoch < -11:
             # don't train adversary in early epochs
             adv_lr = 0. * lrt.get_value(borrow=False)
             adv_lrt.set_value(floatX(adv_lr))
         else:
             # then, allow adversary to train...
-            adv_lr = 0.1 * lrt.get_value(borrow=False)
+            adv_lr = 0.02 * lrt.get_value(borrow=False)
             adv_lrt.set_value(floatX(adv_lr))
         g_result = g_train_func(*imb_input)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
