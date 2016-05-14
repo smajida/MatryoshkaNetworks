@@ -55,34 +55,13 @@ data_files.sort()
 data_files = ["{}/{}".format(data_dir, file_name) for file_name in data_files]
 
 
-def scale_to_vgg_range(X):
-    """
-    Shift and scale the given 2d array to be in VGG range (i.e. -128, 128).
-    """
-    X = X - np.mean(X, axis=0)
-    scale = 128. / max(abs(np.min(X)), abs(np.max(X)))
-    X = scale * X
-    X_std = np.std(X, axis=0, keepdims=True)
-    return X, X_std
-
-
-def scale_to_tanh_range(X):
-    """
-    Scale the given 2d array to be in tanh range (i.e. -1...1).
-    """
-    X = X - np.min(X)
-    X = X / np.max(X)
-    X = 2. * (X - 0.5)
-    X_std = np.std(X, axis=0, keepdims=True)
-    return X, X_std
-
-
 def scale_to_01(X):
     """
     Scale the given 2d array to be in [0, 1].
     """
     X = X - np.min(X)
     X = X / np.max(X)
+    X = X * (255. / 256.)
     X_std = np.std(X, axis=0, keepdims=True)
     return X, X_std
 
@@ -99,18 +78,17 @@ def load_and_scale_data(npy_file_name):
 
 
 def train_transform(X, add_fuzz=True):
-    # transform vectorized observations into convnet inputs, assume X in [0, 1]
+    # X should be in [0, 255/256]
     if add_fuzz:
         X = X + ((1. / 256.) * npr.uniform(size=X.shape))
-    X, X_std = scale_to_tanh_range(X)
+    # shift and scale data to be in tanh range i.e. [-1, 1]
+    X = 2. * (X - 0.5)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
 def draw_transform(X):
-    # transform vectorized observations into drawable images
-    X = X - np.min(X)
-    X = X / np.max(X)
-    X = 255. * X
+    # X should be in [-1, 1], i.e. should come from train_transform()
+    X = 127. * (X + 1.)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
@@ -124,20 +102,14 @@ def rand_gen(size, noise_type='normal'):
     return r_vals
 
 
-def rand_fill(x, m, simple=True, scale=1.):
+def rand_fill(x, m, scale=1.):
     '''
     Fill masked parts of x, indicated by m, using uniform noise.
-    -- force data to be in [0, 1] if not 'simple'
+    -- assume data is in [-1, 1] (i.e. comes from train_transform())
     '''
-    if simple:
-        m = 1. * (m > 1e-3)
-        nz = (scale * (np_rng.uniform(size=x.shape) - 0.5))
-        x_nz = (m * nz) + ((1. - m) * x)
-    else:
-        x, x_std = scale_to_01(x)
-        m, m_std = scale_to_01(m)
-        nz = (scale * (np_rng.uniform(size=x.shape) - 0.5)) + np.mean(x)
-        x_nz = (m * nz) + ((1. - m) * x)
+    m = 1. * (m > 1e-3)
+    nz = (scale * (np_rng.uniform(size=x.shape) - 0.5))
+    x_nz = (m * nz) + ((1. - m) * x)
     return x_nz
 
 # load all data into memory
@@ -150,8 +122,8 @@ Xtr = np.concatenate(Xtr, axis=0)
 Xmu = np.mean(Xtr, axis=0)
 Xtr = shuffle(Xtr)
 # split into training and validation samples
-Xva = Xtr[:2500, :]
-Xtr = Xtr[2500:, :]
+Xva = Xtr[:2500, :]  # in range [0, 255/256]
+Xtr = Xtr[2500:, :]  # in range [0, 255/256]
 print('DONE')
 
 
