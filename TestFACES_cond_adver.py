@@ -166,7 +166,7 @@ ac_mod_1 = \
     BasicConvModule(
         filt_shape=(3, 3),
         in_chans=3,
-        out_chans=48,
+        out_chans=32,
         stride='single',
         apply_bn=False,
         act_func='elu',
@@ -176,8 +176,8 @@ ac_mod_1 = \
 ac_mod_2 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=48,
-        out_chans=48,
+        in_chans=32,
+        out_chans=32,
         stride='single',
         apply_bn=False,
         act_func='elu',
@@ -187,8 +187,8 @@ ac_mod_2 = \
 ac_mod_3 = \
     BasicConvModule(
         filt_shape=(2, 2),
-        in_chans=48,
-        out_chans=80,
+        in_chans=32,
+        out_chans=64,
         stride='double',
         apply_bn=False,
         act_func='elu',
@@ -198,8 +198,8 @@ ac_mod_3 = \
 ac_mod_4 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=80,
-        out_chans=80,
+        in_chans=64,
+        out_chans=64,
         stride='single',
         apply_bn=False,
         act_func='elu',
@@ -209,8 +209,8 @@ ac_mod_4 = \
 ac_mod_5 = \
     BasicConvModule(
         filt_shape=(2, 2),
-        in_chans=80,
-        out_chans=112,
+        in_chans=64,
+        out_chans=96,
         stride='double',
         apply_bn=False,
         act_func='elu',
@@ -220,8 +220,8 @@ ac_mod_5 = \
 ac_mod_6 = \
     BasicConvModule(
         filt_shape=(3, 3),
-        in_chans=112,
-        out_chans=112,
+        in_chans=96,
+        out_chans=96,
         stride='double',
         apply_bn=False,
         act_func='elu',
@@ -231,8 +231,8 @@ ac_mod_6 = \
 ac_mod_7 = \
     BasicConvModule(
         filt_shape=(2, 2),
-        in_chans=112,
-        out_chans=176,
+        in_chans=96,
+        out_chans=128,
         stride='double',
         apply_bn=False,
         act_func='elu',
