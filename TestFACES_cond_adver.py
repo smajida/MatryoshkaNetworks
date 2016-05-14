@@ -318,7 +318,7 @@ for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     acl_log_p_x = T.sum(log_prob_gaussian(
                         T.flatten(x_truth, 2), T.flatten(x_guess, 2),
                         log_vars=log_var[0], do_sum=False), axis=1)
-    adv_log_p_x.append(ac_cost_weight * acl_log_p_x)
+    adv_losses.append(ac_cost_weight * acl_log_p_x)
 log_p_x = sum(adv_losses)
 
 # compute reconstruction error part of free-energy
