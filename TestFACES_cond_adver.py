@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_1xKL'
+desc = 'test_faces_impute_adversarial_maxnorm50_fix_contrast'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -55,13 +55,13 @@ data_files.sort()
 data_files = ["{}/{}".format(data_dir, file_name) for file_name in data_files]
 
 
-def scale_to_01(X):
+def scale_to_tanh_range(X):
     """
-    Scale the given 2d array to be in [0, 1].
+    Scale the given 2d array to be in tanh range (i.e. -1...1).
     """
     X = X - np.min(X)
     X = X / np.max(X)
-    X = X * (255. / 256.)
+    X = 2. * (X - 0.5)
     X_std = np.std(X, axis=0, keepdims=True)
     return X, X_std
 
@@ -73,22 +73,22 @@ def load_and_scale_data(npy_file_name):
     """
     np_ary = np.load(npy_file_name)
     np_ary = np_ary.astype(theano.config.floatX)
-    X, X_std = scale_to_01(np_ary)
+    X, X_std = scale_to_tanh_range(np_ary)
     return X, X_std
 
 
 def train_transform(X, add_fuzz=True):
-    # X should be in [0, 255/256]
+    # transform vectorized observations into convnet inputs
     if add_fuzz:
-        X = X + ((1. / 256.) * npr.uniform(size=X.shape))
-    # shift and scale data to be in tanh range i.e. [-1, 1]
-    X = 2. * (X - 0.5)
+        X = X + ((2. / 256.) * npr.uniform(size=X.shape))
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
 def draw_transform(X):
-    # X should be in [-1, 1], i.e. should come from train_transform()
-    X = 127. * (X + 1.)
+    # transform vectorized observations into drawable images
+    X = X - np.min(X)
+    X = X / np.max(X)
+    X = 255. * X
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 2, 3, 1))
 
 
