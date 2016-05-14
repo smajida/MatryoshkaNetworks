@@ -102,7 +102,7 @@ def train_transform(X, add_fuzz=True):
     # transform vectorized observations into convnet inputs, assume X in [0, 1]
     if add_fuzz:
         X = X + ((1. / 256.) * npr.uniform(size=X.shape))
-    X = scale_to_tanh_range(X)
+    X, X_std = scale_to_tanh_range(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -129,8 +129,8 @@ def rand_fill(x, m):
     Fill masked parts of x, indicated by m, using uniform noise.
     -- assume data is in [0, 1]
     '''
-    x = scale_to_01(x)
-    m = scale_to_01(m)
+    x, x_std = scale_to_01(x)
+    m, m_std = scale_to_01(m)
     nz = np_rng.uniform(size=x.shape)
     x_nz = (m * nz) + ((1. - m) * x)
     return x_nz
