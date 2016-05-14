@@ -376,9 +376,7 @@ t = time()
 print("Computing gradients...")
 all_updates = updater(all_params, full_cost, return_grads=False)
 adv_updates = adv_updater(adv_params, adv_cost, return_grads=False)
-jnt_updates = {k: v for k, v in all_updates.items()}
-for k, v in adv_updates.items():
-    jnt_updates[k] = v
+jnt_updates = all_updates + adv_updates
 
 print("Compiling sampling and reconstruction functions...")
 # sampling requires a wrapper around the reconstruction function which
