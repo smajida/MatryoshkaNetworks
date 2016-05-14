@@ -268,11 +268,26 @@ print("Computing gradients...")
 all_updates, all_grads = updater(all_params, full_cost, return_grads=True)
 
 print("Compiling sampling and reconstruction functions...")
+# sampling requires a wrapper around the reconstruction function which
+# flips the CondInfGen model's "sample source" switch.
 recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon)
-# sampl_func = theano.function([Xg_gen, Xm_gen], Xg_sampl)
-model_input = make_model_input(Xtr[0:100, :])
-test_recons = recon_func(*model_input)
-# test_sampls = sampl_func(model_input[0], model_input[1])
+
+
+def sample_func(xg_gen, xm_gen, model):
+    '''
+    switchy samply wrapper funk.
+    '''
+    model.set_sample_switch(source='gen')
+    x_out = recon_func(xg_gen, xm_gen, xg_gen, xm_gen)
+    model.set_sample_switch(source='inf')
+    # get the blended input and predictions for missing pixels
+    x_out = (xm_gen * x_out) + ((1. - xm_gen) * xg_gen)
+    return x_out
+
+# test samplers for conditional generation
+xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
+xg_rec = recon_func(xg_gen, xm_gen, xg_inf, xm_inf)
+xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
 
 print("Compiling training functions...")
 # collect costs for generator parameters
@@ -363,8 +378,22 @@ for epoch in range(1, (niter + niter_decay + 1)):
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
-
-
+    ######################
+    # DRAW SOME PICTURES #
+    ######################
+    if (epoch < 20) or (((epoch - 1) % 20) == 0):
+        # sample some reconstructions directly from the conditional model
+        xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
+        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
+        # stripe data for nice display (each reconstruction next to its target)
+        tr_vis_batch = np.zeros((200, nc, npx, npx))
+        for rec_pair in range(100):
+            idx_in = 2 * rec_pair
+            idx_out = 2 * rec_pair + 1
+            tr_vis_batch[idx_in, :, :, :] = xg_gen[rec_pair, :, :, :]
+            tr_vis_batch[idx_out, :, :, :] = xg_rec[rec_pair, :, :, :]
+        # draw images...
+        color_grid_vis(draw_transform(tr_vis_batch), (10, 20), "{}/gen_tr_{}.png".format(result_dir, epoch))
 
 
 ##############

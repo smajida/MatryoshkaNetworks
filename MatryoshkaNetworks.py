@@ -634,8 +634,8 @@ class CondInfGenModel(object):
         '''
         Set the latent sample switch to use samples from the given source.
         '''
-        assert (source_name in ['inf', 'gen'])
-        switch_val = floatX([1.]) if (source_name == 'inf') else floatX([0.])
+        assert (source in ['inf', 'gen'])
+        switch_val = floatX([1.]) if (source == 'inf') else floatX([0.])
         self.sample_switch.set_value(switch_val)
         return
 
@@ -862,24 +862,11 @@ class CondInfGenModel(object):
         # package results into a handy dictionary
         im_res_dict = {}
         im_res_dict['output'] = output
-        im_res_dict['td_acts'] = td_acts
         im_res_dict['z_dict'] = z_dict
         im_res_dict['kld_dict'] = kld_dict
         im_res_dict['log_pz_dict'] = log_pz_dict
         im_res_dict['log_qz_dict'] = log_qz_dict
         return im_res_dict
-
-    # def _construct_generate_samples(self):
-    #     """
-    #     Generate some samples from this network.
-    #     """
-    #     batch_size = T.lscalar()
-    #     # feedforward through the model with batch size "batch_size"
-    #     sym_samples = self.apply_gen(batch_size=batch_size)
-    #     # compile a theano function for sampling outputs from the top-down
-    #     # generative model.
-    #     sample_func = theano.function([batch_size], sym_samples)
-    #     return sample_func
 
 
 class SimpleMLP(object):
