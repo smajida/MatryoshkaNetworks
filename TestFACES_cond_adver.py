@@ -338,7 +338,7 @@ def obs_fix(obs_conv, max_norm=5.):
     norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
     rescale = T.minimum((max_norm / norms), 1.)
     obs_bnd_norm = rescale * obs_cent
-    return obs_bnd_nrm
+    return obs_bnd_norm
 
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
