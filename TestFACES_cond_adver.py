@@ -540,7 +540,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
         xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
         # put noise in missing region of xg_gen
-        xg_gen = rand_fill(xg_gen, xm_gen, simple=True, scale=0.2)
+        xg_gen = rand_fill(xg_gen, xm_gen, scale=0.2)
         # stripe data for nice display (each reconstruction next to its target)
         vis_batch = np.zeros((200, nc, npx, npx))
         for rec_pair in range(100):
