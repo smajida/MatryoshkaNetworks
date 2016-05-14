@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50'
+desc = 'test_faces_impute_adversarial_maxnorm25'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -263,7 +263,7 @@ ac_mod_7 = \
 ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4,
               ac_mod_5, ac_mod_6, ac_mod_7]
 ac_cost_layers = ['ac_mod_5', 'ac_mod_7']
-ac_cost_weights = [0.05, 0.10]
+ac_cost_weights = [0.1, 0.1]
 
 adv_conv = SimpleMLP(modules=ac_modules)
 
@@ -354,8 +354,8 @@ adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 adv_losses = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=25.)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=25.)
     # compute adversarial distribution matching cost
     acl_log_p_x = T.sum(log_prob_gaussian(
                         x_truth, x_guess,
