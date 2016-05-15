@@ -2008,7 +2008,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
     return inf_gen_model
 
 
-def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
+def build_og_conv_res_refine(nc=1, nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                              act_func='lrelu', use_td_cond=False, mix_comps=0,
                              depth_7x7=2, depth_14x14=2, depth_28x28=6):
     #########################################
@@ -2219,7 +2219,7 @@ def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
     bu_module_6 = \
         BasicConvModule(
             filt_shape=(3, 3),
-            in_chans=1,
+            in_chans=nc,
             out_chans=(ngf * 1),
             apply_bn=use_bn,
             stride='single',
