@@ -780,6 +780,16 @@ class BasicConvModule(object):
         self.b1.set_value(floatX(param_dict['b1']))
         return
 
+    def share_params(self, source_module):
+        """
+        Set this module to share parameters with source_module.
+        """
+        self.w1 = source_module.w1
+        self.g1 = source_module.g1
+        self.b1 = source_module.b1
+        self.params = [self.w1, self.g1, self.b1]
+        return
+
     def dump_params(self):
         """
         Dump module params directly to a dict of numpy arrays.
