@@ -144,7 +144,7 @@ def gaussian_ent(mu, logvar):
 ###########################################################################
 def gram_matrix(x):
     x = x.flatten(ndim=3)
-    g = T.tensordot(x, x, axes=([2], [2]))
+    g = T.batched_tensordot(x, x, axes=([2], [2]))
     return g
 
 
