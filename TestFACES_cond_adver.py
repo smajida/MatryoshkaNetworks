@@ -276,12 +276,15 @@ def make_model_input(x_in):
     return xg_gen, xm_gen, xg_inf, xm_inf
 
 
-def obs_fix(obs_conv, max_norm=10.):
+def obs_fix(obs_conv, max_norm=10., flatten=True):
+    obs_shape = obs_conv.shape
     obs_flat = T.flatten(obs_conv, 2)
     obs_cent = obs_flat - T.mean(obs_flat, axis=1, keepdims=True)
     norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
     rescale = T.minimum((max_norm / norms), 1.)
     obs_bnd_norm = rescale * obs_cent
+    if not flatten:
+        obs_bnd_nrm = obs_bnd_nrm.reshape(obs_shape)
     return obs_bnd_norm
 
 ####################################
@@ -329,10 +332,10 @@ Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
 # compute pixel-level reconstruction error on missing pixels
 # -- We'll bound the norms of the reconstructions and targets in both pixel
 #    and adversarial spaces, to keep their errors sort of comparable.
-x_truth = obs_fix(Xg_inf, max_norm=50.)
-x_guess = obs_fix(Xg_guess, max_norm=50.)
+x_truth = obs_fix(Xg_inf, max_norm=50., flatten=False)
+x_guess = obs_fix(Xg_guess, max_norm=50., flatten=False)
 pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
-                              use_huber=0.5)
+                              use_huber=0.5, mask=Xm_inf_mask)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
@@ -345,8 +348,10 @@ adv_act_regs = []
 lv_idx = 1
 for ac_cost_layer in ac_cost_layers:
     # bound feature norms to bound reconstruction losses
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.,
+                      flatten=False)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.,
+                      flatten=False)
     # compute adversarial distribution matching cost
     # -- cost based on "content" and "style" matching losses of Gatys et al.
     acl_c_loss = gauss_content_loss(x_truth, x_guess,
