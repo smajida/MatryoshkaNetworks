@@ -48,8 +48,8 @@ if not os.path.exists(result_dir):
 data_path = "{}/data/".format(EXP_DIR)
 Xtr, Ytr, Xva, Yva = load_omniglot(data_path, target_type='one-hot')
 
-print('Ytr.shape: {}'.format(Ytr.shape))
-assert False
+# print('Ytr.shape: {}'.format(Ytr.shape))
+# assert False
 
 
 set_seed(123)        # seed for shared rngs

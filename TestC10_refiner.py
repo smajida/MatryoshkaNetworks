@@ -280,7 +280,7 @@ for i in range(depth_16x16):
             out_chans=(nc * 2),
             apply_bn=use_bn,
             stride='single',
-            act_func=act_func,
+            act_func='ident',
             mod_name=dm1_name)
     wrap_mod = \
         TDRefinerWrapper(

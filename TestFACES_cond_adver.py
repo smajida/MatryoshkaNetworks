@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_less_stabilized'
+desc = 'test_faces_impute_content_style_test'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -144,9 +144,11 @@ use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
 kld_weight = 2.
-depth_8x8 = 2
-depth_16x16 = 2
-depth_32x32 = 2
+depth_8x8 = 1
+depth_16x16 = 1
+depth_32x32 = 1
+content_weight = 0.75
+style_weight = 1. - content_weight
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -284,12 +286,11 @@ def obs_fix(obs_conv, max_norm=10.):
 ####################################
 # Setup the optimization objective #
 ####################################
-lam_kld = sharedX(floatX([1.0]))
-log_var = sharedX(floatX([0.0]))
-X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))
+lam_kld = sharedX(floatX([1.]))
+log_var = sharedX(floatX(np.zeros((20,))))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
-all_params = inf_gen_model.all_params + [log_var, X_init]
+all_params = inf_gen_model.all_params + [log_var]
 adv_params = adv_conv.params
 
 ######################################################
@@ -329,30 +330,45 @@ Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
 #    and adversarial spaces, to keep their errors sort of comparable.
 x_truth = obs_fix(Xg_inf, max_norm=50.)
 x_guess = obs_fix(Xg_guess, max_norm=50.)
-pix_loss = T.sum(log_prob_gaussian(x_truth, x_guess,
-                 log_vars=log_var[0], mask=T.flatten(Xm_inf_mask, 2),
-                 use_huber=0.5, do_sum=False), axis=1)
+pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
+                              use_huber=0.5)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
 adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 
 # compute adversarial reconstruction losses
-adv_losses = []
+adv_c_losses = []
+adv_s_losses = []
 adv_act_regs = []
-for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
-    # apply tanh for a quick-and-dirty bound on loss
+lv_idx = 1
+for ac_cost_layer in ac_cost_layers:
+    # bound feature norms to bound reconstruction losses
     x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
     x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
     # compute adversarial distribution matching cost
-    acl_log_p_x = T.sum(log_prob_gaussian(x_truth, x_guess,
-                        log_vars=log_var[0], use_huber=0.5,
-                        do_sum=False), axis=1)
-    adv_losses.append(ac_cost_weight * acl_log_p_x)
+    # -- cost based on "content" and "style" matching losses of Gatys et al.
+    acl_c_loss = gauss_content_loss(x_truth, x_guess,
+                                    log_var=log_var[lv_idx], use_huber=0.5)
+    lv_idx += 1
+    acl_s_loss = gauss_style_loss(x_truth, x_guess,
+                                  log_var=log_var[lv_idx], use_huber=0.5)
+    lv_idx += 1
+    # compute combined content+style loss for this layer
+    adv_c_losses.append(acl_c_loss)
+    adv_s_losses.append(acl_s_loss)
+    # compute regularization on features in this layer
     acl_act_reg = T.sum(T.sqr(adv_dict_truth[ac_cost_layer])) + \
         T.sum(T.sqr(adv_dict_guess[ac_cost_layer]))
     adv_act_regs.append(acl_act_reg)
-log_p_x = (0.9 * sum(adv_losses)) + (0.1 * pix_loss)
+adv_c_loss = sum(adv_c_losses)
+adv_s_loss = sum(adv_s_losses)
+adv_loss = content_weight * adv_c_loss + style_weight * adv_s_loss
+# combine adversary-space style+content loss with pixel-space content loss
+# -- we rescale loss to be (roughly) comparable to proper log-likelihood in
+#    the original image space (with nc*npx*npx pixels)
+log_p_x = (nc * npx * npx) * ((0.9 * adv_loss) + (0.1 * pix_loss))
+# this is egregious abuse of terminology for log p(x)...
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
@@ -378,7 +394,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = -full_cost + (0.02 * sum(adv_act_regs))
+adv_cost = -full_cost + (0.01 * sum(adv_act_regs))
 
 #
 # test the model implementation
@@ -436,11 +452,13 @@ xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
 
 print("Compiling training functions...")
 # collect costs for generator parameters
-g_basic_costs = [full_cost, full_cost, vae_cost, vae_nll_cost,
-                 vae_kld_cost, vae_obs_costs, vae_layer_klds]
+g_basic_costs = [vae_cost, vae_nll_cost, vae_kld_cost,
+                 pix_loss, adv_c_loss, adv_s_loss,
+                 vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost', 'full_cost', 'vae_cost', 'vae_nll_cost',
-              'vae_kld_cost', 'vae_obs_costs', 'vae_layer_klds']
+g_bc_names = ['vae_cost', 'vae_nll_cost', 'vae_kld_cost',
+              'pix_loss', 'adv_c_loss', 'adv_s_loss',
+              'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
 g_train_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs,
@@ -464,8 +482,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
     lam_kld.set_value(floatX([kld_weight]))
     # initialize cost arrays
-    g_epoch_costs = [0. for i in range(5)]
-    v_epoch_costs = [0. for i in range(5)]
+    g_epoch_costs = [0. for i in range(6)]
+    v_epoch_costs = [0. for i in range(6)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     vae_nlls = []
     vae_klds = []
@@ -479,9 +497,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
         imb_input = make_model_input(imb)
         # compute loss and apply updates for this batch
         g_result = g_train_func(*imb_input)
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1. * g_result[3])
-        vae_klds.append(1. * g_result[4])
+        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
+        vae_nlls.append(1. * g_result[1])
+        vae_klds.append(1. * g_result[2])
         batch_obs_costs = g_result[5]
         batch_layer_klds = g_result[6]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
@@ -491,7 +509,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
             vmb = Xva[v_batch_count * nbatch:(v_batch_count + 1) * nbatch, :]
             vmb_input = make_model_input(vmb)
             v_result = g_eval_func(*vmb_input)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 10) or (epoch == 25) or (epoch == 50) or (epoch == 100):
         # cut learning rate in half
@@ -509,7 +527,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ###################
     # SAVE PARAMETERS #
     ###################
-    inf_gen_model.dump_params(inf_gen_param_file)
+    inf_gen_model_1.dump_params(inf_gen_param_file_1)
+    inf_gen_model_2.dump_params(inf_gen_param_file_2)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -518,10 +537,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
     str2 = " ".join(g_bc_strs)
     v_bc_strs = ["{0:s}: {1:.2f},".format(c_name, v_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
     str3 = " ".join(v_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str4 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
@@ -541,7 +560,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     if (epoch < 20) or (((epoch - 1) % 10) == 0):
         # sample some reconstructions directly from the conditional model
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
-        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
+        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
         # put noise in missing region of xg_gen
         xg_gen = rand_fill(xg_gen, xm_gen, scale=0.2)
         # stripe data for nice display (each reconstruction next to its target)

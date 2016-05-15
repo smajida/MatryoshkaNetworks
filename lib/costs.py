@@ -139,6 +139,45 @@ def gaussian_ent(mu, logvar):
     return ent
 
 
+###########################################################################
+# Functions for content+style loss for adversarial distribution matching. #
+###########################################################################
+def gram_matrix(x):
+    x = x.flatten(ndim=3)
+    g = T.tensordot(x, x, axes=([2], [2]))
+    return g
+
+
+def gauss_content_loss(x_truth, x_guess, log_var=0., use_huber=False):
+    # flatten convolutional features to 2d matrix
+    x_t = T.flatten(x_truth, 2)
+    x_g = T.flatten(x_guess, 2)
+    # get normalization factors based on the size of feature maps
+    N = T.cast(x_truth.shape[1], 'floatX')
+    M = T.cast(x_truth.shape[2] * x_truth.shape[3], 'floatX')
+    # compute a pseudo-Gaussian loss on difference between gram matrices
+    loss = log_prob_gaussian(x_t, x_g, log_vars=log_var, do_sum=False,
+                             use_huber=use_huber, mask=None)
+    # take sum over gram matrix entries and normalize for feature map size
+    loss = (1. / (N * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    return loss
+
+
+def gauss_style_loss(x_truth, x_guess, log_var=0., use_huber=False):
+    # compute gram matrices for the two batches of convolutional features
+    g_t = T.flatten(gram_matrix(x_truth), 2)
+    g_g = T.flatten(gram_matrix(x_guess), 2)
+    # get normalization factors based on the size of feature maps
+    N = T.cast(x_truth.shape[1], 'floatX')
+    M = T.cast(x_truth.shape[2] * x_truth.shape[3], 'floatX')
+    # compute a pseudo-Gaussian loss on difference between gram matrices
+    loss = log_prob_gaussian(g_t, g_g, log_vars=log_var, do_sum=False,
+                             use_huber=use_huber, mask=None)
+    # take sum over gram matrix entries and normalize for feature map size
+    loss = (1. / (N**2. * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    return loss
+
+
 #################################
 # Log-gamma function for theano #
 #################################
