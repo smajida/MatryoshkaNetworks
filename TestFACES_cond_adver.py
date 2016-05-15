@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_stabilized'
+desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_less_stabilized'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -378,7 +378,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = -full_cost + (0.1 * sum(adv_act_regs))
+adv_cost = -full_cost + (0.02 * sum(adv_act_regs))
 
 #
 # test the model implementation
