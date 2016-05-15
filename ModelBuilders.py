@@ -2009,7 +2009,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
 
 
 def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
-                             act_func='lrelu', use_td_cond=True, mix_comps=0,
+                             act_func='lrelu', use_td_cond=False, mix_comps=0,
                              depth_7x7=2, depth_14x14=2, depth_28x28=6):
     #########################################
     # Setup the top-down processing modules #
@@ -2103,9 +2103,9 @@ def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 in_chans=(ngf * 1),
                 out_chans=(ngf * 1),
                 rand_chans=nz1,
+                rand_shape=(nz1, 28, 28),
                 filt_shape=(3, 3),
                 use_rand=True,
-                use_conv=use_conv,
                 apply_bn=use_bn,
                 act_func='tanh',
                 mod_name=tdm_name)
