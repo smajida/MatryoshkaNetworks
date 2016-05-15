@@ -48,7 +48,8 @@ if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
 # locations of 64x64 faces dataset -- stored as a collection of .npy files
-data_dir = "{}/data".format(EXP_DIR)
+#data_dir = "{}/data".format(EXP_DIR)
+data_dir = "/NOBACKUP/faces_celeba/imgs_as_npy/"
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
