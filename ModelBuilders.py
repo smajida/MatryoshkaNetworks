@@ -14,7 +14,7 @@ from MatryoshkaModules import \
     BasicConvModule, GenTopModule, InfTopModule, \
     GenConvPertModule, BasicConvPertModule, \
     GenConvGRUModule, InfConvMergeModuleIMS, ClassConvModule,\
-    GMMPriorModule
+    GMMPriorModule, TDRefinerWrapper
 from MatryoshkaNetworks import InfGenModel, CondInfGenModel, InfGenModelGMM
 
 
