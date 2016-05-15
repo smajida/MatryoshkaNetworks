@@ -373,7 +373,7 @@ vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: (kld_dict_1[tdm_name] + kld_dict_2[tdm_name]) for
-                tdm_name in kld_dict.keys()}
+                tdm_name in kld_dict_1.keys()}
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
