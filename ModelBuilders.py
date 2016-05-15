@@ -2009,7 +2009,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
 
 
 def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
-                             act_func='lrelu', use_td_cond=True28mix_comps=0,
+                             act_func='lrelu', use_td_cond=True, mix_comps=0,
                              depth_7x7=2, depth_14x14=2, depth_28x28=6):
     #########################################
     # Setup the top-down processing modules #
