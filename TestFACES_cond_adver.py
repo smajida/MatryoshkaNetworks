@@ -284,7 +284,7 @@ def obs_fix(obs_conv, max_norm=10., flatten=True):
     rescale = T.minimum((max_norm / norms), 1.)
     obs_bnd_norm = rescale * obs_cent
     if not flatten:
-        obs_bnd_nrm = obs_bnd_nrm.reshape(obs_shape)
+        obs_bnd_norm = obs_bnd_norm.reshape(obs_shape)
     return obs_bnd_norm
 
 ####################################
