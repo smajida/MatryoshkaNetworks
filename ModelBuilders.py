@@ -2324,6 +2324,11 @@ def build_og_conv_res_refine(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 act_func='tanh',
                 mod_name=mod_name)
         im_modules_28x28.append(new_module)
+    # share parameters among the "fine-tuning" modules
+    for i in range(1, depth_28x28):
+        parent_module = im_modules_28x28[0]
+        child_module = im_modules_28x28[i]
+        child_module.share_params(parent_module)
 
     im_modules = [im_module_1]
     im_modules.extend(im_modules_7x7)
