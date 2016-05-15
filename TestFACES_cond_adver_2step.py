@@ -40,9 +40,10 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_stabilized'
+desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_2step'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
-inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
+inf_gen_param_file_1 = "{}/inf_gen_params_1.pkl".format(result_dir)
+inf_gen_param_file_2 = "{}/inf_gen_params_2.pkl".format(result_dir)
 if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
@@ -144,9 +145,9 @@ use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
 kld_weight = 2.
-depth_8x8 = 2
-depth_16x16 = 2
-depth_32x32 = 2
+depth_8x8 = 1
+depth_16x16 = 1
+depth_32x32 = 1
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -157,16 +158,16 @@ bce = T.nnet.binary_crossentropy
 
 
 # construct the "wrapper" model for managing all our modules
-inf_gen_model = \
+inf_gen_model_1 = \
     build_faces_cond_res(
         nc=nc, nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc,
         use_bn=use_bn, act_func='lrelu', use_td_cond=use_td_cond,
         depth_8x8=depth_8x8, depth_16x16=depth_16x16, depth_32x32=depth_32x32)
-td_modules = inf_gen_model.td_modules
-bu_modules_gen = inf_gen_model.bu_modules_gen
-im_modules_gen = inf_gen_model.im_modules_gen
-bu_modules_inf = inf_gen_model.bu_modules_inf
-im_modules_inf = inf_gen_model.im_modules_inf
+inf_gen_model_2 = \
+    build_faces_cond_res(
+        nc=nc, nz0=nz0, nz1=nz1, ngf=ngf, ngfc=ngfc,
+        use_bn=use_bn, act_func='lrelu', use_td_cond=use_td_cond,
+        depth_8x8=depth_8x8, depth_16x16=depth_16x16, depth_32x32=depth_32x32)
 
 # setup a simple down-sampling convolutional net to act as the
 # "distributional adversary" -- modules listed from bottom to top
@@ -287,9 +288,9 @@ def obs_fix(obs_conv, max_norm=10.):
 lam_kld = sharedX(floatX([1.0]))
 log_var = sharedX(floatX([0.0]))
 X_init = sharedX(floatX(np.zeros((1, nc, npx, npx))))
-gen_params = inf_gen_model.gen_params
-inf_params = inf_gen_model.inf_params
-all_params = inf_gen_model.all_params + [log_var, X_init]
+gen_params = inf_gen_model_1.gen_params + inf_gen_model_2.gen_params
+inf_params = inf_gen_model_1.inf_params + inf_gen_model_2.inf_params
+all_params = inf_gen_model_1.all_params + inf_gen_model_2.all_params + [log_var, X_init]
 adv_params = adv_conv.params
 
 ######################################################
@@ -301,9 +302,6 @@ Xg_gen = T.tensor4()  # input to generator, with some parts masked out
 Xm_gen = T.tensor4()  # mask indicating parts that are masked out
 Xg_inf = T.tensor4()  # complete observation, for input to inference net
 Xm_inf = T.tensor4()  # mask for which bits to predict
-# get the full inputs to the generator and inferencer networks
-Xa_gen = T.concatenate([Xg_gen, Xm_gen], axis=1)
-Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -314,28 +312,43 @@ vae_reg_cost = 1e-5 * (sum([T.sum(p**2.0) for p in all_params]) +
                        sum([T.sum(p**2.0) for p in adv_params]))
 
 # feed all masked inputs through the inference network
-im_res_dict = inf_gen_model.apply_im(input_gen=Xa_gen, input_inf=Xa_inf)
-Xg_recon = im_res_dict['output']
-kld_dict = im_res_dict['kld_dict']
-Xg_recon = tanh(Xg_recon)
+Xa_gen_1 = T.concatenate([Xg_gen, Xm_gen], axis=1)
+Xa_inf_1 = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
+im_res_dict_1 = inf_gen_model_1.apply_im(input_gen=Xa_gen_1, input_inf=Xa_inf_1)
+kld_dict_1 = im_res_dict_1['kld_dict']
+Xg_recon_1 = im_res_dict_1['output']
+Xg_recon_1 = tanh(Xg_recon_1)
 
-# apply occlusion mask to get the full imputed image
+# apply occlusion mask to get the full imputed image from first step
 Xm_inf_mask = 1. * (Xm_inf > 1e-3)
-Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
-#           -- imputed values --          -- known values --
+Xg_guess_1 = (Xm_inf_mask * Xg_recon_1) + ((1. - Xm_inf_mask) * Xg_gen)
+#               -- imputed values --          -- known values --
+
+# run the second step of reconstruction (input is first stage reconstruction)
+Xa_gen_2 = T.concatenate([Xg_guess_1, Xm_gen], axis=1)
+Xa_inf_2 = T.concatenate([Xg_guess_1, Xm_gen, Xg_inf, Xm_inf], axis=1)
+im_res_dict_2 = inf_gen_model_2.apply_im(input_gen=Xa_gen_2, input_inf=Xa_inf_2)
+kld_dict_2 = im_res_dict_2['kld_dict']
+Xg_recon_2 = im_res_dict_2['output'] + im_res_dict_1['output']
+Xg_recon_2 = tanh(Xg_recon_2)
+
+# apply occlusion mask to get the full imputed image from second step
+Xg_guess_2 = (Xm_inf_mask * Xg_recon_2) + ((1. - Xm_inf_mask) * Xg_gen)
+#               -- imputed values --          -- known values --
+
 
 # compute pixel-level reconstruction error on missing pixels
 # -- We'll bound the norms of the reconstructions and targets in both pixel
 #    and adversarial spaces, to keep their errors sort of comparable.
 x_truth = obs_fix(Xg_inf, max_norm=50.)
-x_guess = obs_fix(Xg_guess, max_norm=50.)
+x_guess = obs_fix(Xg_guess_2, max_norm=50.)
 pix_loss = T.sum(log_prob_gaussian(x_truth, x_guess,
                  log_vars=log_var[0], mask=T.flatten(Xm_inf_mask, 2),
                  use_huber=0.5, do_sum=False), axis=1)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
-adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
+adv_dict_guess = adv_conv.apply(Xg_guess_2, return_dict=True)
 
 # compute adversarial reconstruction losses
 adv_losses = []
@@ -359,7 +372,7 @@ vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert KL dict to aggregate KLds over inference steps
-kl_by_td_mod = {tdm_name: kld_dict[tdm_name] for
+kl_by_td_mod = {tdm_name: (kld_dict_1[tdm_name] + kld_dict_2[tdm_name]) for
                 tdm_name in kld_dict.keys()}
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
@@ -414,16 +427,18 @@ jnt_updates = all_updates + adv_updates
 print("Compiling sampling and reconstruction functions...")
 # sampling requires a wrapper around the reconstruction function which
 # flips the CondInfGen model's "sample source" switch.
-recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon)
+recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_guess_2)
 
 
-def sample_func(xg_gen, xm_gen, model):
+def sample_func(xg_gen, xm_gen, model1, model2):
     '''
     switchy samply wrapper funk.
     '''
-    model.set_sample_switch(source='gen')
+    model1.set_sample_switch(source='gen')
+    model2.set_sample_switch(source='gen')
     x_out = recon_func(xg_gen, xm_gen, xg_gen, xm_gen)
-    model.set_sample_switch(source='inf')
+    model1.set_sample_switch(source='inf')
+    model2.set_sample_switch(source='inf')
     # get the blended input and predictions for missing pixels
     xm_gen = 1. * (xm_gen > 1e-3)
     x_out = (xm_gen * x_out) + ((1. - xm_gen) * xg_gen)
@@ -432,7 +447,7 @@ def sample_func(xg_gen, xm_gen, model):
 # test samplers for conditional generation
 xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
 xg_rec = recon_func(xg_gen, xm_gen, xg_inf, xm_inf)
-xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
+xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
 
 print("Compiling training functions...")
 # collect costs for generator parameters
@@ -509,7 +524,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ###################
     # SAVE PARAMETERS #
     ###################
-    inf_gen_model.dump_params(inf_gen_param_file)
+    inf_gen_model_1.dump_params(inf_gen_param_file_1)
+    inf_gen_model_2.dump_params(inf_gen_param_file_2)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
@@ -541,7 +557,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     if (epoch < 20) or (((epoch - 1) % 10) == 0):
         # sample some reconstructions directly from the conditional model
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
-        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
+        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
         # put noise in missing region of xg_gen
         xg_gen = rand_fill(xg_gen, xm_gen, scale=0.2)
         # stripe data for nice display (each reconstruction next to its target)
