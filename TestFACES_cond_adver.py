@@ -40,7 +40,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_1xKL'
+desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_stabilized'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -143,10 +143,10 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
-kld_weight = 1.
-depth_8x8 = 1
-depth_16x16 = 1
-depth_32x32 = 1
+kld_weight = 2.
+depth_8x8 = 2
+depth_16x16 = 2
+depth_32x32 = 2
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -340,6 +340,7 @@ adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
 
 # compute adversarial reconstruction losses
 adv_losses = []
+adv_act_regs = []
 for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
     # apply tanh for a quick-and-dirty bound on loss
     x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
@@ -349,6 +350,9 @@ for (ac_cost_layer, ac_cost_weight) in zip(ac_cost_layers, ac_cost_weights):
                         x_truth, x_guess,
                         log_vars=log_var[0], do_sum=False), axis=1)
     adv_losses.append(ac_cost_weight * acl_log_p_x)
+    acl_act_reg = T.sum(T.sqr(adv_dict_truth[ac_cost_layer])) + \
+        T.sum(T.sqr(adv_dict_guess[ac_cost_layer]))
+    adv_act_regs.append(acl_act_reg)
 log_p_x = (0.9 * sum(adv_losses)) + (0.1 * pix_loss)
 
 # compute reconstruction error part of free-energy
@@ -375,7 +379,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = -full_cost
+adv_cost = -full_cost + (0.1 * sum(adv_act_regs))
 
 #
 # test the model implementation
@@ -490,7 +494,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
             v_result = g_eval_func(*vmb_input)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 50) or (epoch == 100):
+    if (epoch == 10) or (epoch == 25) or (epoch == 50) or (epoch == 100):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0
