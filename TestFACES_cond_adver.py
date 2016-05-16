@@ -48,8 +48,8 @@ if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
 # locations of 64x64 faces dataset -- stored as a collection of .npy files
-data_dir = "{}/data".format(EXP_DIR)
-# data_dir = "/NOBACKUP/faces_celeba/imgs_as_npy/"
+# data_dir = "{}/data".format(EXP_DIR)
+data_dir = "/NOBACKUP/faces_celeba/imgs_as_npy/"
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
@@ -381,6 +381,11 @@ log_p_x = (nc * npx * npx) * ((0.9 * adv_loss) + (0.1 * pix_loss))
 vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
+# convert from vectors of observation losses to scalar batch losses
+pix_loss = T.mean(pix_loss)
+adv_c_loss = T.mean(adv_c_loss)
+adv_s_loss = T.mean(adv_s_loss)
+
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: kld_dict[tdm_name] for
                 tdm_name in kld_dict.keys()}
@@ -540,8 +545,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
-    print('g_epoch_costs: {}'.format(g_epoch_costs))
-    print('v_epoch_costs: {}'.format(v_epoch_costs))
+    # print('g_epoch_costs: {}'.format(g_epoch_costs))
+    # print('v_epoch_costs: {}'.format(v_epoch_costs))
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
