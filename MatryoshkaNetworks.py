@@ -974,11 +974,13 @@ class InfGenModelGMM(object):
                         mix_cond = T.zeros((mix_rand.shape[0], mix_rand.shape[1],
                                             rvs.shape[2], rvs.shape[3]))
                         mix_cond = mix_cond + mix_rand.dimshuffle(0, 1, 'x', 'x')
-                        rvs = T.concatenate([mix_cond, rvs], axis=1)
+                        full_rvs = T.concatenate([mix_cond, rvs], axis=1)
+                    else:
+                        full_rvs = rvs
                     # feedforward using the reparametrized latent variable
                     # samples and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
-                                               rand_vals=rvs,
+                                               rand_vals=full_rvs,
                                                noise=td_noise)
             elif td_mod_type == 'pass':
                 # handle computation for a TD module that only requires
@@ -1117,10 +1119,12 @@ class InfGenModelGMM(object):
                         mix_cond = T.zeros((mix_rand.shape[0], mix_rand.shape[1],
                                             cond_rvs.shape[2], cond_rvs.shape[3]))
                         mix_cond = mix_cond + mix_rand.dimshuffle(0, 1, 'x', 'x')
-                        cond_rvs = T.concatenate([mix_cond, cond_rvs], axis=1)
+                        full_rvs = T.concatenate([mix_cond, cond_rvs], axis=1)
+                    else:
+                        full_rvs = cond_rvs
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
-                                               rand_vals=cond_rvs,
+                                               rand_vals=full_rvs,
                                                noise=td_noise)
                     # record KLd info for the conditional distribution
                     kld_i = gaussian_kld(T.flatten(cond_mean_im, 2),
