@@ -515,8 +515,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
         vae_nlls.append(1. * g_result[1])
         vae_klds.append(1. * g_result[2])
-        batch_obs_costs = g_result[5]
-        batch_layer_klds = g_result[6]
+        batch_obs_costs = g_result[6]
+        batch_layer_klds = g_result[7]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # run a smallish number of validation batches per epoch
