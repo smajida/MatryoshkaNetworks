@@ -419,7 +419,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = -full_cost + (0.01 * sum(adv_act_regs))
+adv_cost = 0.9 * T.mean(adv_c_loss) + 0.01 * sum(adv_act_regs)
 
 #
 # test the model implementation
