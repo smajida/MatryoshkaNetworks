@@ -184,7 +184,7 @@ full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.1 * mix_post_ent)
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]
-Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs, batch_size=None)
+Xd_model = inf_gen_model.apply_td(rand_vals=td_inputs)
 Xd_model = clip_sigmoid(Xd_model)
 
 #################################################################
