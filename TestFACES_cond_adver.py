@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 1.
-style_weight = 10.
+content_weight = 0.1
+style_weight = 1.0
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -377,7 +377,7 @@ adv_loss = adv_c_loss + adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
-log_p_x = (0.9 * adv_loss) + (0.1 * pix_loss)
+log_p_x = (0.8 * adv_loss) + (0.2 * pix_loss)
 # this is egregious abuse of terminology for log p(x)...
 
 # compute reconstruction error part of free-energy
