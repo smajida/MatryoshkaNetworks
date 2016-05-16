@@ -35,13 +35,13 @@ class BasicConvModuleNEW(object):
                  in_chans, out_chans,
                  filt_shape, stride='single',
                  act_func='ident',
+                 is_1d=False,
                  mod_name='basic_conv'):
-        assert ((filt_shape[0] % 2) > 0), \
-            "filter dim should be odd (not even)"
         assert (stride in ['single', 'double', 'half']), \
             "stride should be 'single', 'double', or 'half'."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
+        self.is_1d = is_1d
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.filt_dim = filt_shape[0]
@@ -66,8 +66,13 @@ class BasicConvModuleNEW(object):
         '''
         weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
-        self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
-                             "{}_w1".format(self.mod_name))
+        if self.is_1d:
+            # for 1d operation, last dim is fixed at 1.
+            self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, 1),
+                                 "{}_w1".format(self.mod_name))
+        else:
+            self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
+                                 "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
         self.params = [self.w1, self.b1]
         return
@@ -93,15 +98,27 @@ class BasicConvModuleNEW(object):
         '''
         Apply this convolutional module to the given input.
         '''
-        bm = int((self.filt_dim - 1) / 2)  # use "same" mode convolutions
-        # apply first conv layer
-        if self.stride == 'single':  # normal, 1x1 stride
-            h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
-        elif self.stride == 'double':  # downsampling, 2x2 stride
-            h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
-        else:  # upsampling, 0.5x0.5 stride
-            h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
-        # apply bias and activation
+        if self.filt_dim == 2:
+            bm = 0  # assume filt_dim == 2 means we're doing 2x downsampling
+        else:
+            bm = int((self.filt_dim - 1) / 2)
+        if self.is_1d:
+            # no padding or striding on second spatial dim when running in 1d
+            if self.stride == 'single':
+                h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, 0))
+            elif self.stride == 'double':
+                h1 = dnn_conv(input, self.w1, subsample=(2, 1), border_mode=(bm, 0))
+            else:
+                h1 = deconv(input, self.w1, subsample=(2, 1), border_mode=(bm, 0))
+        else:
+            # in 2d operation we pad and set stride for both spatial dimensions
+            if self.stride == 'single':
+                h1 = dnn_conv(input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+            elif self.stride == 'double':
+                h1 = dnn_conv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+            else:
+                h1 = deconv(input, self.w1, subsample=(2, 2), border_mode=(bm, bm))
+        # apply bias and activation function
         h1 = h1 + self.b1.dimshuffle('x', 0, 'x', 'x')
         h1 = self.act_func(h1)
         return h1
