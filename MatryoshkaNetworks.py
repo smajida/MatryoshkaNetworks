@@ -885,11 +885,6 @@ class InfGenModelGMM(object):
         # derp derp
         self.use_td_noise = use_td_noise
         self.use_bu_noise = use_bu_noise
-        print("Compiling sample generator...")
-        # i'm the operator with my sample generator
-        self.generate_samples = self._construct_generate_samples()
-        samps = self.generate_samples(32)
-        print("DONE.")
         return
 
     def dump_params(self, f_name=None):
@@ -1182,18 +1177,6 @@ class InfGenModelGMM(object):
         im_res_dict['log_p_z'] = logz_dict['log_p_z']
         im_res_dict['log_q_z'] = logz_dict['log_q_z']
         return im_res_dict
-
-    def _construct_generate_samples(self):
-        """
-        Generate some samples from this network.
-        """
-        batch_size = T.lscalar()
-        # feedforward through the model with batch size "batch_size"
-        sym_samples = self.apply_td(batch_size=batch_size)
-        # compile a theano function for sampling outputs from the top-down
-        # generative model.
-        sample_func = theano.function([batch_size], sym_samples)
-        return sample_func
 
 
 class SimpleMLP(object):
