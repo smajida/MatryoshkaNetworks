@@ -1,7 +1,7 @@
 import numpy as np
 import theano
 import theano.tensor as T
-from theano.sandbox.cuda.dnn import dnn_conv
+from theano.sandbox.cuda.dnn import dnn_conv, dnn_pool
 
 from lib import activations
 from lib import inits
@@ -19,6 +19,73 @@ tanh = activations.Tanh()
 elu = activations.ELU()
 
 
+class UDSampler2x(object):
+    '''
+    Module for 2x upsampling or downsampling.
+
+    -- upsampling is by "repeat" and downsampling is by max pooling.
+
+    Params:
+        uds_type: sampling type in ['upsample', 'downsample']
+        is_1d: whether this module will operate on 1d sequences
+        mod_name: text name to identify this module in theano graph
+    '''
+    def __init__(self,
+                 uds_type,
+                 is_1d=False,
+                 mod_name='basic_conv'):
+        assert (uds_type in ['upsample', 'downsample'])
+        self.uds_type = uds_type
+        self.is_1d = is_1d
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        # dummy param, don't know if modules work wiht no params
+        bias_ifn = inits.Constant(c=0.)
+        self.b = bias_ifn((2), "{}_b".format(self.mod_name))
+        self.params = [self.b]
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        self.b.set_value(floatX(param_dict['b']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        param_dict['b'] = self.b.get_value(borrow=False)
+        return param_dict
+
+    def apply(self, input):
+        '''
+        Apply this convolutional module to the given input.
+        '''
+        if self.uds_type == 'downsample':
+            if self.is_1d:
+                # downsample only along first spatial dim
+                h1 = dnn_pool(input, (2, 1), stride=(2, 1), mode='max', pad=(0, 0))
+            else:
+                # downsample along both spatial dims
+                h1 = dnn_pool(input, (2, 2), stride=(2, 2), mode='max', pad=(0, 0))
+        else:
+            # upsample along first spatial dim
+            h1 = T.repeat(input, 2, axis=2)
+            if not self.is_1d:
+                # upsample along second spatial dim for 2d inputs
+                h1 = T.repeat(input, 2, axis=3)
+        return h1
+
+
 class BasicConvModuleNEW(object):
     '''
     Simple convolutional layer for use anywhere?
@@ -28,24 +95,25 @@ class BasicConvModuleNEW(object):
         out_chans: number of channels to produce as output
         filt_shape: filter shape, should be square and odd dim
         stride: whether to use 'double', 'single', or 'half' stride.
+        is_1d: whether this module will operate on 1d sequences
         act_func: --
         mod_name: text name to identify this module in theano graph
     '''
     def __init__(self,
                  in_chans, out_chans,
                  filt_shape, stride='single',
-                 act_func='ident',
                  is_1d=False,
+                 act_func='ident',
                  mod_name='basic_conv'):
         assert (stride in ['single', 'double', 'half']), \
             "stride should be 'single', 'double', or 'half'."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
-        self.is_1d = is_1d
         self.in_chans = in_chans
         self.out_chans = out_chans
         self.filt_dim = filt_shape[0]
         self.stride = stride
+        self.is_1d = is_1d
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -66,13 +134,10 @@ class BasicConvModuleNEW(object):
         '''
         weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
-        if self.is_1d:
-            # for 1d operation, last dim is fixed at 1.
-            self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, 1),
-                                 "{}_w1".format(self.mod_name))
-        else:
-            self.w1 = weight_ifn((self.out_chans, self.in_chans, self.filt_dim, self.filt_dim),
-                                 "{}_w1".format(self.mod_name))
+        fd1 = self.filt_dim
+        fd2 = 1 if self.is_1d else fd1
+        self.w1 = weight_ifn((self.out_chans, self.in_chans, fd1, fd2),
+                             "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((self.out_chans), "{}_b1".format(self.mod_name))
         self.params = [self.w1, self.b1]
         return
@@ -133,15 +198,15 @@ class BasicConvGRUModuleRNN(object):
         in_chans: dimension of input to this module
         spatial_shape: 2d spatial shape of this convolution
         filt_shape: 2d shape of the convolutional filters
+        is_1d: whether this module operates on 1d input
         act_func: activation function to apply (should be tanh)
         mod_name: string name for this module
     '''
     def __init__(self,
                  state_chans, in_chans,
                  spatial_shape, filt_shape,
+                 is_1d=False,
                  act_func='tanh', mod_name='no_name'):
-        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
-            "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         assert not (mod_name == 'no_name'), \
@@ -150,6 +215,7 @@ class BasicConvGRUModuleRNN(object):
         self.in_chans = in_chans
         self.spatial_shape = spatial_shape
         self.filt_dim = filt_shape[0]
+        self.is_1d = is_1d
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -171,15 +237,16 @@ class BasicConvGRUModuleRNN(object):
         self.params = []
         weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
-        fd = self.filt_dim
         full_in_chans = self.state_chans + self.in_chans
+        fd1 = self.filt_dim
+        fd2 = 1 if self.is_1d else fd1
         # initialize gating parameters
-        self.w1 = weight_ifn((2 * self.state_chans, full_in_chans, fd, fd),
+        self.w1 = weight_ifn((2 * self.state_chans, full_in_chans, fd1, fd2),
                              "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.b1])
         # initialize state update parameters
-        self.w2 = weight_ifn((self.state_chans, full_in_chans, fd, fd),
+        self.w2 = weight_ifn((self.state_chans, full_in_chans, fd1, fd2),
                              "{}_w2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.b2])
@@ -246,11 +313,12 @@ class BasicConvGRUModuleRNN(object):
         '''
         Apply this GRU to an input and a previous state.
         '''
-        bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
+        bm1 = (self.filt_dim - 1) // 2  # use "same" mode convolutions
+        bm2 = 0 if self.is_1d else bm1
 
         # compute update gate and remember gate
         gate_input = T.concatenate([state, input], axis=1)
-        h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm1, bm2))
         h = h + self.b1.dimshuffle('x', 0, 'x', 'x')
         h = hard_sigmoid(h + 1.)
         u = h[:, :self.state_chans, :, :]
@@ -258,7 +326,7 @@ class BasicConvGRUModuleRNN(object):
 
         # compute new state proposal
         update_input = T.concatenate([(r * state), input], axis=1)
-        s = dnn_conv(update_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        s = dnn_conv(update_input, self.w2, subsample=(1, 1), border_mode=(bm1, bm2))
         s = s + self.b2.dimshuffle('x', 0, 'x', 'x')
         s = self.act_func(s)
 
@@ -278,15 +346,15 @@ class GenConvGRUModuleRNN(object):
         rand_chans: dimension of latent variable inputs to this module
         spatial_shape: 2d spatial shape of this convolution
         filt_shape: 2d spatial shape of this layer's filters
+        is_1d: whether this module will operate on 1D sequences
         act_func: activation function to apply (should be tanh)
         mod_name: string name for this module
     '''
     def __init__(self,
                  state_chans, input_chans, rand_chans,
                  spatial_shape, filt_shape,
+                 is_1d=False,
                  act_func='relu', mod_name='no_name'):
-        assert (filt_shape == (3, 3) or filt_shape == (5, 5)), \
-            "filt_shape must be (3, 3) or (5, 5)."
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         assert not (mod_name == 'no_name'), \
@@ -296,6 +364,7 @@ class GenConvGRUModuleRNN(object):
         self.rand_chans = rand_chans
         self.spatial_shape = spatial_shape
         self.filt_dim = filt_shape[0]
+        self.is_1d = is_1d
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -317,18 +386,18 @@ class GenConvGRUModuleRNN(object):
         self.params = []
         weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
-        fd = self.filt_dim
         full_input_chans = self.state_chans + self.input_chans + self.rand_chans
-        # initialize gate layer parameters
-        self.w1 = weight_ifn((2 * self.state_chans, full_input_chans, fd, fd),
+        # set spatial dim for the convolution filters
+        fd1 = self.filt_dim
+        fd2 = 1 if self.is_1d else self.filt_dim
+        # w1/b1 are for gating function and w2/b2 are for the new state
+        self.w1 = weight_ifn((2 * self.state_chans, full_input_chans, fd1, fd2),
                              "{}_w1".format(self.mod_name))
-        self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
-        self.params.extend([self.w1, self.b1])
-        # initialize gate layer parameters
-        self.w2 = weight_ifn((self.state_chans, full_input_chans, fd, fd),
+        self.w2 = weight_ifn((self.state_chans, full_input_chans, fd1, fd2),
                              "{}_w2".format(self.mod_name))
+        self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
-        self.params.extend([self.w2, self.b2])
+        self.params.extend([self.w1, self.w2, self.b1, self.b2])
         # initialize trainable initial state
         self.s0 = bias_ifn((self.state_chans), "{}_s0".format(self.mod_name))
         self.params.extend([self.s0])
@@ -392,11 +461,13 @@ class GenConvGRUModuleRNN(object):
         '''
         Apply this GRU to an input and a previous state.
         '''
-        bm = (self.filt_dim - 1) // 2  # use "same" mode convolutions
+        # set border mode ("same" shape conv) for 2d/1d operation
+        bm1 = (self.filt_dim - 1) // 2
+        bm2 = 0 if self.is_1d else bm1
 
         # compute update gate and remember gate
         gate_input = T.concatenate([state, input, rand_vals], axis=1)
-        h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm, bm))
+        h = dnn_conv(gate_input, self.w1, subsample=(1, 1), border_mode=(bm1, bm2))
         h = h + self.b1.dimshuffle('x', 0, 'x', 'x')
         h = hard_sigmoid(h + 1.)
         u = h[:, :self.state_chans, :, :]
@@ -404,7 +475,7 @@ class GenConvGRUModuleRNN(object):
 
         # compute new state proposal
         update_input = T.concatenate([(r * state), input, rand_vals], axis=1)
-        s = dnn_conv(update_input, self.w2, subsample=(1, 1), border_mode=(bm, bm))
+        s = dnn_conv(update_input, self.w2, subsample=(1, 1), border_mode=(bm1, bm2))
         s = s + self.b2.dimshuffle('x', 0, 'x', 'x')
         s = self.act_func(s)
 
@@ -426,6 +497,7 @@ class InfConvGRUModuleRNN(object):
         bu_chans: number of channels in the BU input (from time t)
         rand_chans: number of latent channels for which we we want conditionals
         spatial_shape: 2d spatial shape of this conv layer
+        is_1d: whether this module will operate on 1d input
         act_func: ---
         use_td_cond: whether to condition on TD info
         mod_name: text name for identifying module in theano graph
@@ -435,6 +507,7 @@ class InfConvGRUModuleRNN(object):
                  td_state_chans, td_input_chans,
                  bu_chans, rand_chans,
                  spatial_shape,
+                 is_1d=False,
                  act_func='tanh', use_td_cond=False,
                  mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
@@ -445,6 +518,7 @@ class InfConvGRUModuleRNN(object):
         self.bu_chans = bu_chans
         self.rand_chans = rand_chans
         self.spatial_shape = spatial_shape
+        self.is_1d = is_1d
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -469,21 +543,24 @@ class InfConvGRUModuleRNN(object):
         bias_ifn = inits.Constant(c=0.)
         td_in_chans = self.td_state_chans + self.td_input_chans
         full_in_chans = self.state_chans + td_in_chans + self.bu_chans
+        # set spatial dimension for the convolutional filters
+        fd1 = 3
+        fd2 = 1 if self.is_1d else 3
         ############################################
         # Initialize "inference" model parameters. #
         ############################################
         # initialize GRU gating parameters
-        self.w1_im = weight_ifn((2 * self.state_chans, full_in_chans, 3, 3),
+        self.w1_im = weight_ifn((2 * self.state_chans, full_in_chans, fd1, fd2),
                                 "{}_w1_im".format(self.mod_name))
         self.b1_im = bias_ifn((2 * self.state_chans), "{}_b1_im".format(self.mod_name))
         self.params.extend([self.w1_im, self.b1_im])
         # initialize GRU state update parameters
-        self.w2_im = weight_ifn((self.state_chans, full_in_chans, 3, 3),
+        self.w2_im = weight_ifn((self.state_chans, full_in_chans, fd1, fd2),
                                 "{}_w2_im".format(self.mod_name))
         self.b2_im = bias_ifn((self.state_chans), "{}_b2_im".format(self.mod_name))
         self.params.extend([self.w2_im, self.b2_im])
         # initialize tranform from GRU to Gaussian conditional
-        self.w3_im = weight_ifn((2 * self.rand_chans, self.state_chans, 3, 3),
+        self.w3_im = weight_ifn((2 * self.rand_chans, self.state_chans, fd1, fd2),
                                 "{}_w3_im".format(self.mod_name))
         self.b3_im = bias_ifn((2 * self.rand_chans), "{}_b3_im".format(self.mod_name))
         self.params.extend([self.w3_im, self.b3_im])
@@ -492,7 +569,7 @@ class InfConvGRUModuleRNN(object):
         self.params.extend([self.s0])
         # setup params for implementing top-down conditioning
         if self.use_td_cond:
-            self.w1_td = weight_ifn((2 * self.rand_chans, td_in_chans, 3, 3),
+            self.w1_td = weight_ifn((2 * self.rand_chans, td_in_chans, fd1, fd2),
                                     "{}_w1_td".format(self.mod_name))
             self.b1_td = bias_ifn((2 * self.rand_chans), "{}_b1_td".format(self.mod_name))
             self.params.extend([self.w1_td, self.b1_td])
@@ -578,10 +655,12 @@ class InfConvGRUModuleRNN(object):
         '''
         Put distributions over stuff based on td_state and td_input.
         '''
+        bm1 = 1
+        bm2 = 0 if self.is_1d else 1
         if self.use_td_cond:
             # simple conditioning on top-down input and recurrent state
             cond_input = T.concatenate([td_state, td_input], axis=1)
-            h1 = dnn_conv(cond_input, self.w1_td, subsample=(1, 1), border_mode=(1, 1))
+            h1 = dnn_conv(cond_input, self.w1_td, subsample=(1, 1), border_mode=(bm1, bm2))
             h1 = h1 + self.b1_td.dimshuffle('x', 0, 'x', 'x')
             out_mean = h1[:, :self.rand_chans, :, :]
             out_logvar = h1[:, self.rand_chans:, :, :]
@@ -601,9 +680,11 @@ class InfConvGRUModuleRNN(object):
         Combine prior IM state, prior TD state, td_input, and bu_input to update
         the IM state and to make a conditional Gaussian distribution.
         '''
+        bm1 = 1
+        bm2 = 0 if self.is_1d else 1
         # compute GRU gates
         gate_input = T.concatenate([state, td_state, td_input, bu_input], axis=1)
-        h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(1, 1))
+        h = dnn_conv(gate_input, self.w1_im, subsample=(1, 1), border_mode=(bm1, bm2))
         h = h + self.b1_im.dimshuffle('x', 0, 'x', 'x')
         h = hard_sigmoid(h + 1.)
         u = h[:, :self.state_chans, :, :]  # state update gate
@@ -611,7 +692,7 @@ class InfConvGRUModuleRNN(object):
 
         # compute new GRU state proposal
         update_input = T.concatenate([(r * state), td_state, td_input, bu_input], axis=1)
-        s = dnn_conv(update_input, self.w2_im, subsample=(1, 1), border_mode=(1, 1))
+        s = dnn_conv(update_input, self.w2_im, subsample=(1, 1), border_mode=(bm1, bm2))
         s = s + self.b2_im.dimshuffle('x', 0, 'x', 'x')
         s = self.act_func(s)
 
@@ -619,7 +700,7 @@ class InfConvGRUModuleRNN(object):
         new_state = (u * state) + ((1. - u) * s)
 
         # compute Gaussian conditional parameters
-        g = dnn_conv(new_state, self.w3_im, subsample=(1, 1), border_mode=(1, 1))
+        g = dnn_conv(new_state, self.w3_im, subsample=(1, 1), border_mode=(bm1, bm2))
         g = g + self.b3_im.dimshuffle('x', 0, 'x', 'x')
         out_mean = g[:, :self.rand_chans, :, :]
         out_logvar = g[:, self.rand_chans:, :, :]

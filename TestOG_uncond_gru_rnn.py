@@ -30,7 +30,7 @@ from load import load_omniglot
 from MatryoshkaModulesRNN import \
     GenFCGRUModuleRNN, FCReshapeModule, TDModuleWrapperRNN, \
     GenConvGRUModuleRNN, BasicConvModuleNEW, \
-    InfFCGRUModuleRNN, InfConvGRUModuleRNN
+    InfFCGRUModuleRNN, InfConvGRUModuleRNN, UDSampler2x
 from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
