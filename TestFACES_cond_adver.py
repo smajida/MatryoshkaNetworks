@@ -534,8 +534,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ###################
     # SAVE PARAMETERS #
     ###################
-    inf_gen_model_1.dump_params(inf_gen_param_file_1)
-    inf_gen_model_2.dump_params(inf_gen_param_file_2)
+    inf_gen_model.dump_params(inf_gen_param_file)
     ##################################
     # QUANTITATIVE DIAGNOSTICS STUFF #
     ##################################
