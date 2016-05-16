@@ -333,10 +333,11 @@ Xg_guess = (Xm_inf_mask * Xg_recon) + ((1. - Xm_inf_mask) * Xg_gen)
 # compute pixel-level reconstruction error on missing pixels
 # -- We'll bound the norms of the reconstructions and targets in both pixel
 #    and adversarial spaces, to keep their errors sort of comparable.
+img_scale = nc * npx * npx
 x_truth = obs_fix(Xg_inf, max_norm=50., flatten=False)
 x_guess = obs_fix(Xg_guess, max_norm=50., flatten=False)
 pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
-                              scale=1000., use_huber=0.5, mask=Xm_inf_mask)
+                              scale=img_scale, use_huber=0.5, mask=Xm_inf_mask)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
@@ -356,11 +357,11 @@ for ac_cost_layer in ac_cost_layers:
     # compute adversarial distribution matching cost
     # -- cost based on "content" and "style" matching losses of Gatys et al.
     acl_c_loss = gauss_content_loss(x_truth, x_guess,
-                                    log_var=log_var[lv_idx], scale=1000.,
+                                    log_var=log_var[lv_idx], scale=img_scale,
                                     use_huber=0.5)
     lv_idx += 1
     acl_s_loss = gauss_style_loss(x_truth, x_guess,
-                                  log_var=log_var[lv_idx], scale=1000.,
+                                  log_var=log_var[lv_idx], scale=img_scale,
                                   use_huber=0.5)
     lv_idx += 1
     # compute combined content+style loss for this layer
@@ -376,7 +377,7 @@ adv_loss = content_weight * adv_c_loss + style_weight * adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
-log_p_x = ((nc * npx * npx) / 100.) * ((0.9 * adv_loss) + (0.1 * pix_loss))
+log_p_x = (0.9 * adv_loss) + (0.1 * pix_loss)
 # this is egregious abuse of terminology for log p(x)...
 
 # compute reconstruction error part of free-energy
