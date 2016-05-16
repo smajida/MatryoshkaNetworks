@@ -479,7 +479,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-batches_per_epoch = 1000
+batches_per_epoch = 10
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
@@ -540,6 +540,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
+    print('g_epoch_costs: {}'.format(g_epoch_costs))
+    print('v_epoch_costs: {}'.format(v_epoch_costs))
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
