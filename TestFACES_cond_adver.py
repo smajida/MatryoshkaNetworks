@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_c010_s005_p020'
+desc = 'test_faces_impute_c010_s005_p010'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -376,7 +376,7 @@ adv_loss = adv_c_loss + adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
-log_p_x = (0.8 * adv_loss) + (0.2 * pix_loss)
+log_p_x = (0.9 * adv_loss) + (0.1 * pix_loss)
 # this is egregious abuse of terminology for log p(x)...
 
 # compute reconstruction error part of free-energy
