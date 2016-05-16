@@ -150,7 +150,7 @@ depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
 content_weight = 0.1
-style_weight = 1.0
+style_weight = 0.1
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -255,7 +255,6 @@ ac_mod_7 = \
 ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4,
               ac_mod_5, ac_mod_6, ac_mod_7]
 ac_cost_layers = ['ac_mod_5', 'ac_mod_7']
-ac_cost_weights = [0.1, 0.1]
 
 adv_conv = SimpleMLP(modules=ac_modules)
 
@@ -337,7 +336,7 @@ img_scale = nc * npx * npx
 x_truth = obs_fix(Xg_inf, max_norm=50., flatten=False)
 x_guess = obs_fix(Xg_guess, max_norm=50., flatten=False)
 pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
-                              scale=img_scale, use_huber=0.5, mask=Xm_inf_mask)
+                              use_huber=0.5, mask=Xm_inf_mask)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
@@ -357,11 +356,11 @@ for ac_cost_layer in ac_cost_layers:
     # compute adversarial distribution matching cost
     # -- cost based on "content" and "style" matching losses of Gatys et al.
     acl_c_loss = gauss_content_loss(x_truth, x_guess,
-                                    log_var=log_var[lv_idx], scale=img_scale,
+                                    log_var=log_var[lv_idx],
                                     use_huber=0.5)
     lv_idx += 1
     acl_s_loss = gauss_style_loss(x_truth, x_guess,
-                                  log_var=log_var[lv_idx], scale=img_scale,
+                                  log_var=log_var[lv_idx],
                                   use_huber=0.5)
     lv_idx += 1
     # compute combined content+style loss for this layer
