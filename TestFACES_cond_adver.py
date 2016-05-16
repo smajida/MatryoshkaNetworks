@@ -484,7 +484,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-batches_per_epoch = 10
+batches_per_epoch = 100
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
@@ -573,7 +573,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     if (epoch < 20) or (((epoch - 1) % 10) == 0):
         # sample some reconstructions directly from the conditional model
         xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
-        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
+        xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
         # put noise in missing region of xg_gen
         xg_gen = rand_fill(xg_gen, xm_gen, scale=0.2)
         # stripe data for nice display (each reconstruction next to its target)
