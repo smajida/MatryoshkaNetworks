@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_3deep_lores_gmm_less_ent_pen'
+desc = 'test_conv_3deep_lores_gmm_mc50_pe01'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -64,7 +64,7 @@ use_td_cond = False
 depth_7x7 = 3
 depth_14x14 = 3
 depth_28x28 = None
-mix_comps = 25
+mix_comps = 50
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -180,7 +180,7 @@ opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
-full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.2 * mix_post_ent)
+full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost + (0.1 * mix_post_ent)
 
 # run an un-grounded pass through generative stuff for sampling from model
 td_inputs = [Z0] + [None for td_mod in td_modules[1:]]

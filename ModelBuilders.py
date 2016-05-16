@@ -1669,6 +1669,10 @@ def build_mnist_conv_res_ss(nz0=32, nz1=4, ngf=32, ngfc=128, class_count=10,
 def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                       act_func='lrelu', use_td_cond=True, mix_comps=0,
                       depth_7x7=5, depth_14x14=5):
+    if mix_comps > 0:
+        nz1_td = nz1 + nz0
+    else:
+        nz1_td = nz1
     #########################################
     # Setup the top-down processing modules #
     # -- these do generation                #
@@ -1695,7 +1699,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 in_chans=(ngf * 4),
                 out_chans=(ngf * 4),
                 conv_chans=(ngf * 4),
-                rand_chans=nz1,
+                rand_chans=nz1_td,
                 filt_shape=(3, 3),
                 rand_shape=(nz1, 7, 7),
                 use_rand=True,
@@ -1726,7 +1730,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 in_chans=(ngf * 2),
                 out_chans=(ngf * 2),
                 conv_chans=(ngf * 2),
-                rand_chans=nz1,
+                rand_chans=nz1_td,
                 filt_shape=(3, 3),
                 rand_shape=(nz1, 14, 14),
                 use_rand=True,
@@ -2003,6 +2007,7 @@ def build_og_conv_res(nz0=32, nz1=4, ngf=32, ngfc=128, use_bn=False,
                 td_modules=td_modules,
                 im_modules=im_modules,
                 mix_module=mix_module,
+                mix_everywhere=True,
                 merge_info=merge_info,
                 output_transform=noop)
     return inf_gen_model
@@ -2429,7 +2434,10 @@ def build_og_conv_res_hires(
         nz0=32, nz1=4, ngf=32, ngfc=128, mix_comps=0,
         use_bn=False, act_func='lrelu', use_td_cond=True,
         depth_7x7=2, depth_14x14=2, depth_28x28=2):
-
+    if mix_comps > 0:
+        nz1_td = nz1 + nz0
+    else:
+        nz1_td = nz1
     #########################################
     # Setup the top-down processing modules #
     # -- these do generation                #
@@ -2456,7 +2464,7 @@ def build_og_conv_res_hires(
                 in_chans=(ngf * 4),
                 out_chans=(ngf * 4),
                 conv_chans=(ngf * 4),
-                rand_chans=nz1,
+                rand_chans=nz1_td,
                 filt_shape=(3, 3),
                 rand_shape=(nz1, 7, 7),
                 use_rand=True,
@@ -2487,7 +2495,7 @@ def build_og_conv_res_hires(
                 in_chans=(ngf * 2),
                 out_chans=(ngf * 2),
                 conv_chans=(ngf * 2),
-                rand_chans=nz1,
+                rand_chans=nz1_td,
                 filt_shape=(3, 3),
                 rand_shape=(nz1, 14, 14),
                 use_rand=True,
@@ -2519,7 +2527,7 @@ def build_og_conv_res_hires(
                 in_chans=(ngf * 1),
                 out_chans=(ngf * 1),
                 conv_chans=(ngf * 1),
-                rand_chans=nz1,
+                rand_chans=nz1_td,
                 filt_shape=(3, 3),
                 rand_shape=(nz1, 28, 28),
                 use_rand=True,
@@ -2879,6 +2887,7 @@ def build_og_conv_res_hires(
                 td_modules=td_modules,
                 im_modules=im_modules,
                 mix_module=mix_module,
+                mix_everywhere=True,
                 merge_info=merge_info,
                 output_transform=noop)
     return inf_gen_model

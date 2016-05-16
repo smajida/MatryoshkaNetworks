@@ -823,6 +823,8 @@ class InfGenModelGMM(object):
                     to put conditionals over Gaussian latent variables that
                     participate in the top-down computation.
         mix_module: that represents a mixture prior over the top-most latents
+        mix_everywhere: whether to add the mixture latent variables to the latent
+                        variables used in the "internal" layers.
         merge_info: dict of dicts describing how to compute the conditionals
                     required by the feedforward pass through top-down modules.
         output_transform: transform to apply to outputs of the top-down model.
@@ -833,6 +835,7 @@ class InfGenModelGMM(object):
     def __init__(self,
                  bu_modules, td_modules, im_modules, mix_module,
                  merge_info, output_transform,
+                 mix_everywhere=False,
                  use_td_noise=False,
                  use_bu_noise=False,
                  train_dist_scale=True):
@@ -841,6 +844,7 @@ class InfGenModelGMM(object):
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
         self.mix_module = mix_module
+        self.mix_everywhere = False
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
@@ -933,24 +937,14 @@ class InfGenModelGMM(object):
         pickle_file.close()
         return
 
-    def apply_td(self, rand_vals=None, batch_size=None, noise=None):
+    def apply_td(self, rand_vals=None, noise=None):
         """
         Compute a stochastic top-down pass using the given random values.
-        -- batch_size must be provided if rand_vals is None, so we can
-           determine the appropriate size for latent samples.
         """
-        assert not ((batch_size is None) and (rand_vals is None)), \
-            "need _either_ batch_size or rand_vals."
-        assert ((batch_size is None) or (rand_vals is None)), \
-            "need _either_ batch_size or rand_vals."
-        assert ((rand_vals is None) or (len(rand_vals) == len(self.td_modules))), \
-            "random values should be appropriate for this network."
-        if rand_vals is None:
-            # no random values were provided, which means we'll be generating
-            # based on a user-provided batch_size.
-            rand_vals = [None for i in range(len(self.td_modules))]
+        assert (len(rand_vals) == len(self.td_modules))
         td_noise = noise if self.use_td_noise else None
         td_acts = []
+        mix_rand = None
         for i, (rvs, td_module) in enumerate(zip(rand_vals, self.td_modules)):
             td_mod_name = td_module.mod_name
             td_mod_type = self.merge_info[td_mod_name]['td_type']
@@ -963,8 +957,8 @@ class InfGenModelGMM(object):
                     # feedforward through the top-most generator module.
                     # this module has a fixed ZMUV Gaussian prior.
                     td_act_i = td_module.apply(rand_vals=rvs,
-                                               batch_size=batch_size,
                                                noise=td_noise)
+                    mix_rand = rvs
                 else:
                     # feedforward through an internal TD module
                     cond_mean_td, cond_logvar_td = \
@@ -978,6 +972,14 @@ class InfGenModelGMM(object):
                     else:
                         rvs = reparametrize(cond_mean_td, cond_logvar_td,
                                             rvs=rvs)
+                    if self.mix_everywhere:
+                        # append the top-most mixture latents to this layer's
+                        # latents. -- only for 2d convnets for now.
+                        assert (rvs.ndim == 4)
+                        mix_cond = T.zeros((mix_rand.shape[0], mix_rand.shape[1],
+                                            rvs.shape[2], rvs.shape[3]))
+                        mix_cond = mix_cond + mix_rand.dimshuffle(0, 1, 'x', 'x')
+                        rvs = T.concatenate([mix_cond, rvs], axis=1)
                     # feedforward using the reparametrized latent variable
                     # samples and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
@@ -1045,6 +1047,7 @@ class InfGenModelGMM(object):
         # now, run top-down pass using latent variables sampled from
         # conditional distributions constructed by merging bottom-up and
         # top-down information.
+        mix_rand = None
         td_acts = []
         for i, td_module in enumerate(self.td_modules):
             td_mod_name = td_module.mod_name
@@ -1065,6 +1068,7 @@ class InfGenModelGMM(object):
                     # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
+                    mix_rand = cond_rvs
                     # feedforward through the current TD module
                     # -- in SS model, this also gives class predictions
                     td_act_i = td_module.apply(rand_vals=cond_rvs,
@@ -1111,6 +1115,14 @@ class InfGenModelGMM(object):
                     # reparametrize Gaussian for latent samples
                     cond_rvs = reparametrize(cond_mean_im, cond_logvar_im,
                                              rng=cu_rng)
+                    if self.mix_everywhere:
+                        # append the top-most mixture latents to this layer's
+                        # latents. -- only for 2d convnets for now.
+                        assert (cond_rvs.ndim == 4)
+                        mix_cond = T.zeros((mix_rand.shape[0], mix_rand.shape[1],
+                                            cond_rvs.shape[2], cond_rvs.shape[3]))
+                        mix_cond = mix_cond + mix_rand.dimshuffle(0, 1, 'x', 'x')
+                        cond_rvs = T.concatenate([mix_cond, cond_rvs], axis=1)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=cond_rvs,
