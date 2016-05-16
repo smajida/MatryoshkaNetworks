@@ -315,8 +315,8 @@ Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 ##########################################################
 
 # parameter regularization part of cost
-vae_reg_cost = 1e-5 * (sum([T.sum(p**2.0) for p in all_params]) +
-                       sum([T.sum(p**2.0) for p in adv_params]))
+vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
+adv_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in adv_params])
 
 # feed all masked inputs through the inference network
 im_res_dict = inf_gen_model.apply_im(input_gen=Xa_gen, input_inf=Xa_inf)
@@ -408,7 +408,7 @@ vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
 # cost used by the optimizer
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = 0.9 * T.mean(adv_c_loss) + 0.01 * sum(adv_act_regs)
+adv_cost = 0.9 * T.mean(adv_c_loss) + 0.01 * sum(adv_act_regs) + adv_reg_cost
 
 #
 # test the model implementation
