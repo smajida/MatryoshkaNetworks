@@ -436,14 +436,12 @@ adv_loss = adv_c_loss + adv_s_loss
 log_p_x = (0.9 * adv_loss) + (0.1 * pix_loss)
 # this is egregious abuse of terminology for log p(x)...
 
-# compute reconstruction error part of free-energy
-vae_obs_nlls = -1.0 * log_p_x
-vae_nll_cost = T.mean(vae_obs_nlls)
-
 # convert from vectors of observation losses to scalar batch losses
 pix_loss = -T.mean(pix_loss)
 adv_c_loss = -T.mean(adv_c_loss)
 adv_s_loss = -T.mean(adv_s_loss)
+vae_obs_nlls = -log_p_x
+vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: (kld_dict_1[tdm_name] + kld_dict_2[tdm_name]) for
@@ -472,7 +470,7 @@ adv_pred_guess = clip_sigmoid(adv_dict_guess[ac_pred_layer])  # preds for recon 
 adv_pred_cost = -1. * (T.log(adv_pred_truth) +
                        T.log(1. - adv_pred_guess))
 # combine distribution matching, classification, and regularization costs
-adv_cost = (1.0 * T.mean(adv_c_loss) +
+adv_cost = (-1.0 * T.mean(adv_c_loss) +
             1.0 * T.mean(adv_pred_cost) +
             0.01 * sum(adv_act_regs) + adv_reg_cost)
 
@@ -573,7 +571,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_batch_count = 0
     for imb in tqdm(iter_data(Xtr_epoch, size=nbatch), total=batches_per_epoch):
         # set adversary to be slow relative to generator...
-        adv_lr = 0.1 * lrt.get_value(borrow=False)
+        adv_lr = 0.05 * lrt.get_value(borrow=False)
         adv_lrt.set_value(floatX(adv_lr))
         # transform training batch to model input format
         imb_input = make_model_input(imb)
