@@ -276,12 +276,15 @@ def make_model_input(x_in):
     return xg_gen, xm_gen, xg_inf, xm_inf
 
 
-def obs_fix(obs_conv, max_norm=10.):
+def obs_fix(obs_conv, max_norm=10., flatten=True):
+    obs_shape = obs_conv.shape
     obs_flat = T.flatten(obs_conv, 2)
     obs_cent = obs_flat - T.mean(obs_flat, axis=1, keepdims=True)
     norms = T.sqrt(T.sum(obs_cent**2., axis=1, keepdims=True))
     rescale = T.minimum((max_norm / norms), 1.)
     obs_bnd_norm = rescale * obs_cent
+    if not flatten:
+        obs_bnd_norm = obs_bnd_norm.reshape(obs_shape)
     return obs_bnd_norm
 
 ####################################
