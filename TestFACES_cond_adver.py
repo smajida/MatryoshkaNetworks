@@ -27,7 +27,7 @@ from lib.data_utils import \
 # Phil's business
 #
 from ModelBuilders import build_faces_cond_res
-from MatryoshkaModules import BasicConvModule
+from MatryoshkaModules import BasicConvModule, DiscFCModule
 from MatryoshkaNetworks import SimpleMLP
 
 sys.setrecursionlimit(100000)
@@ -252,9 +252,50 @@ ac_mod_7 = \
         act_func='lrelu',
         mod_name='ac_mod_7')
 
-ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4,
-              ac_mod_5, ac_mod_6, ac_mod_7]
-ac_cost_layers = ['ac_mod_5', 'ac_mod_7']
+# (8, 8) -> (8, 8)
+ac_mod_8 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=128,
+        out_chans=128,
+        stride='single',
+        apply_bn=False,
+        act_func='lrelu',
+        mod_name='ac_mod_8')
+
+# (8, 8) -> (4, 4)
+ac_mod_9 = \
+    BasicConvModule(
+        filt_shape=(2, 2),
+        in_chans=128,
+        out_chans=192,
+        stride='double',
+        apply_bn=False,
+        act_func='lrelu',
+        mod_name='ac_mod_9')
+
+# (4, 4) -> FC
+ac_mod_10 = \
+    DiscFCModule(
+        fc_dim=256,
+        in_dim=(192 * 2 * 2),
+        use_fc=True,
+        apply_bn=False,
+        act_func='lrelu',
+        mod_name='ac_mod_10')
+#
+# This last module outputs a scalar for each input.
+#
+# We can use it for training the adversary to separate the distribution of
+# generated reconstructions from the distribution of inputs to the conditional
+# inference/generation network.
+#
+
+
+ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4, ac_mod_5,
+              ac_mod_6, ac_mod_7, ac_mod_8, ac_mod_9, ac_mod_10]
+ac_cost_layers = ['ac_mod_5', 'ac_mod_7', 'ac_mod_9']
+ac_pred_layer = 'ac_mod_10'  # layer for adversarial classification output
 
 adv_conv = SimpleMLP(modules=ac_modules)
 
@@ -286,6 +327,11 @@ def obs_fix(obs_conv, max_norm=10., flatten=True):
     if not flatten:
         obs_bnd_norm = obs_bnd_norm.reshape(obs_shape)
     return obs_bnd_norm
+
+
+def clip_sigmoid(x):
+    output = sigmoid(T.clip(x, -15.0, 15.0))
+    return output
 
 ####################################
 # Setup the optimization objective #
@@ -406,9 +452,18 @@ opt_kld_cost = lam_kld[0] * vae_kld_cost
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
 vae_obs_costs = vae_obs_nlls + vae_obs_klds
-# cost used by the optimizer
+# cost used for the generator/imputater
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
-adv_cost = 0.9 * T.mean(adv_c_loss) + 0.01 * sum(adv_act_regs) + adv_reg_cost
+
+# get adversarial classification cost and build the full adversarial cost
+adv_pred_truth = clip_sigmoid(adv_dict_truth[ac_pred_layer])  # preds for real data
+adv_pred_guess = clip_sigmoid(adv_dict_guess[ac_pred_layer])  # preds for recon data
+adv_pred_cost = -1. * (T.log(adv_pred_truth) +
+                       T.log(1. - adv_pred_guess))
+# combine distribution matching, classification, and regularization costs
+adv_cost = (1.0 * T.mean(adv_c_loss) +
+            1.0 * T.mean(adv_pred_cost) +
+            0.01 * sum(adv_act_regs) + adv_reg_cost)
 
 #
 # test the model implementation
@@ -467,11 +522,11 @@ xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model)
 print("Compiling training functions...")
 # collect costs for generator parameters
 g_basic_costs = [vae_cost, vae_nll_cost, vae_kld_cost,
-                 pix_loss, adv_c_loss, adv_s_loss,
+                 pix_loss, adv_c_loss, adv_s_loss, adv_cost,
                  vae_obs_costs, vae_layer_klds]
 g_bc_idx = range(0, len(g_basic_costs))
 g_bc_names = ['vae_cost', 'vae_nll_cost', 'vae_kld_cost',
-              'pix_loss', 'adv_c_loss', 'adv_s_loss',
+              'pix_loss', 'adv_c_loss', 'adv_s_loss', 'adv_cost',
               'vae_obs_costs', 'vae_layer_klds']
 g_cost_outputs = g_basic_costs
 # compile function for computing generator costs and updates
@@ -496,8 +551,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
     lam_kld.set_value(floatX([kld_weight]))
     # initialize cost arrays
-    g_epoch_costs = [0. for i in range(6)]
-    v_epoch_costs = [0. for i in range(6)]
+    g_epoch_costs = [0. for i in range(7)]
+    v_epoch_costs = [0. for i in range(7)]
     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
     vae_nlls = []
     vae_klds = []
@@ -511,11 +566,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
         imb_input = make_model_input(imb)
         # compute loss and apply updates for this batch
         g_result = g_train_func(*imb_input)
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
+        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:7], g_epoch_costs)]
         vae_nlls.append(1. * g_result[1])
         vae_klds.append(1. * g_result[2])
-        batch_obs_costs = g_result[6]
-        batch_layer_klds = g_result[7]
+        batch_obs_costs = g_result[7]
+        batch_layer_klds = g_result[8]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # run a smallish number of validation batches per epoch
@@ -523,7 +578,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
             vmb = Xva[v_batch_count * nbatch:(v_batch_count + 1) * nbatch, :]
             vmb_input = make_model_input(vmb)
             v_result = g_eval_func(*vmb_input)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:6], v_epoch_costs)]
+            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:7], v_epoch_costs)]
             v_batch_count += 1
     if (epoch == 10) or (epoch == 25) or (epoch == 50) or (epoch == 100):
         # cut learning rate in half
@@ -552,10 +607,10 @@ for epoch in range(1, (niter + niter_decay + 1)):
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:7])]
     str2 = " ".join(g_bc_strs)
     v_bc_strs = ["{0:s}: {1:.2f},".format(c_name, v_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:6], g_bc_names[:6])]
+                 for (c_idx, c_name) in zip(g_bc_idx[:7], g_bc_names[:7])]
     str3 = " ".join(v_bc_strs)
     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
     str4 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
