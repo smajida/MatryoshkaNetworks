@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 0.75
-style_weight = 1. - content_weight
+content_weight = 1.
+style_weight = 10.
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -371,9 +371,9 @@ for ac_cost_layer in ac_cost_layers:
     acl_act_reg = T.sum(T.sqr(adv_dict_truth[ac_cost_layer])) + \
         T.sum(T.sqr(adv_dict_guess[ac_cost_layer]))
     adv_act_regs.append(acl_act_reg)
-adv_c_loss = sum(adv_c_losses)
-adv_s_loss = sum(adv_s_losses)
-adv_loss = content_weight * adv_c_loss + style_weight * adv_s_loss
+adv_c_loss = content_weight * sum(adv_c_losses)
+adv_s_loss = style_weight * sum(adv_s_losses)
+adv_loss = adv_c_loss + adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
