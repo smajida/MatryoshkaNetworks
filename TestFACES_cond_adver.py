@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_content_style_test'
+desc = 'test_faces_impute_c010_s005_p020'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 0.1
-style_weight = 0.1
+content_weight = 0.10
+style_weight = 0.05
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -486,7 +486,7 @@ out_file = open(log_name, 'wb')
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
-batches_per_epoch = 100
+batches_per_epoch = 1000
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
