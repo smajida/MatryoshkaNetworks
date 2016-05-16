@@ -161,7 +161,7 @@ class DeepSeqCondGenRNN(object):
             mlp_acts.append(res)
             res_dict[mod.mod_name] = res
         # res_dict returns MLP layer outputs keyed by module name, and in a
-        # simple ordered list...
+        # basic ordered list...
         res_dict['acts'] = mlp_acts
         return res_dict
 
@@ -228,11 +228,11 @@ class DeepSeqCondGenRNN(object):
             else:
                 # use previous TD module output at other TD modules
                 td_input = td_outs[-1]  # from step t
-            td_state = td_states[td_mod_name]            # from step t - 1
-            bu_input_gen = bu_res_dict_gen[bu_mod_name]  # from step t
-            bu_input_inf = bu_res_dict_inf[bu_mod_name]  # from step t
-            im_state_gen = im_states_gen[im_mod_name]    # from step t - 1
-            im_state_inf = im_states_inf[im_mod_name]    # from step t - 1
+            td_state = td_states[td_mod_name]            # from TD step t - 1
+            bu_input_gen = bu_res_dict_gen[bu_mod_name]  # from BU step t
+            bu_input_inf = bu_res_dict_inf[bu_mod_name]  # from BU step t
+            im_state_gen = im_states_gen[im_mod_name]    # from IM step t - 1
+            im_state_inf = im_states_inf[im_mod_name]    # from IM step t - 1
             # get IM modules to apply at this step
             im_module_gen = self.im_modules_gen_dict[im_mod_name]
             im_module_inf = self.im_modules_inf_dict[im_mod_name]

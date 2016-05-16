@@ -27,11 +27,11 @@ from load import load_binarized_mnist, load_udm
 #
 # Phil's business
 #
-from MatryoshkaModulesNEW import \
+from MatryoshkaModulesRNN import \
     GenFCGRUModuleRNN, FCReshapeModule, TDModuleWrapperRNN, \
     GenConvGRUModuleRNN, BasicConvModuleNEW, \
     InfFCGRUModuleRNN, InfConvGRUModuleRNN
-from MatryoshkaNetworksNEW import DeepSeqCondGenRNN
+from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
 
@@ -424,7 +424,7 @@ im_states_inf = None
 canvas = T.repeat(c0, x_in.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
-for i in range(10):
+for i in range(3):
     # record initial canvas state for each step
     xg_gen = clip_sigmoid(canvas)
     step_recons.append(xg_gen)
