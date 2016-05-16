@@ -385,9 +385,9 @@ vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
 
 # convert from vectors of observation losses to scalar batch losses
-pix_loss = T.mean(pix_loss)
-adv_c_loss = T.mean(adv_c_loss)
-adv_s_loss = T.mean(adv_s_loss)
+pix_loss = -T.mean(pix_loss)
+adv_c_loss = -T.mean(adv_c_loss)
+adv_s_loss = -T.mean(adv_s_loss)
 
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: kld_dict[tdm_name] for

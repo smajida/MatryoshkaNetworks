@@ -162,7 +162,7 @@ def gauss_content_loss(x_truth, x_guess, log_var=0.,
     loss = log_prob_gaussian(x_t, x_g, log_vars=log_var, do_sum=False,
                              use_huber=use_huber, mask=mask)
     # take sum over gram matrix entries and normalize for feature map size
-    loss = (scale / (N * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    loss = (scale / (N * M)) * T.sum(loss, axis=1, keepdims=False)
     return loss
 
 
@@ -177,7 +177,7 @@ def gauss_style_loss(x_truth, x_guess, log_var=0., scale=1., use_huber=False):
     loss = log_prob_gaussian(g_t, g_g, log_vars=log_var, do_sum=False,
                              use_huber=use_huber, mask=None)
     # take sum over gram matrix entries and normalize for feature map size
-    loss = (scale / (N**2. * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    loss = (scale / (N**2. * M)) * T.sum(loss, axis=1, keepdims=False)
     return loss
 
 
