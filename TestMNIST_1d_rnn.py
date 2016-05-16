@@ -395,9 +395,9 @@ def make_model_input(x_in):
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
     xg_gen = train_transform(xg_gen)
-    xm_gen = train_transform(xm_gen, add_fuzz=False)
+    xm_gen = train_transform(xm_gen)
     xg_inf = train_transform(xg_inf)
-    xm_inf = train_transform(xm_inf, add_fuzz=False)
+    xm_inf = train_transform(xm_inf)
     return xg_gen, xm_gen, xg_inf, xm_inf
 
 
