@@ -149,7 +149,7 @@ def gram_matrix(x):
 
 
 def gauss_content_loss(x_truth, x_guess, log_var=0.,
-                       use_huber=False, mask=None):
+                       scale=1., use_huber=False, mask=None):
     # flatten convolutional features to 2d matrix
     x_t = T.flatten(x_truth, 2)
     x_g = T.flatten(x_guess, 2)
@@ -162,11 +162,11 @@ def gauss_content_loss(x_truth, x_guess, log_var=0.,
     loss = log_prob_gaussian(x_t, x_g, log_vars=log_var, do_sum=False,
                              use_huber=use_huber, mask=mask)
     # take sum over gram matrix entries and normalize for feature map size
-    loss = (1. / (N * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    loss = (scale / (N * M**2.)) * T.sum(loss, axis=1, keepdims=False)
     return loss
 
 
-def gauss_style_loss(x_truth, x_guess, log_var=0., use_huber=False):
+def gauss_style_loss(x_truth, x_guess, log_var=0., scale=1., use_huber=False):
     # compute gram matrices for the two batches of convolutional features
     g_t = T.flatten(gram_matrix(x_truth), 2)
     g_g = T.flatten(gram_matrix(x_guess), 2)
@@ -177,7 +177,7 @@ def gauss_style_loss(x_truth, x_guess, log_var=0., use_huber=False):
     loss = log_prob_gaussian(g_t, g_g, log_vars=log_var, do_sum=False,
                              use_huber=use_huber, mask=None)
     # take sum over gram matrix entries and normalize for feature map size
-    loss = (1. / (N**2. * M**2.)) * T.sum(loss, axis=1, keepdims=False)
+    loss = (scale / (N**2. * M**2.)) * T.sum(loss, axis=1, keepdims=False)
     return loss
 
 
