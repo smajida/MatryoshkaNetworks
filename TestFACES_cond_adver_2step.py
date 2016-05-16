@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_2step'
+desc = 'test_faces_impute_c010_s005_p010_2step'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file_1 = "{}/inf_gen_params_1.pkl".format(result_dir)
 inf_gen_param_file_2 = "{}/inf_gen_params_2.pkl".format(result_dir)
@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 0.75
-style_weight = 1. - content_weight
+content_weight = 0.10
+style_weight = 0.05
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -340,10 +340,11 @@ Xg_guess_2 = (Xm_inf_mask * Xg_recon_2) + ((1. - Xm_inf_mask) * Xg_gen)
 # compute pixel-level reconstruction error on missing pixels
 # -- We'll bound the norms of the reconstructions and targets in both pixel
 #    and adversarial spaces, to keep their errors sort of comparable.
-x_truth = obs_fix(Xg_inf, max_norm=50.)
-x_guess = obs_fix(Xg_guess_2, max_norm=50.)
+img_scale = nc * npx * npx
+x_truth = obs_fix(Xg_inf, max_norm=50., flatten=False)
+x_guess = obs_fix(Xg_guess_2, max_norm=50., flatten=False)
 pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
-                              use_huber=0.5)
+                              use_huber=0.5, mask=Xm_inf_mask)
 
 # feed original observation and reconstruction into conv net
 adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
@@ -356,15 +357,19 @@ adv_act_regs = []
 lv_idx = 1
 for ac_cost_layer in ac_cost_layers:
     # bound feature norms to bound reconstruction losses
-    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.)
-    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.)
+    x_truth = obs_fix(adv_dict_truth[ac_cost_layer], max_norm=50.,
+                      flatten=False)
+    x_guess = obs_fix(adv_dict_guess[ac_cost_layer], max_norm=50.,
+                      flatten=False)
     # compute adversarial distribution matching cost
     # -- cost based on "content" and "style" matching losses of Gatys et al.
     acl_c_loss = gauss_content_loss(x_truth, x_guess,
-                                    log_var=log_var[lv_idx], use_huber=0.5)
+                                    log_var=log_var[lv_idx],
+                                    use_huber=0.5)
     lv_idx += 1
     acl_s_loss = gauss_style_loss(x_truth, x_guess,
-                                  log_var=log_var[lv_idx], use_huber=0.5)
+                                  log_var=log_var[lv_idx],
+                                  use_huber=0.5)
     lv_idx += 1
     # compute combined content+style loss for this layer
     adv_c_losses.append(acl_c_loss)
@@ -373,18 +378,23 @@ for ac_cost_layer in ac_cost_layers:
     acl_act_reg = T.sum(T.sqr(adv_dict_truth[ac_cost_layer])) + \
         T.sum(T.sqr(adv_dict_guess[ac_cost_layer]))
     adv_act_regs.append(acl_act_reg)
-adv_c_loss = sum(adv_c_losses)
-adv_s_loss = sum(adv_s_losses)
-adv_loss = content_weight * adv_c_loss + style_weight * adv_s_loss
+adv_c_loss = content_weight * sum(adv_c_losses)
+adv_s_loss = style_weight * sum(adv_s_losses)
+adv_loss = adv_c_loss + adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
-log_p_x = (nc * npx * npx) * ((0.9 * adv_loss) + (0.1 * pix_loss))
+log_p_x = (0.9 * adv_loss) + (0.1 * pix_loss)
 # this is egregious abuse of terminology for log p(x)...
 
 # compute reconstruction error part of free-energy
 vae_obs_nlls = -1.0 * log_p_x
 vae_nll_cost = T.mean(vae_obs_nlls)
+
+# convert from vectors of observation losses to scalar batch losses
+pix_loss = -T.mean(pix_loss)
+adv_c_loss = -T.mean(adv_c_loss)
+adv_s_loss = -T.mean(adv_s_loss)
 
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: (kld_dict_1[tdm_name] + kld_dict_2[tdm_name]) for
@@ -442,7 +452,7 @@ jnt_updates = all_updates + adv_updates
 print("Compiling sampling and reconstruction functions...")
 # sampling requires a wrapper around the reconstruction function which
 # flips the CondInfGen model's "sample source" switch.
-recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_guess_2)
+recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], Xg_recon_2)
 
 
 def sample_func(xg_gen, xm_gen, model1, model2):
@@ -514,8 +524,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:6], g_epoch_costs)]
         vae_nlls.append(1. * g_result[1])
         vae_klds.append(1. * g_result[2])
-        batch_obs_costs = g_result[5]
-        batch_layer_klds = g_result[6]
+        batch_obs_costs = g_result[6]
+        batch_layer_klds = g_result[7]
         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
         g_batch_count += 1
         # run a smallish number of validation batches per epoch
@@ -548,6 +558,8 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ##################################
     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
+    # print('g_epoch_costs: {}'.format(g_epoch_costs))
+    # print('v_epoch_costs: {}'.format(v_epoch_costs))
     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
