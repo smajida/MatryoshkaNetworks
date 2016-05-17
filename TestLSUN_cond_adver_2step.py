@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./lsun"
 
-scene_type = 'church'
+scene_type = 'tower'
 
 # setup paths for dumping diagnostic info
 desc = 'test_{}_adversarial_maxnorm50_2xKL_2step'.format(scene_type)
@@ -490,7 +490,7 @@ batches_per_epoch = 1000
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
-    df_num = (epoch - 1) % len(data_files.keys())
+    df_num = (epoch - 1) % len(data_files)
     Xtr, Xva, Xmu = load_data_file(data_files[df_num])
     epoch_batch_count = Xtr.shape[0] // nbatch
     # mess with the KLd cost

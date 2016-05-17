@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_c004_s002_p010_2xKL_adv_lr20_adv_reg0001'
+desc = 'test_faces_impute_c004_s002_p010_2xKL_adv_lr20_adv_reg00001'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -494,7 +494,7 @@ adv_cls_cost_truth = T.mean(sum(adv_cls_costs_truth))
 adv_cls_cost_guess = T.mean(sum(adv_cls_costs_guess))
 # combine classification and regularization costs
 adv_cost = (1.0 * (adv_cls_cost_truth + adv_cls_cost_guess) +
-            0.001 * sum(adv_act_regs) +
+            0.0001 * sum(adv_act_regs) +
             adv_reg_cost)
 
 #
