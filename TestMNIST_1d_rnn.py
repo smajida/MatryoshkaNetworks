@@ -16,7 +16,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.ops import log_mean_exp, binarize_data
-from lib.costs import log_prob_bernoulli
+from lib.costs import log_prob_bernoulli, log_prob_gaussian
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
@@ -483,7 +483,7 @@ Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
 step_recons.append(Xg_recon)
 
 # compute masked reconstruction error from final step.
-log_p_x = T.sum(log_prob_bernoulli(
+log_p_x = T.sum(log_prob_gaussian(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
                 mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)
