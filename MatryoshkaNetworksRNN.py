@@ -16,6 +16,8 @@ from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat, \
 from lib.theano_utils import floatX, sharedX
 from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 
+from theano.printing import Print
+
 #
 # Phil's business
 #
@@ -233,6 +235,15 @@ class DeepSeqCondGenRNN(object):
             bu_input_inf = bu_res_dict_inf[bu_mod_name]  # from BU step t
             im_state_gen = im_states_gen[im_mod_name]    # from IM step t - 1
             im_state_inf = im_states_inf[im_mod_name]    # from IM step t - 1
+
+            # PRINT DEBUG
+            td_state = Print('td{} - td_state.shape:'.format(i), ['shape'])(td_state)
+            bu_input_gen = Print('td{} - bu_input_gen.shape:'.format(i), ['shape'])(bu_input_gen)
+            bu_input_inf = Print('td{} - bu_input_inf.shape:'.format(i), ['shape'])(bu_input_inf)
+            im_input_gen = Print('td{} - im_input_gen.shape:'.format(i), ['shape'])(im_input_gen)
+            im_input_inf = Print('td{} - im_input_inf.shape:'.format(i), ['shape'])(im_input_inf)
+            #
+
             # get IM modules to apply at this step
             im_module_gen = self.im_modules_gen_dict[im_mod_name]
             im_module_inf = self.im_modules_inf_dict[im_mod_name]
@@ -259,6 +270,13 @@ class DeepSeqCondGenRNN(object):
                                        rng=cu_rng)
             cond_z = (self.sample_switch[0] * cond_z_inf) + \
                 ((1. - self.sample_switch[0]) * cond_z_gen)
+
+            # PRINT DEBUG
+            cond_mean_gen = Print('td{} - cond_mean_gen.shape:'.format(i), ['shape'])(cond_mean_gen)
+            cond_logvar_gen = Print('td{} - cond_logvar_gen.shape:'.format(i), ['shape'])(cond_logvar_gen)
+            cond_mean_inf = Print('td{} - cond_mean_inf.shape:'.format(i), ['shape'])(cond_mean_inf)
+            cond_logvar_inf = Print('td{} - cond_logvar_inf.shape:'.format(i), ['shape'])(cond_logvar_inf)
+
             # update the current TD module
             td_output, td_state_new = \
                 td_module.apply(state=td_state, input=td_input, rand_vals=cond_z)
