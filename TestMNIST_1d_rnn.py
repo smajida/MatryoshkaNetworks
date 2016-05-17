@@ -433,25 +433,6 @@ Xa_inf = T.concatenate([make_2d_to_1d(Xg_gen),
                         make_2d_to_1d(Xg_inf),
                         make_2d_to_1d(Xm_inf)], axis=1)
 
-# quick test of model implementation
-res_dict = \
-    seq_cond_gen_model.apply_im_cond(
-        input_gen=Xa_gen,
-        input_inf=Xa_inf,
-        td_states=None,
-        im_states_gen=None,
-        im_states_inf=None)
-x_recon = make_1d_to_2d(res_dict['output'])
-
-print('Compiling test function...')
-inputs = [Xg_gen, Xm_gen, Xg_inf, Xm_inf]
-outputs = [x_recon]
-test_func = theano.function(inputs, outputs)
-
-model_input = make_model_input(Xtr[0:100, :])
-test_out = test_func(*model_input)
-print('DONE.')
-
 
 ##########################################################
 # CONSTRUCT COST VARIABLES FOR THE VAE PART OF OBJECTIVE #
@@ -508,7 +489,7 @@ step_recons.append(Xg_recon)
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
-                mask=Xm_inf, do_sum=False),
+                mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)
 
 # compute reconstruction error part of free-energy
@@ -546,6 +527,12 @@ full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
 #################################################################
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
+
+print('Compiling test function...')
+test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], [full_cost])
+model_input = make_model_input(Xtr[0:100, :])
+test_out = test_func(*model_input)
+print('DONE.')
 
 # stuff for performing updates
 lrt = sharedX(0.0005)
