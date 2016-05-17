@@ -446,7 +446,6 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 td_states = None
 im_states_gen = None
 im_states_inf = None
-Xg_gen = Print('Xg_gen.shape:', ['shape'])(Xg_gen)
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
@@ -462,8 +461,6 @@ for i in range(3):
                               make_2d_to_1d(Xm_gen),
                               make_2d_to_1d(Xg_inf),
                               make_2d_to_1d(Xm_inf)], axis=1)
-    Xa_gen_i = Print('Xa_gen_i.shape:', ['shape'])(Xa_gen_i)
-    Xa_inf_i = Print('Xa_inf_i.shape:', ['shape'])(Xa_inf_i)
     # run a guided refinement step
     res_dict = \
         seq_cond_gen_model.apply_im_cond(
@@ -475,7 +472,6 @@ for i in range(3):
     output_2d = make_1d_to_2d(res_dict['output'])
     # update canvas state
     canvas = canvas + output_2d
-    canvas = Print('canvas.shape:', ['shape'])(canvas)
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
