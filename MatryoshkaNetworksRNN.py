@@ -240,8 +240,8 @@ class DeepSeqCondGenRNN(object):
             td_state = Print('td{} - td_state.shape:'.format(i), ['shape'])(td_state)
             bu_input_gen = Print('td{} - bu_input_gen.shape:'.format(i), ['shape'])(bu_input_gen)
             bu_input_inf = Print('td{} - bu_input_inf.shape:'.format(i), ['shape'])(bu_input_inf)
-            im_input_gen = Print('td{} - im_input_gen.shape:'.format(i), ['shape'])(im_input_gen)
-            im_input_inf = Print('td{} - im_input_inf.shape:'.format(i), ['shape'])(im_input_inf)
+            im_state_gen = Print('td{} - im_state_gen.shape:'.format(i), ['shape'])(im_state_gen)
+            im_state_inf = Print('td{} - im_state_inf.shape:'.format(i), ['shape'])(im_state_inf)
             #
 
             # get IM modules to apply at this step
