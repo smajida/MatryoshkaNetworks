@@ -274,15 +274,38 @@ ac_mod_9 = \
         act_func='lrelu',
         mod_name='ac_mod_9')
 
-# (4, 4) -> FC
-ac_mod_10 = \
+# DISCRIMINATOR MODULES
+disc_mod_4 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=64,
+        out_chans=1,
+        stride='single',
+        apply_bn=False,
+        act_func='ident',
+        mod_name='disc_mod_4')
+disc_mod_7 = \
+    BasicConvModule(
+        filt_shape=(3, 3),
+        in_chans=128,
+        out_chans=1,
+        stride='single',
+        apply_bn=False,
+        act_func='ident',
+        mod_name='disc_mod_7')
+disc_mod_9 = \
     DiscFCModule(
         fc_dim=256,
         in_dim=(192 * 2 * 2),
         use_fc=True,
         apply_bn=False,
-        act_func='lrelu',
-        mod_name='ac_mod_10')
+        act_func='ident',
+        mod_name='disc_mod_9')
+
+disc_info = {'disc_mod_4': 'ac_mod_4',
+             'disc_mod_6': 'ac_mod_6',
+             'disc_mod_9': 'ac_mod_9'}
+
 #
 # This last module outputs a scalar for each input.
 #
@@ -292,12 +315,17 @@ ac_mod_10 = \
 #
 
 
-ac_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4, ac_mod_5,
-              ac_mod_6, ac_mod_7, ac_mod_8, ac_mod_9, ac_mod_10]
+mlp_modules = [ac_mod_1, ac_mod_2, ac_mod_3, ac_mod_4, ac_mod_5,
+               ac_mod_6, ac_mod_7, ac_mod_8, ac_mod_9]
+disc_modules = [disc_mod_4, disc_mod_6, disc_mod_9]
 ac_cost_layers = ['ac_mod_5', 'ac_mod_7', 'ac_mod_9']
-ac_pred_layer = 'ac_mod_10'  # layer for adversarial classification output
+ac_pred_layer = 'disc_mod_9'  # layer for adversarial classification output
 
-adv_conv = SimpleMLP(modules=ac_modules)
+adv_conv = \
+    DiscMLP(
+        mlp_modules=mlp_modules,
+        disc_modules=disc_modules,
+        disc_info=disc_info)
 
 
 # grab data to feed into the model
@@ -385,8 +413,8 @@ pix_loss = gauss_content_loss(x_truth, x_guess, log_var=log_var[0],
                               use_huber=0.5, mask=Xm_inf_mask)
 
 # feed original observation and reconstruction into conv net
-adv_dict_truth = adv_conv.apply(Xg_inf, return_dict=True)
-adv_dict_guess = adv_conv.apply(Xg_guess, return_dict=True)
+adv_dict_truth, cls_dict_truth = adv_conv.apply(Xg_inf)
+adv_dict_guess, cls_dict_guess = adv_conv.apply(Xg_guess)
 
 # compute adversarial reconstruction losses
 adv_c_losses = []
@@ -454,8 +482,8 @@ vae_obs_costs = vae_obs_nlls + vae_obs_klds
 full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
 
 # get adversarial classification cost and build the full adversarial cost
-adv_pred_truth = clip_sigmoid(adv_dict_truth[ac_pred_layer])  # preds for real data
-adv_pred_guess = clip_sigmoid(adv_dict_guess[ac_pred_layer])  # preds for recon data
+adv_pred_truth = clip_sigmoid(cls_dict_truth[ac_pred_layer])  # preds for real data
+adv_pred_guess = clip_sigmoid(cls_dict_guess[ac_pred_layer])  # preds for recon data
 adv_pred_cost = -1. * (T.log(adv_pred_truth) +
                        T.log(1. - adv_pred_guess))
 # combine distribution matching, classification, and regularization costs

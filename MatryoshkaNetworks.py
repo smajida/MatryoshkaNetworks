@@ -1252,6 +1252,92 @@ class SimpleMLP(object):
         return result
 
 
+class DiscMLP(object):
+    """
+    A simple discriminator network.
+
+    This wraps a sequence of MLP modules and discriminator modules.
+
+    The discriminator modules process the output of the MLP modules to provide
+    a discriminating signal, as in Generative Adversarial Networks. Here, we
+    can measure the signal simultaneously across multiple feature scales.
+
+    -- The modules need to be self-aware of whether they'll be receiving
+       convolutional or fully-connected inputs. We won't handle that here.
+
+    Params:
+        mlp_modules: A list of basic feedforward modules.
+        disc_modules: A list of modules that act as classifiers on top of the
+                      modules in mlp_modules.
+        disc_info: A map from discriminator module names to the names of the
+                   MLP modules from which they receive input.
+    """
+    def __init__(self,
+                 mlp_modules=None,
+                 disc_modules=None,
+                 disc_info=None):
+        assert not ((mlp_modules is None) or (disc_modules is None)), \
+            "Don't be a dunce! Supply modules!"
+        self.mlp_modules = [m for m in mlp_modules]
+        self.disc_modules = [m for m in disc_modules]
+        self.disc_info = disc_info
+        self.params = []
+        for m in self.mlp_modules:
+            self.params.extend(m.params)
+        for m in self.disc_modules:
+            self.params.extend(m.params)
+        return
+
+    def dump_params(self, f_name=None):
+        """
+        Dump params to a file for later reloading by self.load_params.
+        """
+        all_modules = self.mlp_modules + self.disc_modules
+        mod_param_dicts = [m.dump_params() for m in all_modules]
+        if not (f_name is None):
+            # dump param dict to the given file
+            f_handle = file(f_name, 'wb')
+            cPickle.dump(mod_param_dicts, f_handle, protocol=-1)
+            f_handle.close()
+        return mod_param_dicts
+
+    def load_params(self, f_name=None, mod_param_dicts=None):
+        """
+        Load params from a file saved via self.dump_params.
+        """
+        # reload the parameter dicts for all modules in this network
+        if not (f_name is None):
+            # reload params from a file
+            pickle_file = open(f_name)
+            mod_param_dicts = cPickle.load(pickle_file)
+            all_modules = self.mlp_modules + self.disc_modules
+            for param_dict, mod in zip(mod_param_dicts, all_modules):
+                mod.load_params(param_dict=param_dict)
+            pickle_file.close()
+        else:
+            # reload params from a dict
+            all_modules = self.mlp_modules + self.disc_modules
+            for param_dict, mod in zip(mod_param_dicts, all_modules):
+                mod.load_params(param_dict=param_dict)
+        return
+
+    def apply(self, input, noise=None):
+        """
+        Apply the mlp modules, then apply the disc modules.
+        """
+        hs = [input]
+        mlp_act_dict = {}
+        for i, mod in enumerate(self.mlp_modules):
+            hi = mod.apply(hs[-1], noise=noise)
+            mlp_act_dict[mod.mod_name] = hi
+            hs.append(hi)
+        disc_act_dict = {}
+        for mod in self.disc_modules:
+            mlp_mod_name = self.disc_info[mod.mod_name]
+            mlp_acts = mlp_act_dict[mlp_mod_name]
+            disc_acts = mod.apply(mlp_acts, noise=noise)
+            disc_act_dict[mod.mod_name] = disc_acts
+        return mlp_act_dict, disc_act_dict
 
 
 
