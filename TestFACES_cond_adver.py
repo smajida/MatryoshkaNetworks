@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 0.10
-style_weight = 0.05
+content_weight = 0.05
+style_weight = 0.02
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']

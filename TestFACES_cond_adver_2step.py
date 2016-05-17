@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1
-content_weight = 0.10
-style_weight = 0.05
+content_weight = 0.04
+style_weight = 0.02
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
@@ -471,7 +471,7 @@ adv_pred_cost = -1. * (T.log(adv_pred_truth) +
                        T.log(1. - adv_pred_guess))
 # combine distribution matching, classification, and regularization costs
 adv_cost = (-1.0 * T.mean(adv_c_loss) +
-            1.0 * T.mean(adv_pred_cost) +
+            10.0 * T.mean(adv_pred_cost) +
             0.01 * sum(adv_act_regs) + adv_reg_cost)
 
 #
