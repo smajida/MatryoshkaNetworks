@@ -490,10 +490,10 @@ for adv_cls_layer in cls_dict_truth.keys():
     adv_cls_costs_truth.append(-T.mean(T.log(acl_preds_truth), axis=1))
     adv_cls_costs_guess.append(-T.mean(T.log(1. - acl_preds_guess), axis=1))
 # sum model/truth discrimination cost across adversary layers
-adv_cls_cost_truth = sum(adv_cls_costs_truth)
-adv_cls_cost_guess = sum(adv_cls_costs_guess)
+adv_cls_cost_truth = T.mean(sum(adv_cls_costs_truth))
+adv_cls_cost_guess = T.mean(sum(adv_cls_costs_guess))
 # combine classification and regularization costs
-adv_cost = (1.0 * T.mean(adv_pred_cost) +
+adv_cost = (1.0 * (adv_cls_cost_truth + adv_cls_cost_guess) +
             0.01 * sum(adv_act_regs) +
             adv_reg_cost)
 

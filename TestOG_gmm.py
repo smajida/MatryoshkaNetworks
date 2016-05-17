@@ -38,7 +38,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = "./omniglot"
 
 # setup paths for dumping diagnostic info
-desc = 'test_conv_3deep_lores_gmm_mc50_pe01'
+desc = 'test_conv_5deep_lores_gmm_mc50_pe02'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
