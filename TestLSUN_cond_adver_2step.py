@@ -36,11 +36,12 @@ sys.setrecursionlimit(100000)
 #
 
 # path for dumping experiment info and fetching dataset
-EXP_DIR = "./faces"
-DATA_SIZE = 250000
+EXP_DIR = "./lsun"
+
+scene_type = 'church'
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_adversarial_maxnorm50_2xKL_2step'
+desc = 'test_{}_adversarial_maxnorm50_2xKL_2step'.format(scene_type)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file_1 = "{}/inf_gen_params_1.pkl".format(result_dir)
 inf_gen_param_file_2 = "{}/inf_gen_params_2.pkl".format(result_dir)
@@ -48,7 +49,18 @@ if not os.path.exists(result_dir):
     os.makedirs(result_dir)
 
 # locations of 64x64 faces dataset -- stored as a collection of .npy files
-data_dir = "{}/data".format(EXP_DIR)
+# data_dir = "{}/data".format(EXP_DIR)
+if scene_type == 'church':
+    data_dir = '/NOBACKUP/lsun/church_outdoor_train_center_crop'
+elif scene_type == 'tower':
+    data_dir = '/NOBACKUP/lsun/tower_train_center_crop'
+elif scene_type == 'bridge':
+    data_dir = '/NOBACKUP/lsun/bridge_train_center_crop'
+elif scene_type == 'bedroom':
+    data_dir = '/NOBACKUP/lsun/bedroom_train_center_crop'
+else:
+    raise Exception('Unknown scene type: {}'.format(scene_type))
+
 # get a list of the .npy files that contain images in this directory. there
 # shouldn't be any other files in the directory (hackish, but easy).
 data_files = os.listdir(data_dir)
@@ -113,19 +125,24 @@ def rand_fill(x, m, scale=1.):
     x_nz = (m * nz) + ((1. - m) * x)
     return x_nz
 
-# load all data into memory
-print('LOADING DATA...')
-Xtr = []
-for df in data_files:
-    xtr, _ = load_and_scale_data(df)
-    Xtr.append(xtr)
-Xtr = np.concatenate(Xtr, axis=0)
-Xmu = np.mean(Xtr, axis=0)
-Xtr = shuffle(Xtr)
-# split into training and validation samples
-Xva = Xtr[:2500, :]  # in range [0, 255/256]
-Xtr = Xtr[2500:, :]  # in range [0, 255/256]
-print('DONE')
+
+def load_data_file(df_name, va_count=2000):
+    # load all data into memory
+    print('loading data from {}...'.format(df_name))
+    xtr = load_and_scale_data(df_name)
+    # split data into validation and training bits based
+    # on placement within the data file.
+    xva = xtr[:va_count, :]
+    xtr = xtr[va_count:, :]
+    # shuffle training/validation data and compute mean
+    xtr = shuffle(xtr)
+    xva = shuffle(xva)
+    xmu = np.mean(xtr, axis=0)
+    print('done.')
+    return xtr, xva, xmu
+
+# load an initial portion of data
+Xtr, Xva, Xmu = load_data_file(data_files[0])
 
 
 set_seed(123)      # seed for shared rngs
@@ -258,12 +275,12 @@ adv_conv = SimpleMLP(modules=ac_modules)
 
 
 # grab data to feed into the model
-def make_model_input(x_in):
+def make_model_input(x_in, x_mu):
     # construct "imputational upsampling" masks
     xg_gen, xg_inf, xm_gen = \
         get_masked_data(x_in, im_shape=(nc, npx, npx), drop_prob=0.,
                         occ_shape=(20, 20), occ_count=3,
-                        data_mean=Xmu)
+                        data_mean=x_mu)
     # reshape and process data for use as model input
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
     xm_inf = xm_gen       # mask is 1 for pixels to predict
@@ -401,7 +418,7 @@ outputs = [full_cost]
 print('Compiling test function...')
 test_func = theano.function(inputs, outputs)
 # test the model implementation
-model_input = make_model_input(Xtr[0:100, :])
+model_input = make_model_input(Xtr[0:100, :], Xmu)
 test_out = test_func(*model_input)
 print('DONE.')
 
@@ -445,7 +462,7 @@ def sample_func(xg_gen, xm_gen, model1, model2):
     return x_out
 
 # test samplers for conditional generation
-xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :])
+xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xtr[:100, :], Xmu)
 xg_rec = recon_func(xg_gen, xm_gen, xg_inf, xm_inf)
 xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
 
@@ -473,9 +490,9 @@ batches_per_epoch = 1000
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
-    Xtr = shuffle(Xtr)
-    Xva = shuffle(Xva)
-    Xtr_epoch = Xtr[:(nbatch * batches_per_epoch), :]
+    df_num = (epoch - 1) % len(data_files.keys())
+    Xtr, Xva, Xmu = load_data_file(data_files[df_num])
+    epoch_batch_count = Xtr.shape[0] // nbatch
     # mess with the KLd cost
     lam_kld.set_value(floatX([kld_weight]))
     # initialize cost arrays
@@ -486,12 +503,12 @@ for epoch in range(1, (niter + niter_decay + 1)):
     vae_klds = []
     g_batch_count = 0
     v_batch_count = 0
-    for imb in tqdm(iter_data(Xtr_epoch, size=nbatch), total=batches_per_epoch):
+    for imb in tqdm(iter_data(Xtr, size=nbatch), total=epoch_batch_count):
         # set adversary to be slow relative to generator...
         adv_lr = 0.05 * lrt.get_value(borrow=False)
         adv_lrt.set_value(floatX(adv_lr))
         # transform training batch to model input format
-        imb_input = make_model_input(imb)
+        imb_input = make_model_input(imb, Xmu)
         # compute loss and apply updates for this batch
         g_result = g_train_func(*imb_input)
         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
@@ -504,7 +521,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # run a smallish number of validation batches per epoch
         if v_batch_count < 25:
             vmb = Xva[v_batch_count * nbatch:(v_batch_count + 1) * nbatch, :]
-            vmb_input = make_model_input(vmb)
+            vmb_input = make_model_input(vmb, Xmu)
             v_result = g_eval_func(*vmb_input)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
             v_batch_count += 1
@@ -556,7 +573,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     ######################
     if (epoch < 20) or (((epoch - 1) % 10) == 0):
         # sample some reconstructions directly from the conditional model
-        xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :])
+        xg_gen, xm_gen, xg_inf, xm_inf = make_model_input(Xva[:100, :], Xmu)
         xg_rec = sample_func(xg_gen, xm_gen, inf_gen_model_1, inf_gen_model_2)
         # put noise in missing region of xg_gen
         xg_gen = rand_fill(xg_gen, xm_gen, scale=0.2)
