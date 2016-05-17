@@ -28,7 +28,7 @@ from lib.data_utils import \
 #
 from ModelBuilders import build_faces_cond_res
 from MatryoshkaModules import BasicConvModule, DiscFCModule
-from MatryoshkaNetworks import SimpleMLP
+from MatryoshkaNetworks import SimpleMLP, DiscMLP
 
 sys.setrecursionlimit(100000)
 
