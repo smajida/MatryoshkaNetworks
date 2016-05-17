@@ -18,6 +18,8 @@ from lib.ops import batchnorm, deconv, reparametrize, conv_cond_concat, \
 from lib.theano_utils import floatX, sharedX
 from lib.costs import log_prob_bernoulli, log_prob_gaussian, gaussian_kld
 
+from theano.printing import Print
+
 #
 # Phil's business
 #
@@ -1122,6 +1124,7 @@ class InfGenModelGMM(object):
                         full_rvs = T.concatenate([mix_cond, cond_rvs], axis=1)
                     else:
                         full_rvs = cond_rvs
+                    full_rvs = Print('td_mod_name: {}, full_rvs.shape:'.format(td_mod_name), ['shape'])(full_rvs)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=full_rvs,
