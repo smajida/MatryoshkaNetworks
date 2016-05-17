@@ -465,6 +465,7 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 td_states = None
 im_states_gen = None
 im_states_inf = None
+Xg_gen = Print('Xg_gen.shape:', ['shape'])(Xg_gen)
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
