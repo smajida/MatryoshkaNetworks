@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_c004_s002_p010_2xKL_adv_lr01'
+desc = 'test_faces_impute_c004_s002_p010_2xKL_adv_lr04_adv_reg0002'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -494,7 +494,7 @@ adv_cls_cost_truth = T.mean(sum(adv_cls_costs_truth))
 adv_cls_cost_guess = T.mean(sum(adv_cls_costs_guess))
 # combine classification and regularization costs
 adv_cost = (1.0 * (adv_cls_cost_truth + adv_cls_cost_guess) +
-            0.01 * sum(adv_act_regs) +
+            0.002 * sum(adv_act_regs) +
             adv_reg_cost)
 
 #
@@ -592,7 +592,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     v_batch_count = 0
     for imb in tqdm(iter_data(Xtr_epoch, size=nbatch), total=batches_per_epoch):
         # set adversary to be slow relative to generator...
-        adv_lr = 0.1 * lrt.get_value(borrow=False)
+        adv_lr = 0.4 * lrt.get_value(borrow=False)
         adv_lrt.set_value(floatX(adv_lr))
         # transform training batch to model input format
         imb_input = make_model_input(imb)
