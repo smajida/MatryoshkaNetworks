@@ -61,8 +61,8 @@ nx = npx * npx * nc  # # of dimensions in X
 niter = 200          # # of iter at starting learning rate
 niter_decay = 200    # # of iter to linearly decay learning rate to zero
 use_td_cond = False
-depth_7x7 = 3
-depth_14x14 = 3
+depth_7x7 = 5
+depth_14x14 = 5
 depth_28x28 = None
 mix_comps = 50
 
