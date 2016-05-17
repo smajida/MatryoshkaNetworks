@@ -129,7 +129,7 @@ def rand_fill(x, m, scale=1.):
 def load_data_file(df_name, va_count=2000):
     # load all data into memory
     print('loading data from {}...'.format(df_name))
-    xtr = load_and_scale_data(df_name)
+    xtr, x_std = load_and_scale_data(df_name)
     # split data into validation and training bits based
     # on placement within the data file.
     xva = xtr[:va_count, :]
