@@ -846,7 +846,7 @@ class InfGenModelGMM(object):
         self.td_modules = [m for m in td_modules]
         self.im_modules = [m for m in im_modules]
         self.mix_module = mix_module
-        self.mix_everywhere = False
+        self.mix_everywhere = mix_everywhere
         self.im_modules_dict = {m.mod_name: m for m in im_modules}
         self.im_modules_dict[None] = None
         # grab the full set of trainable parameters in these modules
@@ -1124,7 +1124,7 @@ class InfGenModelGMM(object):
                         full_rvs = T.concatenate([mix_cond, cond_rvs], axis=1)
                     else:
                         full_rvs = cond_rvs
-                    full_rvs = Print('td_mod_name: {}, full_rvs.shape:'.format(td_mod_name), ['shape'])(full_rvs)
+                    # full_rvs = Print('td_mod_name: {}, full_rvs.shape:'.format(td_mod_name), ['shape'])(full_rvs)
                     # feedforward through the current TD module
                     td_act_i = td_module.apply(input=td_info,
                                                rand_vals=full_rvs,
