@@ -337,6 +337,7 @@ for fd in fix_depths:
     fix_depth_samples.append(samples)
 # stack the samples from each "fix depth"
 samples = np.vstack(fix_depth_samples)
+print('samples.shape: {}'.format(samples.shape))
 grayscale_grid_vis(samples, (len(fix_depth_samples), comp_count * comp_reps),
                    "{}/fig_mix_samples.png".format(result_dir))
 
