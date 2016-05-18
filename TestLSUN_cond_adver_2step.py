@@ -38,10 +38,10 @@ sys.setrecursionlimit(100000)
 # path for dumping experiment info and fetching dataset
 EXP_DIR = "./lsun"
 
-scene_type = 'tower'
+scene_type = 'church'
 
 # setup paths for dumping diagnostic info
-desc = 'test_{}_adversarial_maxnorm50_2xKL_2step'.format(scene_type)
+desc = 'test_{}_adversarial_maxnorm50_3xKL_2step'.format(scene_type)
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file_1 = "{}/inf_gen_params_1.pkl".format(result_dir)
 inf_gen_param_file_2 = "{}/inf_gen_params_2.pkl".format(result_dir)
@@ -161,7 +161,7 @@ use_conv = True    # whether to use "internal" conv layers in gen/disc networks
 use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
-kld_weight = 2.
+kld_weight = 3.
 depth_8x8 = 1
 depth_16x16 = 1
 depth_32x32 = 1

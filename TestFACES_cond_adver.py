@@ -41,7 +41,7 @@ EXP_DIR = "./faces"
 DATA_SIZE = 250000
 
 # setup paths for dumping diagnostic info
-desc = 'test_faces_impute_c004_s002_p010_2xKL_adv_lr20_adv_reg00001_2deep'
+desc = 'test_faces_impute_c010_s000_p010_2xKL_adv_lr20_adv_reg00001_2deep'
 result_dir = "{}/results/{}".format(EXP_DIR, desc)
 inf_gen_param_file = "{}/inf_gen_params.pkl".format(result_dir)
 if not os.path.exists(result_dir):
@@ -149,8 +149,8 @@ kld_weight = 2.
 depth_8x8 = 2
 depth_16x16 = 2
 depth_32x32 = 2
-content_weight = 0.04
-style_weight = 0.02
+content_weight = 0.1
+style_weight = 0.00
 
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
