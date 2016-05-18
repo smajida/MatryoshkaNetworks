@@ -92,6 +92,23 @@ def rand_gen(size, noise_type='normal'):
         assert False, "unrecognized noise type!"
     return r_vals
 
+
+def transpose_images(img_ary, grid_shape):
+    '''
+    Transpose the grid location of the images in the rows of img_ary.
+    '''
+    rows = grid_shape[0]
+    cols = grid_shape[1]
+    img_ary_T = np.zeros(img_ary.shape)
+    i = 0
+    for col in cols:
+        for row in rows:
+            j = (row * cols) + col
+            img_ary_T[i, :] = img_ary[j, :]
+            i += 1
+    return img_ary_T
+
+
 tanh = activations.Tanh()
 sigmoid = activations.Sigmoid()
 bce = T.nnet.binary_crossentropy
@@ -277,17 +294,19 @@ for comp_idx in range(mix_comps):
     mix_data_samples.append(comp_data_samples)
 
 # draw examples from each mixture component
-example_count = 10
+example_count = 4
 mix_examples = np.zeros((mix_comps * example_count, nc, npx, npx))
 for i in range(mix_comps):
     s_idx = i * example_count
     e_idx = s_idx + example_count
     mix_examples[s_idx:e_idx, :, :, :] = mix_data_samples[i][:example_count, :, :, :]
-grayscale_grid_vis(draw_transform(mix_examples), (mix_comps, example_count),
+samples = draw_transform(mix_examples)
+samples = transpose_images(samples, (mix_comps, example_count))
+grayscale_grid_vis(samples, (example_count, mix_comps),
                    "{}/fig_mix_examples.png".format(result_dir))
 
 # generate random samples from each mixture component
-comp_count = 20
+comp_count = len(mix_comps)
 comp_reps = 15
 for i in range(min(6, len(z_shapes))):
     lvar_samps = []
@@ -304,8 +323,10 @@ for i in range(min(6, len(z_shapes))):
                 z_samps = rand_gen(size=tuple(samp_shape))
             lvar_samps.append(z_samps)
     # sample using the generated latent variables
-    samples = np.asarray(sample_func_scaled(lvar_samps, 1.0, no_scale=[0]))
-    grayscale_grid_vis(draw_transform(samples), (comp_count, comp_reps), "{}/fig_mix_samples.png".format(result_dir))
+    samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
+    samples = draw_transform(samples)
+    samples = transpose_images(samples, (comp_count, comp_reps))
+    grayscale_grid_vis(samples, (comp_reps, comp_count), "{}/fig_mix_samples.png".format(result_dir))
 
 
 
