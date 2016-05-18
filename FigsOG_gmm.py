@@ -154,7 +154,7 @@ z_rand = [z for z in z_in if z is not None]
 im_res_dict = inf_gen_model.apply_im(x_in, kl_mode='analytical')
 x_recon = clip_sigmoid(im_res_dict['td_output'])
 z_samps = [im_res_dict['z_dict'][tdm.mod_name] for tdm in td_z_modules]
-mix_comp_weight = im_res_dict['mix_comp_weight']
+mix_comp_post = im_res_dict['mix_comp_post']
 
 # run an un-grounded pass through generative stuff for sampling from model
 x_from_z = inf_gen_model.apply_td(rand_vals=z_in)
@@ -167,7 +167,7 @@ x_from_z = clip_sigmoid(x_from_z)
 t = time()
 print("Compiling sampling and reconstruction functions...")
 # make function to collect posterior latent samples and posterior mixture weights
-mix_weight_func = theano.function([x_in], mix_comp_weight)
+mix_post_func = theano.function([x_in], mix_comp_post)
 post_sample_func = theano.function([x_in], z_samps)
 # make function to sample from model given all the latent vars
 sample_func = theano.function(z_rand, x_from_z)
@@ -210,12 +210,13 @@ def complete_z_samples(z_samps_partial, z_modules):
 
 # test posterior info function
 x_in = train_transform(Xva[:100, :])
-mix_weights = mix_weight_func(x_in)
+mix_weights = mix_post_func(x_in)
 post_samples = post_sample_func(x_in)
 
 # sample at random from the mixture components
 comp_idx = range(mix_comps)
 z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
+z_mix = np.repeat(z_mix, 10, axis=0)
 z_rand = complete_z_samples([z_mix], td_z_modules)
 x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
@@ -223,19 +224,23 @@ x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 print('Collecting posterior info for validation set...')
 batch_size = 200
 va_batches = []
-va_post_samples = []
-va_mix_weights = []
+va_post_samples = [[] for z in z_rand]
+va_mix_posts = []
 for i in range(10):
     b_start = i * batch_size
     b_end = b_start + batch_size
     xmb = train_transform(Xva[b_start:b_end, :])
-    va_post_samples.append(post_sample_func(xmb))
-    va_mix_weights.append(mix_weight_func(xmb))
-va_post_samples_np = np.concatenate(va_post_samples)
-va_mix_weights_np = np.concatenate(va_mix_weights)
-
-print('va_post_samples_np.shape: {}'.format(va_post_samples_np.shape))
-print('va_mix_weights_np.shape: {}'.format(va_mix_weights_np.shape))
+    # collect samples from approximate posteriors for xmb
+    post_z = post_sample_func(xmb)
+    for zs_list, zs in zip(va_post_samples, post_z):
+        zs_list.append(zs)
+        print('batch {}, zs.shape: {}'.format(i, zs.shape))
+    # compute posterior mixture weights for xmb
+    va_mix_posts.append(mix_post_func(xmb))
+    print('batch {}, mix_post.shape: {}'.format(i, va_mix_posts[-1]))
+# group up output of the batch computations
+va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
+va_mix_posts = np.concatenate(va_mix_posts, axis=0)
 
 
 
