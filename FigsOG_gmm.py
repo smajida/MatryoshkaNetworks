@@ -243,7 +243,7 @@ for i in range(10):
     # compute posterior mixture weights for xmb
     va_mix_posts.append(mix_post_func(xmb))
 # group up output of the batch computations
-va_batchs = np.concatenate(va_batches, axis=0)
+va_batches = np.concatenate(va_batches, axis=0)
 va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
 va_mix_posts = np.concatenate(va_mix_posts, axis=0)
 for i, vaps in enumerate(va_post_samples):
@@ -256,17 +256,25 @@ obs_count = va_mix_posts.shape[0]
 mix_comp_members = []
 comp_assignments = np.argmax(va_mix_posts, axis=1)
 for comp_idx in range(mix_comps):
-    # get examples assigned to this component
-    mix_comp_members.append(np.asarray([i for i in range(obs_count)
-                                        if comp_assignments[i] == comp_idx]))
+    # get examples assigned to this component, after sorting based
+    # on strength of assignment to the component
+    comp_members = np.asarray([i for i in range(obs_count)
+                               if comp_assignments[i] == comp_idx])
+    # get posterior mixture weights for members of this component
+    comp_weights = va_mix_posts[comp_members, comp_idx]
+    sort_idx = np.argsort(-comp_weights)  # sort greatest -> least
+    comp_members = comp_members[sort_idx]  # sorted list of members
+    mix_comp_members.append(comp_members)
 
-# collect data samples assigned to each mixture component
+# collect data and posterior samples for each mixture component
 mix_data_samples = []
 for comp_idx in range(mix_comps):
+    comp_members = mix_comp_members[comp_idx]
+    comp_data_samples = va_batches[comp_members, :]
+    mix_data_samples.append(comp_data_samples)
 
 
 # generate random samples from each mixture component
-
 comp_count = 20
 comp_reps = 15
 for i in range(min(6, len(z_shapes))):
