@@ -182,7 +182,7 @@ def sample_func_scaled(z_all, z_scale, no_scale):
             z_all_scale.append(z)
         else:
             z_all_scale.append(z_scale * z)
-    x_samples = sample_func(z_all_scale)
+    x_samples = sample_func(*z_all_scale)
     return x_samples
 
 def complete_z_samples(z_samps_partial, z_modules):
