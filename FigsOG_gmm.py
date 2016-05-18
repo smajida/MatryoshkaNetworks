@@ -192,12 +192,14 @@ def complete_z_samples(z_samps_partial, z_modules):
     Complete the given set of latent samples, to match the shapes required by
     the main model (i.e. inf_gen_model).
     '''
+    assert (len(z_samps_partial) >= 1)
     obs_count = z_samps_partial[0].shape[0]
     z_samps_full = [z for z in z_samps_partial]
     for i, tdm in enumerate(z_modules):
         if i >= len(z_samps_partial):
-            z_shape = tuple([obs_count] + [d for d in tdm.rand_shape])
-            z_samps = rand_gen(size=z_shape)
+            z_shape = [obs_count] + [d for d in tdm.rand_shape]
+            z_shape[1] = z_shape[1] - nz0 
+            z_samps = rand_gen(size=tuple(z_shape))
             z_samps_full.append(z_samps)
     return z_samps_full
 
