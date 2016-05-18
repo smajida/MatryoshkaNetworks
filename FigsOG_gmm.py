@@ -125,7 +125,7 @@ for tdm in td_modules:
         z_shape = [d for d in tdm.rand_shape]
         if len(z_shape) > 1:
             # correct shape for carrying nz0 forward
-            z_shape[1] = z_shape[1] - nz0
+            z_shape[0] = z_shape[0] - nz0
         z_shapes.append(tuple(z_shape))
     else:
         z_shapes.append(None)
