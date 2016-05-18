@@ -187,6 +187,7 @@ def sample_func_scaled(z_all, z_scale, no_scale):
     x_samples = sample_func(*z_all_scale)
     return x_samples
 
+
 def complete_z_samples(z_samps_partial, z_modules):
     '''
     Complete the given set of latent samples, to match the shapes required by
@@ -198,7 +199,7 @@ def complete_z_samples(z_samps_partial, z_modules):
     for i, tdm in enumerate(z_modules):
         if i >= len(z_samps_partial):
             z_shape = [obs_count] + [d for d in tdm.rand_shape]
-            z_shape[1] = z_shape[1] - nz0 
+            z_shape[1] = z_shape[1] - nz0
             z_samps = rand_gen(size=tuple(z_shape))
             z_samps_full.append(z_samps)
     return z_samps_full
@@ -234,10 +235,8 @@ for i in range(10):
     post_z = post_sample_func(xmb)
     for zs_list, zs in zip(va_post_samples, post_z):
         zs_list.append(zs)
-        print('batch {}, zs.shape: {}'.format(i, zs.shape))
     # compute posterior mixture weights for xmb
     va_mix_posts.append(mix_post_func(xmb))
-    print('batch {}, mix_post.shape: {}'.format(i, va_mix_posts[-1].shape))
 # group up output of the batch computations
 va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
 va_mix_posts = np.concatenate(va_mix_posts, axis=0)
@@ -245,24 +244,35 @@ for i, vaps in enumerate(va_post_samples):
     print('va_post_samples[{}].shape: {}'.format(i, vaps.shape))
 print('va_mix_posts.shape: {}'.format(va_mix_posts.shape))
 
+# collect indices of examples sorted most strongly into each mixture component
+# -- indices are indices into va_post_samples and va_mix_posts
+obs_count = va_mix_posts.shape[0]
+mix_comp_members = []
+comp_assignments = np.argmax(va_mix_posts, axis=1)
+for comp_idx in range(mix_comps):
+    # get examples assigned to this component
+    mix_comp_members.append(np.asarray([i for i in range(obs_count)
+                                        if comp_assignments[i] == comp_idx]))
 
-
-# for i in range(min(6, len(z_shapes))):
-#     lvar_samps = []
-#     # generate the "fixed" latent variables
-#     for j in range(len(z_shapes)):
-#         samp_shape = [d for d in z_shapes[j]]
-#         if j < i:
-#             samp_shape[0] = 20
-#             z_samps = rand_gen(size=tuple(samp_shape))
-#             z_samps = np.repeat(z_samps, 25, axis=0)
-#         else:
-#             samp_shape[0] = 400
-#             z_samps = rand_gen(size=tuple(samp_shape))
-#         lvar_samps.append(z_samps)
-#     # sample using the generated latent variables
-#     samples = np.asarray(sample_func(*lvar_samps))
-#     grayscale_grid_vis(draw_transform(samples), (20, 20), "{}/eval_gen_e{}_b{}_{}fix.png".format(result_dir, epoch, block_num, i))
+comp_count = 20
+comp_reps = 15
+for i in range(min(6, len(z_shapes))):
+    lvar_samps = []
+    # generate the "fixed" latent variables
+    for j in range(len(z_shapes)):
+        if z_shapes[j] is not None:
+            samp_shape = [d for d in z_shapes[j]]
+            if j < i:
+                samp_shape = [comp_count] + samp_shape
+                z_samps = rand_gen(size=tuple(samp_shape))
+                z_samps = np.repeat(z_samps, comp_reps, axis=0)
+            else:
+                samp_shape = [comp_count * comp_reps] + samp_shape
+                z_samps = rand_gen(size=tuple(samp_shape))
+            lvar_samps.append(z_samps)
+    # sample using the generated latent variables
+    samples = np.asarray(sample_func_scaled(lvar_samps, scale=0.8, no_scale=[0]))
+    grayscale_grid_vis(draw_transform(samples), (comp_count, comp_reps), "{}/test_fig.png".format(result_dir))
 
 
 
