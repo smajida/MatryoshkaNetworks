@@ -220,6 +220,25 @@ z_rand = complete_z_samples([z_mix], td_z_modules)
 x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
 
+print('Collecting posterior info for validation set...')
+batch_size = 200
+va_batches = []
+va_post_samples = []
+va_mix_weights = []
+for i in range(10):
+    b_start = i * batch_size
+    b_end = b_start + batch_size
+    xmb = train_transform(Xva[b_start:b_end, :])
+    va_post_samples.append(post_sample_func(xmb))
+    va_mix_weights.append(mix_weight_func(xmb))
+va_post_samples_np = np.concatenate(va_post_samples)
+va_mix_weights_np = np.concatenate(va_mix_weights)
+
+print('va_post_samples_np.shape: {}'.format(va_post_samples_np.shape))
+print('va_mix_weights_np.shape: {}'.format(va_mix_weights_np.shape))
+
+
+
 # for i in range(min(6, len(z_shapes))):
 #     lvar_samps = []
 #     # generate the "fixed" latent variables
