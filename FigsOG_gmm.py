@@ -306,7 +306,7 @@ grayscale_grid_vis(samples, (example_count, mix_comps),
                    "{}/fig_mix_examples.png".format(result_dir))
 
 # generate random samples from each mixture component
-comp_count = len(mix_comps)
+comp_count = mix_comps
 comp_reps = 15
 for i in range(min(6, len(z_shapes))):
     lvar_samps = []
