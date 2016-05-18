@@ -203,6 +203,7 @@ def complete_z_samples(z_samps_partial, z_modules):
     for i, tdm in enumerate(z_modules):
         if i >= len(z_samps_partial):
             z_shape = [obs_count] + [d for d in tdm.rand_shape]
+            z_shape[1] = z_shape[1] - nz0
             # z_shape[1] = z_shape[1]
             z_samps = rand_gen(size=tuple(z_shape))
             z_samps_full.append(z_samps)
