@@ -428,7 +428,7 @@ for epoch in range(5):
                 if j < i:
                     samp_shape[0] = 20
                     z_samps = rand_gen(size=tuple(samp_shape))
-                    z_samps = np.repeat(z_samps, 20, axis=0)
+                    z_samps = np.repeat(z_samps, 25, axis=0)
                 else:
                     samp_shape[0] = 400
                     z_samps = rand_gen(size=tuple(samp_shape))
