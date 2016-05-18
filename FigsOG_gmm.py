@@ -151,7 +151,7 @@ z_rand = [z for z in z_in if z is not None]
 # run an inference pass through to get info about posterior distributions
 im_res_dict = inf_gen_model.apply_im(x_in, kl_mode='analytical')
 x_recon = clip_sigmoid(im_res_dict['td_output'])
-z_samps = im_res_dict['z_dict']
+z_samps = [im_res_dict['z_dict'][tdm.mod_name] for tdm in td_z_modules]
 mix_comp_weight = im_res_dict['mix_comp_weight']
 
 # run an un-grounded pass through generative stuff for sampling from model
