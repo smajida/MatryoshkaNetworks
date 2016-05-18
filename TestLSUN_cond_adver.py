@@ -159,7 +159,7 @@ niter = 150        # # of iter at starting learning rate
 niter_decay = 250  # # of iter to linearly decay learning rate to zero
 multi_rand = True  # whether to use stochastic variables at multiple scales
 use_conv = True    # whether to use "internal" conv layers in gen/disc networks
-use_bn = True     # whether to use batch normalization throughout the model
+use_bn = False     # whether to use batch normalization throughout the model
 act_func = 'lrelu'  # activation func to use where they can be selected
 use_td_cond = False
 kld_weight = 2.
@@ -382,6 +382,7 @@ def clip_sigmoid(x):
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.]))
+lam_pix = sharedX(floatX([1.]))
 log_var = sharedX(floatX(np.zeros((20,))))
 gen_params = inf_gen_model.gen_params
 inf_params = inf_gen_model.inf_params
@@ -468,7 +469,7 @@ adv_loss = adv_c_loss + adv_s_loss
 # combine adversary-space style+content loss with pixel-space content loss
 # -- we rescale loss to be (roughly) comparable to proper log-likelihood in
 #    the original image space (with nc*npx*npx pixels)
-log_p_x = (1.0 * adv_loss) + (0.0 * pix_loss)
+log_p_x = (lam_pix[0] * pix_loss) + ((1. - lam_pix[0]) * adv_loss)
 # this is egregious abuse of terminology for log p(x)...
 
 # convert from vectors of observation losses to scalar batch losses
@@ -512,7 +513,7 @@ adv_cls_cost_truth = T.mean(sum(adv_cls_costs_truth))
 adv_cls_cost_guess = T.mean(sum(adv_cls_costs_guess))
 # combine classification and regularization costs
 adv_cost = (1.0 * (adv_cls_cost_truth + adv_cls_cost_guess) -
-            0.01 * vae_nll_cost + 
+            0.1 * vae_nll_cost + 
             0.0001 * sum(adv_act_regs) +
             adv_reg_cost)
 
@@ -593,14 +594,16 @@ out_file = open(log_name, 'wb')
 print("EXPERIMENT: {}".format(desc.upper()))
 
 batches_per_epoch = 1000
+pix_weights = np.linspace(0.2, 0.0, num=20)
 t = time()
 for epoch in range(1, (niter + niter_decay + 1)):
     # load a file containing a subset of the large full training set
     df_num = (epoch - 1) % len(data_files)
     Xtr, Xva, Xmu = load_data_file(data_files[df_num])
     epoch_batch_count = Xtr.shape[0] // nbatch
-    # mess with the KLd cost
-    lam_kld.set_value(floatX([kld_weight]))
+    # mess with the pixel cost weight
+    if epoch <= pix_weights.shape[0]:
+        lam_pix.set_value(floatX([pix_weights[epoch-1]]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(7)]
     v_epoch_costs = [0. for i in range(7)]

@@ -162,7 +162,7 @@ x_from_z = clip_sigmoid(x_from_z)
 ###############################################
 # BUILD THEANO FUNCTIONS AND HELPER FUNCTIONS #
 ###############################################
-
+t = time()
 print("Compiling sampling and reconstruction functions...")
 # make function to collect posterior latent samples and posterior mixture weights
 mix_weight_func = theano.function([x_in], mix_comp_weight)
