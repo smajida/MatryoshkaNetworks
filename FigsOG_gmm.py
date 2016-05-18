@@ -132,6 +132,8 @@ for tdm in td_modules:
 # collect list of TD modules that actually use z
 td_z_modules = [tdm for tdm in td_modules if hasattr(tdm, 'rand_shape')]
 
+print('z_shapes: {}'.format(z_shapes))
+
 
 def clip_sigmoid(x):
     output = sigmoid(T.clip(x, -15.0, 15.0))
