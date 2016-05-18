@@ -101,8 +101,8 @@ def transpose_images(img_ary, grid_shape):
     cols = grid_shape[1]
     img_ary_T = np.zeros(img_ary.shape)
     i = 0
-    for col in cols:
-        for row in rows:
+    for col in range(cols):
+        for row in range(rows):
             j = (row * cols) + col
             img_ary_T[i, :] = img_ary[j, :]
             i += 1
