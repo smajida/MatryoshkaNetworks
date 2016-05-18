@@ -122,7 +122,11 @@ inf_gen_model.load_params(inf_gen_param_file)
 z_shapes = []
 for tdm in td_modules:
     if hasattr(tdm, 'rand_shape'):
-        z_shapes.append(tdm.rand_shape)
+        z_shape = [d for d in tdm.rand_shape]
+        if len(z_shape) > 1:
+            # correct shape for carrying nz0 forward
+            z_shape[1] = z_shape[1] - nz0
+        z_shapes.append(tuple(z_shape))
     else:
         z_shapes.append(None)
 # collect list of TD modules that actually use z
@@ -199,7 +203,7 @@ def complete_z_samples(z_samps_partial, z_modules):
     for i, tdm in enumerate(z_modules):
         if i >= len(z_samps_partial):
             z_shape = [obs_count] + [d for d in tdm.rand_shape]
-            z_shape[1] = z_shape[1] - nz0
+            # z_shape[1] = z_shape[1]
             z_samps = rand_gen(size=tuple(z_shape))
             z_samps_full.append(z_samps)
     return z_samps_full
@@ -231,6 +235,7 @@ for i in range(10):
     b_start = i * batch_size
     b_end = b_start + batch_size
     xmb = train_transform(Xva[b_start:b_end, :])
+    va_batches.append(xmb)
     # collect samples from approximate posteriors for xmb
     post_z = post_sample_func(xmb)
     for zs_list, zs in zip(va_post_samples, post_z):
@@ -238,6 +243,7 @@ for i in range(10):
     # compute posterior mixture weights for xmb
     va_mix_posts.append(mix_post_func(xmb))
 # group up output of the batch computations
+va_batchs = np.concatenate(va_batches, axis=0)
 va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
 va_mix_posts = np.concatenate(va_mix_posts, axis=0)
 for i, vaps in enumerate(va_post_samples):
@@ -254,6 +260,13 @@ for comp_idx in range(mix_comps):
     mix_comp_members.append(np.asarray([i for i in range(obs_count)
                                         if comp_assignments[i] == comp_idx]))
 
+# collect data samples assigned to each mixture component
+mix_data_samples = []
+for comp_idx in range(mix_comps):
+
+
+# generate random samples from each mixture component
+
 comp_count = 20
 comp_reps = 15
 for i in range(min(6, len(z_shapes))):
@@ -261,17 +274,17 @@ for i in range(min(6, len(z_shapes))):
     # generate the "fixed" latent variables
     for j in range(len(z_shapes)):
         if z_shapes[j] is not None:
-            samp_shape = [d for d in z_shapes[j]]
+            z_shape = [d for d in z_shapes[j]]
             if j < i:
-                samp_shape = [comp_count] + samp_shape
+                samp_shape = [comp_count] + z_shape
                 z_samps = rand_gen(size=tuple(samp_shape))
                 z_samps = np.repeat(z_samps, comp_reps, axis=0)
             else:
-                samp_shape = [comp_count * comp_reps] + samp_shape
+                samp_shape = [comp_count * comp_reps] + z_shape
                 z_samps = rand_gen(size=tuple(samp_shape))
             lvar_samps.append(z_samps)
     # sample using the generated latent variables
-    samples = np.asarray(sample_func_scaled(lvar_samps, scale=0.8, no_scale=[0]))
+    samples = np.asarray(sample_func_scaled(lvar_samps, 0.8, no_scale=[0]))
     grayscale_grid_vis(draw_transform(samples), (comp_count, comp_reps), "{}/test_fig.png".format(result_dir))
 
 
