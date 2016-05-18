@@ -165,7 +165,8 @@ x_from_z = clip_sigmoid(x_from_z)
 
 print("Compiling sampling and reconstruction functions...")
 # make function to collect posterior latent samples and posterior mixture weights
-info_func = theano.function([x_in], [x_recon, z_samps, mix_comp_weight])
+mix_weight_func = theano.function([x_in], mix_comp_weight)
+post_sample_func = theano.function([x_in], z_samps)
 # make function to sample from model given all the latent vars
 sample_func = theano.function(z_rand, x_from_z)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
@@ -211,7 +212,8 @@ x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
 # test posterior info function
 x_in = train_transform(Xva[:100, :])
-post_info = info_func(x_in)
+mix_weights = mix_weight_func(x_in)
+post_samples = post_sample_func(x_in)
 
 
 # for i in range(min(6, len(z_shapes))):
