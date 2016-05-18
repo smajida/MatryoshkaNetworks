@@ -977,8 +977,10 @@ class InfGenModelGMM(object):
                                             rvs.shape[2], rvs.shape[3]))
                         mix_cond = mix_cond + mix_rand.dimshuffle(0, 1, 'x', 'x')
                         full_rvs = T.concatenate([mix_cond, rvs], axis=1)
+                        print('flag 1')
                     else:
                         full_rvs = rvs
+                        print('flag 2')
                     # feedforward using the reparametrized latent variable
                     # samples and incoming activations.
                     td_act_i = td_module.apply(input=td_acts[-1],
