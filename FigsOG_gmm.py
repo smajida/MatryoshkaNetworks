@@ -276,6 +276,15 @@ for comp_idx in range(mix_comps):
     comp_data_samples = va_batches[comp_members, :]
     mix_data_samples.append(comp_data_samples)
 
+# draw examples from each mixture component
+example_count = 10
+mix_examples = np.zeros((mix_comps * example_count, nc, npx, npx))
+for i in range(mix_comps):
+    s_idx = i * example_count
+    e_idx = s_idx + example_count
+    mix_examples[s_idx:e_idx, :, :, :] = mix_data_samples[i][:example_count, :, :, :]
+grayscale_grid_vis(draw_transform(mix_examples), (mix_comps, example_count),
+                   "{}/fig_mix_examples.png".format(result_dir))
 
 # generate random samples from each mixture component
 comp_count = 20
@@ -295,8 +304,8 @@ for i in range(min(6, len(z_shapes))):
                 z_samps = rand_gen(size=tuple(samp_shape))
             lvar_samps.append(z_samps)
     # sample using the generated latent variables
-    samples = np.asarray(sample_func_scaled(lvar_samps, 0.8, no_scale=[0]))
-    grayscale_grid_vis(draw_transform(samples), (comp_count, comp_reps), "{}/test_fig.png".format(result_dir))
+    samples = np.asarray(sample_func_scaled(lvar_samps, 1.0, no_scale=[0]))
+    grayscale_grid_vis(draw_transform(samples), (comp_count, comp_reps), "{}/fig_mix_samples.png".format(result_dir))
 
 
 
