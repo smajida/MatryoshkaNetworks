@@ -118,12 +118,14 @@ mix_module = inf_gen_model.mix_module
 inf_gen_model.load_params(inf_gen_param_file)
 
 # get shapes for all latent variables in model
+# -- shape is None for TD modules that don't use z
 z_shapes = []
 for tdm in td_modules:
     if hasattr(tdm, 'rand_shape'):
         z_shapes.append(tdm.rand_shape)
     else:
         z_shapes.append(None)
+# collect list of TD modules that actually use z
 td_z_modules = [tdm for tdm in td_modules if hasattr(tdm, 'rand_shape')]
 
 
@@ -135,7 +137,7 @@ def clip_sigmoid(x):
 # BUILD FUNCTIONS FOR SAMPLING FROM THE MODEL #
 ###############################################
 
-# Setup symbolic vars for the model inputs, outputs, and costs
+# setup symbolic vars for the model
 x_in = T.tensor4()
 z_in = []
 for z_shape in z_shapes:
@@ -204,16 +206,16 @@ def complete_z_samples(z_samps_partial, z_modules):
 # Draw random samples conditioned on each mixture component. #
 ##############################################################
 
+# test posterior info function
+x_in = train_transform(Xva[:100, :])
+mix_weights = mix_weight_func(x_in)
+post_samples = post_sample_func(x_in)
+
 # sample at random from the mixture components
 comp_idx = range(mix_comps)
 z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
 z_rand = complete_z_samples([z_mix], td_z_modules)
 x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
-
-# test posterior info function
-x_in = train_transform(Xva[:100, :])
-mix_weights = mix_weight_func(x_in)
-post_samples = post_sample_func(x_in)
 
 
 # for i in range(min(6, len(z_shapes))):
