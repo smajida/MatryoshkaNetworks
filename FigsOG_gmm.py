@@ -306,15 +306,20 @@ grayscale_grid_vis(samples, (example_count, mix_comps),
                    "{}/fig_mix_examples.png".format(result_dir))
 
 # generate random samples from each mixture component
+comp_idx = np.arange(mix_comps)
 z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
+print('z_mix.shape: {}'.format(z_mix.shape))
 comp_count = z_mix.shape[0]
 comp_reps = 15
 z_mix = np.repeat(z_mix, comp_reps, axis=0)
-for i in [1, 3, 5, 7]:
+print('z_mix.shape: {}'.format(z_mix.shape))
+for i in [0, 1, 3, 5, 7]:
     lvar_samps = []
     # generate the "fixed" latent variables
     for j in range(len(z_shapes)):
-        if j == 0:
+        if (j == 0) and (i == 0):
+            lvar_samps.append(mix_module.sample_mix_comps(comp_idx=comp_idx.repeat(comp_reps), batch_size=None))
+        elif (j == 0) and (i > 0):
             lvar_samps.append(z_mix)
         elif z_shapes[j] is not None:
             z_shape = [d for d in z_shapes[j]]
@@ -330,7 +335,7 @@ for i in [1, 3, 5, 7]:
     samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
     samples = draw_transform(samples)
     samples = transpose_images(samples, (comp_count, comp_reps))
-    grayscale_grid_vis(samples, (comp_reps, comp_count), "{}/fig_mix_samples.png".format(result_dir))
+    grayscale_grid_vis(samples, (comp_reps, comp_count), "{}/fig_mix_samples_{}.png".format(result_dir, i))
 
 
 
