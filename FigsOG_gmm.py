@@ -237,10 +237,13 @@ for i in range(10):
         print('batch {}, zs.shape: {}'.format(i, zs.shape))
     # compute posterior mixture weights for xmb
     va_mix_posts.append(mix_post_func(xmb))
-    print('batch {}, mix_post.shape: {}'.format(i, va_mix_posts[-1]))
+    print('batch {}, mix_post.shape: {}'.format(i, va_mix_posts[-1].shape))
 # group up output of the batch computations
 va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
 va_mix_posts = np.concatenate(va_mix_posts, axis=0)
+for i, vaps in enumerate(va_post_samples):
+    print('va_post_samples[{}].shape: {}'.format(i, vaps.shape))
+print('va_mix_posts.shape: {}'.format(va_mix_posts.shape))
 
 
 
