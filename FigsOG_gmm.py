@@ -117,11 +117,14 @@ mix_module = inf_gen_model.mix_module
 # load pretrained model parameters
 inf_gen_model.load_params(inf_gen_param_file)
 
-
-# get an ordered list of TD modules that require latent samples
-td_z_modules = [tdm for tdm in td_modules if
-                (inf_gen_model.merge_info[tdm.mod_name]['td_type'] in ['top', 'cond'])]
-z_shapes = [tdm.rand_shape for tdm in td_z_modules]
+# get shapes for all latent variables in model
+z_shapes = []
+for tdm in td_modules:
+    if hasattr(tdm, 'rand_shape'):
+        z_shapes.append(tdm.rand_shape)
+    else:
+        z_shapes.append(None)
+td_z_modules = [tdm for tdm in td_modules if hasattr(tdm, 'rand_shape')]
 
 
 def clip_sigmoid(x):
@@ -133,18 +136,27 @@ def clip_sigmoid(x):
 ###############################################
 
 # Setup symbolic vars for the model inputs, outputs, and costs
-X_in = T.tensor4()  # symbolic var for inputs to bottom-up inference network
-Z_all = [T.matrix()] + [T.tensor4() for tdm in td_z_modules[1:]]  # symbolic vars for each set of latent variables
+x_in = T.tensor4()
+z_in = []
+for z_shape in z_shapes:
+    if z_shape is not None:
+        if len(z_shape) == 1:
+            z_in.append(T.matrix())
+        else:
+            z_in.append(T.tensor4())
+    else:
+        z_in.append(None)
+z_rand = [z for z in z_in if z is not None]
 
 # run an inference pass through to get info about posterior distributions
-im_res_dict = inf_gen_model.apply_im(X_in, kl_mode='analytical')
-X_recon = clip_sigmoid(im_res_dict['td_output'])
+im_res_dict = inf_gen_model.apply_im(x_in, kl_mode='analytical')
+x_recon = clip_sigmoid(im_res_dict['td_output'])
 z_samps = im_res_dict['z_dict']
 mix_comp_weight = im_res_dict['mix_comp_weight']
 
 # run an un-grounded pass through generative stuff for sampling from model
-X_from_Z = inf_gen_model.apply_td(rand_vals=Z_all)
-X_from_Z = clip_sigmoid(X_from_Z)
+x_from_z = inf_gen_model.apply_td(rand_vals=z_in)
+x_from_z = clip_sigmoid(x_from_z)
 
 
 ###############################################
@@ -153,9 +165,9 @@ X_from_Z = clip_sigmoid(X_from_Z)
 
 print("Compiling sampling and reconstruction functions...")
 # make function to collect posterior latent samples and posterior mixture weights
-info_func = theano.function([X_in], [X_recon, z_samps, mix_comp_weight])
+info_func = theano.function([x_in], [x_recon, z_samps, mix_comp_weight])
 # make function to sample from model given all the latent vars
-sample_func = theano.function(Z_all, X_from_Z)
+sample_func = theano.function(z_rand, x_from_z)
 print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
 
@@ -194,8 +206,8 @@ def complete_z_samples(z_samps_partial, z_modules):
 # sample at random from the mixture components
 comp_idx = range(mix_comps)
 z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
-z_all = complete_z_samples([z_mix], td_z_modules)
-x_samples = sample_func_scaled(z_all, 0.9, no_scale=[0])
+z_rand = complete_z_samples([z_mix], td_z_modules)
+x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
 # test posterior info function
 x_in = train_transform(Xva[:100, :])
