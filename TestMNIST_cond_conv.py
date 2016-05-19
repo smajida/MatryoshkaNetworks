@@ -21,7 +21,7 @@ from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
 from lib.data_utils import \
-    shuffle, iter_data, get_masked_data, get_downsampling_masks
+    shuffle, iter_data, sample_mnist_quadrant_masks
 from load import load_binarized_mnist, load_udm
 
 #
@@ -78,8 +78,8 @@ use_bu_noise = False
 use_td_noise = False
 inf_mt = 0
 use_td_cond = False
-depth_7x7 = 3
-depth_14x14 = 3
+depth_7x7 = 1
+depth_14x14 = 1
 
 alphabet = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k']
 
@@ -87,8 +87,6 @@ ntrain = Xtr.shape[0]
 
 
 def train_transform(X, binarize=True):
-    # transform vectorized observations into convnet inputs
-    X = binarize_data(X)
     return floatX(X.reshape(-1, nc, npx, npx).transpose(0, 1, 2, 3))
 
 
@@ -195,13 +193,17 @@ test_func = theano.function(inputs, outputs)
 
 
 # grab data to feed into the model
-def make_model_input(x_in):
-    xm_gen = \
-        sample_mnist_quadrant_masks(x_in, num_quadrants)
-    # construct_masked_data(x_in, drop_prob=0.5, occ_dim=None,
-    #                       occ_count=1, data_mean=Xmu)
-    xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
-    xm_inf = xm_gen       # mask is 1 for pixels to predict
+def make_model_input(x_in, x_mu):
+    xm_gen = sample_mnist_quadrant_masks(x_in, num_quadrants)
+    x_mu = np.repeat(Xmu[np.newaxis, :], x_in.shape[0], axis=0)
+    # flip mask to be 1 for unobserved pixels
+    xm_gen = 1. - xm_gen
+    xm_inf = xm_gen
+    # binarize the complete observation
+    xg_inf = binarize_data(x_in)
+    # apply mask to get input to generator
+    xg_gen = ((1. - xm_gen) * xg_inf) + (xm_gen * x_mu)
+    # transform data for input to model
     xg_gen = train_transform(xg_gen)
     xm_gen = train_transform(xm_gen)
     xg_inf = train_transform(xg_inf)
@@ -255,7 +257,6 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.0, 1.0, 10)
 for epoch in range(1, (niter + niter_decay + 1)):
     Xtr = shuffle(Xtr)
     Xva = shuffle(Xva)
