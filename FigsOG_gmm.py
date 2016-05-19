@@ -288,7 +288,7 @@ for zzz in range(10):
         mix_comp_members.append(comp_members)
 
     # grab a few members from each component
-    comp_reps = 4
+    comp_reps = 3
     fig_members = []
     for comp_idx in range(mix_comps):
         fig_members.append(mix_comp_members[comp_idx][:comp_reps])
@@ -338,7 +338,7 @@ for zzz in range(10):
     samples = draw_transform(np.vstack(fix_depth_samples))
     print('samples.shape: {}'.format(samples.shape))
     grayscale_grid_vis(samples, (len(fix_depth_samples), mix_comps * comp_reps),
-                       "{}/fig_mix_samples_{}.png".format(result_dir, zzz))
+                       "{}/fig_mix_3samples_{}.png".format(result_dir, zzz))
 
 
 
