@@ -329,6 +329,7 @@ for fd in fix_depths:
     # sample using the generated latent variables
     samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
     samples = draw_transform(samples)
+    print('fd={}, samples.shape: {}'.format(fd, samples.shape))
     fix_depth_samples.append(samples)
 # stack the samples from each "fix depth"
 samples = draw_transform(np.vstack(fix_depth_samples))
