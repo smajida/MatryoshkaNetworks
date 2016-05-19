@@ -193,7 +193,7 @@ test_func = theano.function(inputs, outputs)
 
 
 # grab data to feed into the model
-def make_model_input(x_in, x_mu):
+def make_model_input(x_in):
     xm_gen = sample_mnist_quadrant_masks(x_in, num_quadrants)
     x_mu = np.repeat(Xmu[np.newaxis, :], x_in.shape[0], axis=0)
     # flip mask to be 1 for unobserved pixels
