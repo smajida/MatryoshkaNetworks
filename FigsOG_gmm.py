@@ -308,7 +308,7 @@ for zzz in range(10):
     # -- each round of sampling produces (mix_comps * comp_reps) samples...
     z_shapes = [zs for zs in z_shapes if zs is not None]
     assert (len(z_shapes) == len(mix_post_samples))
-    fix_depths = [0, 2, 4, 6, 8]
+    fix_depths = [1, 2, 4, 6, 8, 10]
     fix_depth_samples = [mix_examples]
     comp_idx = np.arange(mix_comps)
     for fd in fix_depths:
