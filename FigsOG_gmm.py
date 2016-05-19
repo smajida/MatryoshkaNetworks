@@ -328,7 +328,6 @@ for fd in fix_depths:
     assert (lvar_samps[-1].shape[0] == (mix_comps * comp_reps))
     # sample using the generated latent variables
     samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
-    samples = draw_transform(samples)
     print('fd={}, samples.shape: {}'.format(fd, samples.shape))
     fix_depth_samples.append(samples)
 # stack the samples from each "fix depth"
