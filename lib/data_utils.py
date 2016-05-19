@@ -366,7 +366,7 @@ def sample_mnist_quadrant_masks(x_in, num_quadrants):
             dummy[o_r:(o_r + 14), o_c:(o_c + 14)] = 0.
         # turn off the patch in the final mask
         masks[i, :] = masks[i, :] * dummy.ravel()
-    return mask.astype(theano.config.floatX)
+    return masks.astype(theano.config.floatX)
 
 
 def shift_and_scale_into_01(X):
