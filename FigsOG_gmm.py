@@ -266,9 +266,6 @@ for i in range(20):
 va_batches = np.concatenate(va_batches, axis=0)
 va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
 va_mix_posts = np.concatenate(va_mix_posts, axis=0)
-for i, vaps in enumerate(va_post_samples):
-    print('va_post_samples[{}].shape: {}'.format(i, vaps.shape))
-print('va_mix_posts.shape: {}'.format(va_mix_posts.shape))
 
 # collect indices of examples sorted most strongly into each mixture component
 # -- indices are indices into va_post_samples and va_mix_posts
@@ -292,6 +289,16 @@ fig_members = []
 for comp_idx in range(mix_comps):
     fig_members.append(mix_comp_members[comp_idx][:comp_reps])
 fig_members = np.concatenate(fig_members, axis=0)
+print('fig_members.shape: {}'.format(fig_members.shape))
+
+# grab the observations for these mixture members
+mix_examples = va_batches[fig_members]
+print('mix_examples.shape: {}'.format(mix_examples.shape))
+
+# grad the posterior samples for these mixture members
+mix_post_samples = [vaps[fig_members] for vaps in va_post_samples]
+for i, mps in enumerate(mix_post_samples):
+    print('mix_post_samples[{}].shape: {}'.format(i, mps))
 
 # # collect data and posterior samples for each mixture component
 # mix_data_samples = []
