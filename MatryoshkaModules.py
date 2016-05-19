@@ -3937,6 +3937,20 @@ class GMMPriorModule(object):
         param_dict['V'] = self.V.get_value(borrow=False)
         return param_dict
 
+    def shuffle_components(self):
+        """
+        Shuffle order of mixture components.
+        """
+        comp_idx = np.arange(self.mix_comps)
+        npr.shuffle(comp_idx)
+        _M = self.M.get_value(borrow=False).T
+        _V = self.V.get_value(borrow=False).T
+        _M = _M[comp_idx]
+        _V = _V[comp_idx]
+        self.M.set_value(floatX(_M.T))
+        self.V.set_value(floatX(_V.T))
+        return
+
     def compute_kld_info(self, in_means, in_logvars, z_vals):
         '''
         Compute information about KL divergence between distributions with

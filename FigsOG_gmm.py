@@ -238,103 +238,107 @@ x_in = train_transform(Xva[:100, :])
 mix_weights = mix_post_func(x_in)
 post_samples = post_sample_func(x_in)
 
-# sample at random from the mixture components
-comp_idx = range(mix_comps)
-z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
-z_mix = np.repeat(z_mix, 10, axis=0)
-z_rand = complete_z_samples([z_mix], td_z_modules)
-x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
+for zzz in range(10):
+    # shuffle order of components in model
+    mix_module.shuffle_components()
 
-print('Collecting posterior info for validation set...')
-batch_size = 200
-va_batches = []
-va_post_samples = [[] for z in z_rand]
-va_mix_posts = []
-for i in range(20):
-    b_start = i * batch_size
-    b_end = b_start + batch_size
-    xmb = train_transform(Xva[b_start:b_end, :])
-    va_batches.append(xmb)
-    # collect samples from approximate posteriors for xmb
-    post_z = post_sample_func(xmb)
-    for zs_list, zs in zip(va_post_samples, post_z):
-        zs_list.append(zs)
-    # compute posterior mixture weights for xmb
-    va_mix_posts.append(mix_post_func(xmb))
-# group up output of the batch computations
-va_batches = np.concatenate(va_batches, axis=0)
-va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
-va_mix_posts = np.concatenate(va_mix_posts, axis=0)
+    # sample at random from the mixture components
+    comp_idx = range(mix_comps)
+    z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
+    z_mix = np.repeat(z_mix, 10, axis=0)
+    z_rand = complete_z_samples([z_mix], td_z_modules)
+    x_samples = sample_func_scaled(z_rand, 0.9, no_scale=[0])
 
-# collect indices of examples sorted most strongly into each mixture component
-# -- indices are indices into va_post_samples and va_mix_posts
-obs_count = va_mix_posts.shape[0]
-mix_comp_members = []
-comp_assignments = np.argmax(va_mix_posts, axis=1)
-for comp_idx in range(mix_comps):
-    # get examples assigned to this component, after sorting based
-    # on strength of assignment to the component
-    comp_members = np.asarray([i for i in range(obs_count)
-                               if comp_assignments[i] == comp_idx])
-    # get posterior mixture weights for members of this component
-    comp_weights = va_mix_posts[comp_members, comp_idx]
-    sort_idx = np.argsort(-comp_weights)  # sort greatest -> least
-    comp_members = comp_members[sort_idx]  # sorted list of members
-    mix_comp_members.append(comp_members)
+    print('Collecting posterior info for validation set...')
+    batch_size = 200
+    va_batches = []
+    va_post_samples = [[] for z in z_rand]
+    va_mix_posts = []
+    for i in range(20):
+        b_start = i * batch_size
+        b_end = b_start + batch_size
+        xmb = train_transform(Xva[b_start:b_end, :])
+        va_batches.append(xmb)
+        # collect samples from approximate posteriors for xmb
+        post_z = post_sample_func(xmb)
+        for zs_list, zs in zip(va_post_samples, post_z):
+            zs_list.append(zs)
+        # compute posterior mixture weights for xmb
+        va_mix_posts.append(mix_post_func(xmb))
+    # group up output of the batch computations
+    va_batches = np.concatenate(va_batches, axis=0)
+    va_post_samples = [np.concatenate(ary_list, axis=0) for ary_list in va_post_samples]
+    va_mix_posts = np.concatenate(va_mix_posts, axis=0)
 
-# grab a few members from each component
-comp_reps = 4
-fig_members = []
-for comp_idx in range(mix_comps):
-    fig_members.append(mix_comp_members[comp_idx][:comp_reps])
-fig_members = np.concatenate(fig_members, axis=0)
-print('fig_members.shape: {}'.format(fig_members.shape))
+    # collect indices of examples sorted most strongly into each mixture component
+    # -- indices are indices into va_post_samples and va_mix_posts
+    obs_count = va_mix_posts.shape[0]
+    mix_comp_members = []
+    comp_assignments = np.argmax(va_mix_posts, axis=1)
+    for comp_idx in range(mix_comps):
+        # get examples assigned to this component, after sorting based
+        # on strength of assignment to the component
+        comp_members = np.asarray([i for i in range(obs_count)
+                                   if comp_assignments[i] == comp_idx])
+        # get posterior mixture weights for members of this component
+        comp_weights = va_mix_posts[comp_members, comp_idx]
+        sort_idx = np.argsort(-comp_weights)  # sort greatest -> least
+        comp_members = comp_members[sort_idx]  # sorted list of members
+        mix_comp_members.append(comp_members)
 
-# grab the observations for these mixture members
-mix_examples = va_batches[fig_members]
-print('mix_examples.shape: {}'.format(mix_examples.shape))
+    # grab a few members from each component
+    comp_reps = 4
+    fig_members = []
+    for comp_idx in range(mix_comps):
+        fig_members.append(mix_comp_members[comp_idx][:comp_reps])
+    fig_members = np.concatenate(fig_members, axis=0)
+    print('fig_members.shape: {}'.format(fig_members.shape))
 
-# grad the posterior samples for these mixture members
-mix_post_samples = [vaps[fig_members] for vaps in va_post_samples]
-for i, mps in enumerate(mix_post_samples):
-    print('mix_post_samples[{}].shape: {}'.format(i, mps.shape))
+    # grab the observations for these mixture members
+    mix_examples = va_batches[fig_members]
+    print('mix_examples.shape: {}'.format(mix_examples.shape))
 
-# generate from samples from the mixture components.
-# -- each round of sampling produces (mix_comps * comp_reps) samples...
-z_shapes = [zs for zs in z_shapes if zs is not None]
-assert (len(z_shapes) == len(mix_post_samples))
-fix_depths = [0, 1, 3, 5, 7]
-fix_depth_samples = [mix_examples]
-comp_idx = np.arange(mix_comps)
-for fd in fix_depths:
-    lvar_samps = []
-    # generate the "fixed" latent variables
-    for j in range(len(z_shapes)):
-        if (j == 0) and (fd == 0):
-            # sample freely from top to bottom (start from mixture priors)
-            z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx.repeat(comp_reps),
-                                                batch_size=None)
-            lvar_samps.append(z_mix)
-        elif (j < fd):
-            # guide with samples from examples' posteriors
-            lvar_samps.append(mix_post_samples[j])
-        else:
-            # sample remaining "free" latent variables from prior
-            z_shape = [d for d in z_shapes[j]]
-            samp_shape = [mix_comps * comp_reps] + z_shape
-            z_samps = rand_gen(size=tuple(samp_shape))
-            lvar_samps.append(z_samps)
-    assert (lvar_samps[-1].shape[0] == (mix_comps * comp_reps))
-    # sample using the generated latent variables
-    samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
-    print('fd={}, samples.shape: {}'.format(fd, samples.shape))
-    fix_depth_samples.append(samples)
-# stack the samples from each "fix depth"
-samples = draw_transform(np.vstack(fix_depth_samples))
-print('samples.shape: {}'.format(samples.shape))
-grayscale_grid_vis(samples, (len(fix_depth_samples), mix_comps * comp_reps),
-                   "{}/fig_mix_samples.png".format(result_dir))
+    # grad the posterior samples for these mixture members
+    mix_post_samples = [vaps[fig_members] for vaps in va_post_samples]
+    for i, mps in enumerate(mix_post_samples):
+        print('mix_post_samples[{}].shape: {}'.format(i, mps.shape))
+
+    # generate from samples from the mixture components.
+    # -- each round of sampling produces (mix_comps * comp_reps) samples...
+    z_shapes = [zs for zs in z_shapes if zs is not None]
+    assert (len(z_shapes) == len(mix_post_samples))
+    fix_depths = [0, 2, 4, 6, 8]
+    fix_depth_samples = [mix_examples]
+    comp_idx = np.arange(mix_comps)
+    for fd in fix_depths:
+        lvar_samps = []
+        # generate the "fixed" latent variables
+        for j in range(len(z_shapes)):
+            if (j == 0) and (fd == 0):
+                # sample freely from top to bottom (start from mixture priors)
+                z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx.repeat(comp_reps),
+                                                    batch_size=None)
+                lvar_samps.append(z_mix)
+            elif (j < fd):
+                # guide with samples from examples' posteriors
+                lvar_samps.append(mix_post_samples[j])
+            else:
+                # sample remaining "free" latent variables from prior
+                z_shape = [d for d in z_shapes[j]]
+                samp_shape = [mix_comps * comp_reps] + z_shape
+                z_samps = rand_gen(size=tuple(samp_shape))
+                lvar_samps.append(z_samps)
+        assert (lvar_samps[-1].shape[0] == (mix_comps * comp_reps))
+        # sample using the generated latent variables
+        samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
+        print('fd={}, samples.shape: {}'.format(fd, samples.shape))
+        fix_depth_samples.append(samples)
+    # stack the samples from each "fix depth"
+    samples = draw_transform(np.vstack(fix_depth_samples))
+    print('samples.shape: {}'.format(samples.shape))
+    grayscale_grid_vis(samples, (len(fix_depth_samples), mix_comps * comp_reps),
+                       "{}/fig_mix_samples_{}.png".format(result_dir, zzz))
 
 
 
