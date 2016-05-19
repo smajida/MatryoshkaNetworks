@@ -251,7 +251,7 @@ batch_size = 200
 va_batches = []
 va_post_samples = [[] for z in z_rand]
 va_mix_posts = []
-for i in range(10):
+for i in range(20):
     b_start = i * batch_size
     b_end = b_start + batch_size
     xmb = train_transform(Xva[b_start:b_end, :])
@@ -286,60 +286,68 @@ for comp_idx in range(mix_comps):
     comp_members = comp_members[sort_idx]  # sorted list of members
     mix_comp_members.append(comp_members)
 
-# collect data and posterior samples for each mixture component
-mix_data_samples = []
-for comp_idx in range(mix_comps):
-    comp_members = mix_comp_members[comp_idx]
-    comp_data_samples = va_batches[comp_members, :]
-    mix_data_samples.append(comp_data_samples)
-
-# draw examples from each mixture component
+# grab a few members from each component
 comp_reps = 4
-comp_count = mix_comps
-mix_examples = np.zeros((comp_count * comp_reps, nc, npx, npx))
-for i in range(comp_count):
-    s_idx = i * comp_reps
-    e_idx = s_idx + comp_reps
-    mix_examples[s_idx:e_idx, :, :, :] = mix_data_samples[i][:comp_reps, :, :, :]
-real_samples = draw_transform(mix_examples)
-grayscale_grid_vis(real_samples, (1, comp_reps * comp_count),
-                   "{}/fig_mix_examples.png".format(result_dir))
+fig_members = []
+for comp_idx in range(mix_comps):
+    fig_members.append(mix_comp_members[comp_idx][:comp_reps])
+fig_members = np.concatenate(fig_members, axis=0)
 
-# generate from samples from the mixture components.
-# -- each round of sampling produces (comp_count * comp_reps) samples...
-fix_depths = [0, 1, 3, 5, 7]
-fix_depth_samples = [real_samples]
-comp_idx = np.arange(comp_count)
-for fd in fix_depths:
-    lvar_samps = []
-    # generate the "fixed" latent variables
-    for j in range(len(z_shapes)):
-        if (j == 0) and (fd == 0):
-            z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx.repeat(comp_reps), batch_size=None)
-            lvar_samps.append(z_mix)
-        elif (j == 0) and (fd > 0):
-            z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
-            z_mix = np.repeat(z_mix, comp_reps, axis=0)
-            lvar_samps.append(z_mix)
-        elif z_shapes[j] is not None:
-            z_shape = [d for d in z_shapes[j]]
-            if j < fd:
-                samp_shape = [comp_count] + z_shape
-                z_samps = rand_gen(size=tuple(samp_shape))
-                z_samps = np.repeat(z_samps, comp_reps, axis=0)
-            else:
-                samp_shape = [comp_count * comp_reps] + z_shape
-                z_samps = rand_gen(size=tuple(samp_shape))
-            lvar_samps.append(z_samps)
-    # sample using the generated latent variables
-    samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
-    samples = draw_transform(samples)
-    fix_depth_samples.append(samples)
-# stack the samples from each "fix depth"
-samples = draw_transform(np.vstack(fix_depth_samples))
-print('samples.shape: {}'.format(samples.shape))
-grayscale_grid_vis(samples, (len(fix_depth_samples), comp_count * comp_reps),
-                   "{}/fig_mix_samples.png".format(result_dir))
+# # collect data and posterior samples for each mixture component
+# mix_data_samples = []
+# for comp_idx in range(mix_comps):
+#     comp_members = mix_comp_members[comp_idx]
+#     comp_data_samples = va_batches[comp_members, :]
+#     mix_data_samples.append(comp_data_samples)
+
+# # draw examples from each mixture component
+# comp_reps = 4
+# comp_count = mix_comps
+# mix_examples = np.zeros((comp_count * comp_reps, nc, npx, npx))
+# mix_post_samples = []
+# for i in range(comp_count):
+#     s_idx = i * comp_reps
+#     e_idx = s_idx + comp_reps
+#     mix_examples[s_idx:e_idx, :, :, :] = mix_data_samples[i][:comp_reps, :, :, :]
+# real_samples = draw_transform(mix_examples)
+# grayscale_grid_vis(real_samples, (1, comp_reps * comp_count),
+#                    "{}/fig_mix_examples.png".format(result_dir))
+
+# # generate from samples from the mixture components.
+# # -- each round of sampling produces (comp_count * comp_reps) samples...
+# fix_depths = [0, 1, 3, 5, 7]
+# fix_depth_samples = [real_samples]
+# comp_idx = np.arange(comp_count)
+# for fd in fix_depths:
+#     lvar_samps = []
+#     # generate the "fixed" latent variables
+#     for j in range(len(z_shapes)):
+#         if (j == 0) and (fd == 0):
+#             z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx.repeat(comp_reps), batch_size=None)
+#             lvar_samps.append(z_mix)
+#         elif (j == 0) and (fd > 0):
+#             z_mix = mix_module.sample_mix_comps(comp_idx=comp_idx, batch_size=None)
+#             z_mix = np.repeat(z_mix, comp_reps, axis=0)
+#             lvar_samps.append(z_mix)
+#         elif z_shapes[j] is not None:
+#             z_shape = [d for d in z_shapes[j]]
+#             if j < fd:
+#                 samp_shape = [comp_count] + z_shape
+#                 z_samps = rand_gen(size=tuple(samp_shape))
+#                 z_samps = np.repeat(z_samps, comp_reps, axis=0)
+#             else:
+#                 samp_shape = [comp_count * comp_reps] + z_shape
+#                 z_samps = rand_gen(size=tuple(samp_shape))
+#             lvar_samps.append(z_samps)
+#     # sample using the generated latent variables
+#     samples = sample_func_scaled(lvar_samps, 1.0, no_scale=[0])
+#     samples = draw_transform(samples)
+#     fix_depth_samples.append(samples)
+# # stack the samples from each "fix depth"
+# samples = draw_transform(np.vstack(fix_depth_samples))
+# print('samples.shape: {}'.format(samples.shape))
+# grayscale_grid_vis(samples, (len(fix_depth_samples), comp_count * comp_reps),
+#                    "{}/fig_mix_samples.png".format(result_dir))
 
 
 
