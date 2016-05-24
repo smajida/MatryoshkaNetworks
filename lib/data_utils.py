@@ -349,23 +349,25 @@ def sample_mnist_quadrant_masks(x_in, num_quadrants):
     """
     Sample a random patch mask for each image in X.
     """
-    im_shape = (28, 28)
     obs_count = x_in.shape[0]
-    rows = 14
-    cols = 14
     off_locs = [(0, 0), (0, 14), (14, 0), (14, 14)]
-    dummy = np.zeros(im_shape)
-    masks = np.ones((obs_count, im_shape[0] * im_shape[1]))
+    dummy = np.zeros((28, 28))
+    masks = np.ones((obs_count, 28 * 28))
+    mask_locs = np.arange(4)
     for i in range(obs_count):
         # reset the dummy mask
         dummy = (0. * dummy) + 1.
-        # select a random patch in the dummy mask
-        o_r = off_locs[off_idx[i, 0]]
-        o_c = off_locs[off_idx[i, 1]]
-        dummy[o_r:(o_r + rows), o_c:(o_c + cols)] = 0.
+        # get the quadrants to mask
+        npr.shuffle(mask_locs)
+        for j in range(num_quadrants):
+            # switch off a quadrant in the dummy mask
+            loc_j = off_locs[mask_locs[j]]
+            o_r, o_c = loc_j
+            dummy[o_r:(o_r + 14), o_c:(o_c + 14)] = 0.
         # turn off the patch in the final mask
         masks[i, :] = masks[i, :] * dummy.ravel()
-    return mask.astype(theano.config.floatX)
+    return masks.astype(theano.config.floatX)
+
 
 def shift_and_scale_into_01(X):
     X = X - np.min(X, axis=1, keepdims=True)
