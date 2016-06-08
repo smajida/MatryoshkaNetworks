@@ -74,6 +74,7 @@ td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
+recon_steps = 5
 
 ntrain = Xtr.shape[0]
 
@@ -449,7 +450,7 @@ im_states_inf = None
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
-for i in range(5):
+for i in range(recon_steps):
     # mix observed input and current working state to make input
     # for the next step of refinement
     Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
@@ -674,6 +675,13 @@ for epoch in range(1, (niter + niter_decay + 1)):
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
+    if (epoch <= 10) or ((epoch % 10) == 0):
+        recon_count = 25
+        recon_input = make_model_input(Xva[:recon_count, :])
+        recons = recon_func(recon_input)
+        recons = draw_transform(np.vstack(recons))
+        grayscale_grid_vis(recons, (recon_steps + 1, recon_count),
+                           "{}/recons_{}.png".format(result_dir, epoch))
 
 
 
