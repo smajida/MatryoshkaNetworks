@@ -449,7 +449,7 @@ im_states_inf = None
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
-for i in range(3):
+for i in range(2):
     # mix observed input and current working state to make input
     # for the next step of refinement
     Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
@@ -483,7 +483,7 @@ Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
 step_recons.append(Xg_recon)
 
 # compute masked reconstruction error from final step.
-log_p_x = T.sum(log_prob_gaussian(
+log_p_x = T.sum(log_prob_bernoulli(
                 T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
                 mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)
@@ -528,12 +528,13 @@ print('Compiling test function...')
 test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], [full_cost])
 model_input = make_model_input(Xtr[0:100, :])
 test_out = test_func(*model_input)
+print('test_out: {}'.format(test_out))
 print('DONE.')
 
 # stuff for performing updates
 lrt = sharedX(0.0005)
 b1t = sharedX(0.9)
-updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=1000.0)
+updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=10.0)
 
 # build training cost and update functions
 t = time()
