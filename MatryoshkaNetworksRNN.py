@@ -105,8 +105,8 @@ class DeepSeqCondGenRNN(object):
         '''
         Set the latent sample switch to use samples from the given source.
         '''
-        assert (source_name in ['inf', 'gen'])
-        switch_val = floatX([1.]) if (source_name == 'inf') else floatX([0.])
+        assert (source in ['inf', 'gen'])
+        switch_val = floatX([1.]) if (source == 'inf') else floatX([0.])
         self.sample_switch.set_value(switch_val)
         return
 
