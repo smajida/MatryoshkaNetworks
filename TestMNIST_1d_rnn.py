@@ -389,7 +389,7 @@ def make_model_input(x_in):
     # construct "imputational upsampling" masks
     xg_gen, xg_inf, xm_gen = \
         get_masked_data(x_in, im_shape=(1, npx, npx), drop_prob=0.,
-                        occ_shape=(12, 12), occ_count=2,
+                        occ_shape=(14, 14), occ_count=2,
                         data_mean=Xmu)
     # reshape and process data for use as model input
     xm_gen = 1. - xm_gen  # mask is 1 for unobserved pixels
@@ -449,7 +449,7 @@ im_states_inf = None
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
-for i in range(2):
+for i in range(5):
     # mix observed input and current working state to make input
     # for the next step of refinement
     Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
