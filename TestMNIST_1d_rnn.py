@@ -678,7 +678,9 @@ for epoch in range(1, (niter + niter_decay + 1)):
     if (epoch <= 10) or ((epoch % 10) == 0):
         recon_count = 25
         recon_input = make_model_input(Xva[:recon_count, :])
-        recons = recon_func(recon_input)
+        seq_cond_gen_model.set_sample_switch('gen')
+        recons = recon_func(*recon_input)
+        seq_cond_gen_model.set_sample_switch('inf')
         recons = draw_transform(np.vstack(recons))
         grayscale_grid_vis(recons, (recon_steps + 1, recon_count),
                            "{}/recons_{}.png".format(result_dir, epoch))
