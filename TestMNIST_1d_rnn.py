@@ -479,12 +479,14 @@ for i in range(2):
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
-Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
+final_preds = clip_sigmoid(canvas)
+Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
 step_recons.append(Xg_recon)
+
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_bernoulli(
-                T.flatten(Xg_inf, 2), T.flatten(Xg_recon, 2),
+                T.flatten(Xg_inf, 2), T.flatten(final_preds, 2),
                 mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)
 
@@ -525,14 +527,25 @@ full_cost = vae_nll_cost + opt_kld_cost + vae_reg_cost
 #################################################################
 
 print('Compiling test function...')
-test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], [full_cost])
+test_outputs = [full_cost, Xg_inf, Xm_inf, final_preds]
+test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], test_outputs)
 model_input = make_model_input(Xtr[0:100, :])
 test_out = test_func(*model_input)
-print('test_out: {}'.format(test_out))
+to_full_cost = test_out[0]
+to_Xg_inf = test_out[1]
+to_Xm_inf = test_out[2]
+to_final_preds = test_out[3]
+print('full_cost: {}'.format(to_full_cost))
+print('np.min(to_Xg_inf): {}'.format(np.min(to_Xg_inf)))
+print('np.max(to_Xg_inf): {}'.format(np.max(to_Xg_inf)))
+print('np.min(to_Xm_inf): {}'.format(np.min(to_Xm_inf)))
+print('np.max(to_Xm_inf): {}'.format(np.max(to_Xm_inf)))
+print('np.min(to_final_preds): {}'.format(np.min(to_final_preds)))
+print('np.max(to_final_preds): {}'.format(np.max(to_final_preds)))
 print('DONE.')
 
 # stuff for performing updates
-lrt = sharedX(0.0005)
+lrt = sharedX(0.001)
 b1t = sharedX(0.9)
 updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=10.0)
 
