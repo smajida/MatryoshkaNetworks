@@ -422,3 +422,14 @@ def load_omniglot(data_dir, target_type='char'):
         Ytr = omni_raw['target'].T.astype(np.float32)
         Yte = omni_raw['testtarget'].T.astype(np.float32)
     return Xtr, Ytr, Xte, Yte
+
+
+def load_text8(data_dir):
+    '''
+    Load a character-based version of the text8 corpus.
+    '''
+    char_seq = cPickle.load(open('{}/text8.pkl'.format(data_dir)))
+    text8_dict = cPickle.load(open('{}/text8.dict.pkl'.format(data_dir)))
+    char2idx = text8_dict[0]
+    idx2char = {v: k for k, v in char2idx.items()}
+    return char_seq, idx2char, char2idx
