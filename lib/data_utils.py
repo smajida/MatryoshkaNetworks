@@ -423,6 +423,7 @@ def get_masked_seqs(xi,
 
     xi.shape = (nbatch, seq_len, vec_dim)
     '''
+    print('get_masked_seqs(), xi.shape: {}'.format(xi.shape))
     obs_count = xi.shape[0]
     seq_shape = (xi.shape[1], xi.shape[2])
     # sample uniform random masks
