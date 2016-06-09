@@ -6,6 +6,17 @@ import theano
 from rng import np_rng, py_rng
 
 
+def one_hot(x, n):
+    '''
+    convert index representation to one-hot representation
+    '''
+    I = np.eye(n)
+    x = np.array(x)
+    final_shape = tuple(list(x.shape) + [n])
+    oh_ary = I[x.flatten()].reshape(final_shape)
+    return oh_ary
+
+
 def center_crop(x, ph, pw=None):
     if pw is None:
         pw = ph
@@ -373,3 +384,70 @@ def shift_and_scale_into_01(X):
     X = X - np.min(X, axis=1, keepdims=True)
     X = X / np.max(X, axis=1, keepdims=True)
     return X
+
+
+def sample_onehot_subseqs(source_seq, seq_count, seq_len, n):
+    '''
+    Sample subsequences of the given source sequence, and convert to one-hot.
+    '''
+    source_len = source_seq.shape[0]
+    max_start_idx = source_len - seq_len
+    # sample the "base" sequences
+    start_idx = npr.randint(low=0, high=max_start_idx, size=(seq_count,))
+    idx_seqs = []
+    for i in range(seq_count):
+        subseq = source_seq[start_idx[i]:(start_idx[i] + seq_len)]
+        idx_seqs.append(subseq[np.newaxis, :])
+    idx_seqs = np.vstack(idx_seqs)
+    one_hot_seqs = one_hot(idx_seqs, n=n)
+    return one_hot_seqs
+
+
+def get_masked_seqs(xi,
+                    drop_prob=0.0,
+                    occ_len=None,
+                    occ_count=1,
+                    data_mean=None):
+    '''
+    Construct randomly masked data from xi.
+
+    Assume data is passed as 3d matrix of sequences of vectors.
+
+    xi.shape = (nbatch, seq_len, vec_dim)
+    '''
+    obs_count = xi.shape[0]
+    seq_shape = (xi.shape[1], xi.shape[2])
+    # sample uniform random masks
+    if drop_prob > 1e-3:
+        # apply fully-random occlusion
+        xm_rand = sample_masks(xi, drop_prob=drop_prob)
+        assert False, 'fully random masking not implemented yet'
+    else:
+        # don't apply fully-random occlusion
+        xm_rand = np.ones(xi.shape)
+    if occ_len is None:
+        # don't apply rectangular occlusion
+        xm_patch = np.ones(xi.shape)
+    else:
+        # apply rectangular occlusion to 1 channel imgs
+        xm_patch = \
+            sample_patch_masks(obs_count,
+                               (seq_shape[0], seq_shape[1]),
+                               (occ_len, seq_shape[1]),
+                               patch_count=occ_count)
+    # make default values to swap in for masked values
+    if data_mean is None:
+        data_mean = np.zeros(xi.shape)
+    # apply masks to sequences of vectors
+    xo = xi.copy()
+    xm = xm_rand * xm_patch
+    xi = (xm * xi) + ((1.0 - xm) * data_mean)
+    xi = to_fX(xi)
+    xo = to_fX(xo)
+    xm = to_fX(xm)
+    return xi, xo, xm
+
+
+##############
+# EYE BUFFER #
+##############
