@@ -131,6 +131,9 @@ def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1):
     """
     Sample a random patch mask for each image in X.
     """
+    print('im_shape: {}'.format(im_shape))
+    print('patch_shape: {}'.format(patch_shape))
+
     rows = patch_shape[0]
     cols = patch_shape[1]
     try:
@@ -143,7 +146,7 @@ def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1):
         off_col = npr.randint(1, high=(im_shape[1] - cols - 1),
                               size=(obs_count, patch_count))
     except:
-        print('off_row: low=1, high={}'.format(im_shape[0] - cols - 1))
+        print('off_col: low=1, high={}'.format(im_shape[0] - cols - 1))
         assert False, 'derp'
     dummy = np.zeros(im_shape)
     mask = np.ones((obs_count, im_shape[0] * im_shape[1]))
