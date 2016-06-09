@@ -16,7 +16,7 @@ from lib import activations
 from lib import updates
 from lib import inits
 from lib.ops import log_mean_exp, binarize_data
-from lib.costs import log_prob_bernoulli, log_prob_gaussian
+from lib.costs import log_prob_categorical
 from lib.vis import grayscale_grid_vis
 from lib.rng import py_rng, np_rng, t_rng, cu_rng, set_seed
 from lib.theano_utils import floatX, sharedX
@@ -381,9 +381,12 @@ def make_model_input(source_seq, batch_size):
     return xg_gen, xm_gen, xg_inf, xm_inf
 
 
-def clip_sigmoid(x):
-    output = sigmoid(T.clip(x, -15.0, 15.0))
-    return output
+def clip_softmax(x, axis=2):
+    x = T.clip(x, -10., 10.)
+    x = x - T.max(x, axis=axis, keepdims=True)
+    x = T.exp(x)
+    x = x / T.sum(x, axis=axis, keepdims=True)
+    return x
 
 
 ######################################################
@@ -418,7 +421,7 @@ step_recons = []
 for i in range(recon_steps):
     # mix observed input and current working state to make input
     # for the next step of refinement
-    Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
+    Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_softmax(canvas, axis=2))
     step_recons.append(Xg_i)
     # concatenate all inputs to generator and inferencer
     Xa_gen_i = T.concatenate([Xg_i, Xm_gen], axis=1)
@@ -441,13 +444,13 @@ for i in range(recon_steps):
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
-final_preds = clip_sigmoid(canvas)
+final_preds = clip_softmax(canvas, axis=2)
 Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
 step_recons.append(Xg_recon)
 
 
 # compute masked reconstruction error from final step.
-log_p_x = T.sum(log_prob_bernoulli(
+log_p_x = T.sum(log_prob_categorical(
                 T.flatten(Xg_inf, 2), T.flatten(final_preds, 2),
                 mask=T.flatten(Xm_inf, 2), do_sum=False),
                 axis=1)

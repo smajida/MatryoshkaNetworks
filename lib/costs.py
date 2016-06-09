@@ -91,6 +91,22 @@ def log_prob_bernoulli(p_true, p_approx, mask=None, do_sum=True):
     return T.cast(result, 'floatX')
 
 
+def log_prob_categorical(p_true, p_approx, mask=None, do_sum=True):
+    """
+    Compute log probability of some categorical variables with probabilities
+    given by p_true, for probability estimates given by p_approx. We'll
+    compute joint log probabilities over row-wise groups. (Theano version).
+    """
+    if mask is None:
+        mask = T.ones(p_approx.shape)
+    log_prob = p_true * T.log(p_approx + 1e-8)
+    if do_sum:
+        result = T.sum((log_prob * mask), axis=1, keepdims=False)
+    else:
+        result = log_prob * mask
+    return T.cast(result, 'floatX')
+
+
 def log_prob_gaussian(mu_true, mu_approx, log_vars=1.0, do_sum=True,
                       use_huber=False, mask=None):
     """
