@@ -67,7 +67,7 @@ td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
-recon_steps = 2
+recon_steps = 5
 
 
 def train_transform(X):
@@ -386,16 +386,6 @@ def clip_sigmoid(x):
     return output
 
 
-def make_2d_to_1d(x_2d):
-    x_1d = x_2d.dimshuffle(0, 2, 3, 1)
-    return x_1d
-
-
-def make_1d_to_2d(x_1d):
-    x_2d = x_1d.dimshuffle(0, 3, 1, 2)
-    return x_2d
-
-
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
@@ -406,12 +396,8 @@ Xm_gen = T.tensor4()  # mask indicating parts that are masked out
 Xg_inf = T.tensor4()  # complete observation, for input to inference net
 Xm_inf = T.tensor4()  # mask for which bits to predict
 # get the full inputs to the generator and inferencer networks
-Xa_gen = T.concatenate([make_2d_to_1d(Xg_gen),
-                        make_2d_to_1d(Xm_gen)], axis=1)
-Xa_inf = T.concatenate([make_2d_to_1d(Xg_gen),
-                        make_2d_to_1d(Xm_gen),
-                        make_2d_to_1d(Xg_inf),
-                        make_2d_to_1d(Xm_inf)], axis=1)
+Xa_gen = T.concatenate([Xg_gen, Xm_gen], axis=1)
+Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 
 
 ##########################################################
@@ -435,12 +421,8 @@ for i in range(recon_steps):
     Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_sigmoid(canvas))
     step_recons.append(Xg_i)
     # concatenate all inputs to generator and inferencer
-    Xa_gen_i = T.concatenate([make_2d_to_1d(Xg_i),
-                              make_2d_to_1d(Xm_gen)], axis=1)
-    Xa_inf_i = T.concatenate([make_2d_to_1d(Xg_i),
-                              make_2d_to_1d(Xm_gen),
-                              make_2d_to_1d(Xg_inf),
-                              make_2d_to_1d(Xm_inf)], axis=1)
+    Xa_gen_i = T.concatenate([Xg_i, Xm_gen], axis=1)
+    Xa_inf_i = T.concatenate([Xg_i, Xm_gen, Xg_inf, Xm_inf], axis=1)
     # run a guided refinement step
     res_dict = \
         seq_cond_gen_model.apply_im_cond(
@@ -449,7 +431,7 @@ for i in range(recon_steps):
             td_states=td_states,
             im_states_gen=im_states_gen,
             im_states_inf=im_states_inf)
-    output_2d = make_1d_to_2d(res_dict['output'])
+    output_2d = res_dict['output']
     # update canvas state
     canvas = canvas + output_2d
     # grab updated states for next refinement step
@@ -510,6 +492,9 @@ print('Compiling test function...')
 test_outputs = [full_cost, Xg_inf, Xm_inf, final_preds]
 test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], test_outputs)
 model_input = make_model_input(char_seq, 50)
+for i, in_ary in enumerate(model_input):
+    print('model_input[i].shape: {}'.format(in_ary.shape))
+
 test_out = test_func(*model_input)
 to_full_cost = test_out[0]
 to_Xg_inf = test_out[1]

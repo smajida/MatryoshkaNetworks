@@ -131,23 +131,22 @@ def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1):
     """
     Sample a random patch mask for each image in X.
     """
-    print('im_shape: {}'.format(im_shape))
-    print('patch_shape: {}'.format(patch_shape))
-
     rows = patch_shape[0]
     cols = patch_shape[1]
-    try:
-        off_row = npr.randint(1, high=(im_shape[0] - rows - 1),
+    min_row = 0
+    max_row = im_shape[0] - rows
+    if (max_row <= min_row):
+        off_row = np.zeros((obs_count, patch_count), dtype=np.int64)
+    else:
+        off_row = npr.randint(min_row, high=max_row,
                               size=(obs_count, patch_count))
-    except:
-        print('off_row: low=1, high={}'.format(im_shape[0] - rows - 1))
-        assert False, 'derp'
-    try:
-        off_col = npr.randint(1, high=(im_shape[1] - cols - 1),
+    min_col = 0
+    max_col = im_shape[1] - cols
+    if (max_col <= min_col):
+        off_col = np.zeros((obs_count, patch_count), dtype=np.int64)
+    else:
+        off_col = npr.randint(min_col, high=max_col,
                               size=(obs_count, patch_count))
-    except:
-        print('off_col: low=1, high={}'.format(im_shape[0] - cols - 1))
-        assert False, 'derp'
     dummy = np.zeros(im_shape)
     mask = np.ones((obs_count, im_shape[0] * im_shape[1]))
     for i in range(obs_count):
@@ -426,7 +425,6 @@ def get_masked_seqs(xi,
 
     xi.shape = (nbatch, seq_len, vec_dim)
     '''
-    print('get_masked_seqs(), xi.shape: {}'.format(xi.shape))
     obs_count = xi.shape[0]
     seq_shape = (xi.shape[1], xi.shape[2])
     # sample uniform random masks
@@ -447,6 +445,7 @@ def get_masked_seqs(xi,
                                (seq_shape[0], seq_shape[1]),
                                (occ_len, seq_shape[1]),
                                patch_count=occ_count)
+        xm_patch = xm_patch.reshape((obs_count, seq_shape[0], seq_shape[1]))
     # make default values to swap in for masked values
     if data_mean is None:
         data_mean = np.zeros(xi.shape)
