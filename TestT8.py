@@ -98,7 +98,7 @@ td_module_1a = \
 td_module_1b = \
     BasicConvModuleNEW(
         in_chans=(ngf * 4),
-        out_chans=(ngf * 2),
+        out_chans=(ngf * 4),
         filt_shape=(5, 1),
         stride='half',
         is_1d=True,
