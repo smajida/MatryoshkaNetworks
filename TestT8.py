@@ -60,9 +60,9 @@ ng = 8              # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
-ngf = 64            # base # of channels for defining layers
-niter = 150         # # of iter at starting learning rate
-niter_decay = 250   # # of iter to linearly decay learning rate to zero
+ngf = 80            # base # of channels for defining layers
+niter = 500         # # of iter at starting learning rate
+niter_decay = 500   # # of iter to linearly decay learning rate to zero
 td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
@@ -552,11 +552,11 @@ print("EXPERIMENT: {}".format(desc.upper()))
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.01, 1.0, 100)
+kld_weights = np.linspace(0.01, 1.0, 250)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
-    if ((epoch-1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch-1]**2.]))
+    if ((epoch - 1) < len(kld_weights)):
+        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
     # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
