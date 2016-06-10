@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.misc import imsave
 
+
 def grayscale_grid_vis(X, (nh, nw), save_path=None):
     h, w = X[0].shape[:2]
     img = np.zeros((h*nh, w*nw))
@@ -12,6 +13,7 @@ def grayscale_grid_vis(X, (nh, nw), save_path=None):
         imsave(save_path, img)
     return img
 
+
 def color_grid_vis(X, (nh, nw), save_path=None):
     h, w = X[0].shape[:2]
     img = np.zeros((h*nh, w*nw, 3))
@@ -22,6 +24,7 @@ def color_grid_vis(X, (nh, nw), save_path=None):
     if save_path is not None:
         imsave(save_path, img)
     return img
+
 
 def grayscale_weight_grid_vis(w, (nh, nw), save_path=None):
     w = (w+w.min())/(w.max()-w.min())
