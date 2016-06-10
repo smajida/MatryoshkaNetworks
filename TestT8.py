@@ -67,7 +67,7 @@ td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
-recon_steps = 5
+recon_steps = 6
 
 
 def train_transform(X):
