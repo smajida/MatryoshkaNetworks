@@ -628,7 +628,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     out_file.flush()
     if (epoch <= 10) or ((epoch % 10) == 0):
         recon_count = 10
-        recon_repeats = 5
+        recon_repeats = 3
         recon_input = make_model_input(char_seq, recon_count)
         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
         seq_cond_gen_model.set_sample_switch('gen')
@@ -642,15 +642,14 @@ for epoch in range(1, (niter + niter_decay + 1)):
         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
         final_recons = np.squeeze(final_recons, axis=(3,))
         final_recons = np.argmax(final_recons, axis=2)
-        final_recons = final_recons[:recon_count, :]
         # final_recons.shape: (recon_count, ns)
         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
         for j in range(final_recons.shape[0]):
             rec_str = [idx2char[idx] for idx in final_recons[j]]
             rec_strs.append(''.join(rec_str))
         joint_str = '\n'.join(rec_strs)
-        out_file.write(joint_str + '\n')
-        out_file.flush()
+        recon_out_file.write(joint_str + '\n')
+        recon_out_file.flush()
         print('recons.shape: {}'.format(recons.shape))
         print('final_recons.shape: {}'.format(final_recons.shape))
 
