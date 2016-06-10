@@ -187,7 +187,7 @@ bu_module_3 = \
     BasicConvModuleNEW(
         in_chans=(2 * nc),
         out_chans=(ngf * 2),
-        filt_shape=(3, 1),
+        filt_shape=(5, 1),
         stride='single',
         is_1d=True,
         act_func=bu_act_func,
@@ -226,7 +226,7 @@ bu_module_3 = \
     BasicConvModuleNEW(
         in_chans=(2 * (2 * nc)),
         out_chans=(ngf * 2),
-        filt_shape=(3, 1),
+        filt_shape=(5, 1),
         stride='single',
         is_1d=True,
         act_func=bu_act_func,
