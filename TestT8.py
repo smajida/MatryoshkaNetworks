@@ -431,7 +431,7 @@ step_recons = []
 for i in range(recon_steps):
     # mix observed input and current working state to make input
     # for the next step of refinement
-    Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_softmax(canvas, axis=2))
+    Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_softmax(canvas, axis=1))
     step_recons.append(Xg_i)
     # concatenate all inputs to generator and inferencer
     Xa_gen_i = T.concatenate([Xg_i, Xm_gen], axis=1)
@@ -454,7 +454,7 @@ for i in range(recon_steps):
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
-final_preds = clip_softmax(canvas, axis=2)
+final_preds = clip_softmax(canvas, axis=1)
 Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
 step_recons.append(Xg_recon)
 
