@@ -43,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_full_res_fc_top'
+desc = 'test_1d_rnn_full_res_conv_top_gated'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,7 +68,7 @@ bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
 recon_steps = 6
-use_fc_top = True
+use_fc_top = False
 
 
 def train_transform(X):
@@ -168,7 +168,7 @@ td_module_3a = \
 td_module_3b = \
     BasicConvModuleNEW(
         in_chans=(ngf * 2),
-        out_chans=nc,
+        out_chans=(nc * 2),
         filt_shape=(3, 1),
         stride='single',
         is_1d=True,
@@ -463,6 +463,11 @@ def clip_softmax(x, axis=2):
     return x
 
 
+def clip_sigmoid(x):
+    output = sigmoid(T.clip(x, -10.0, 10.0))
+    return output
+
+
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
@@ -509,8 +514,10 @@ for i in range(recon_steps):
             im_states_gen=im_states_gen,
             im_states_inf=im_states_inf)
     output_2d = res_dict['output']
-    # update canvas state
-    canvas = canvas + output_2d
+    out_char = output_2d[:, :nc, :, :]
+    out_gate = output_2d[:, nc:, :, :]
+    # update canvas state, with gating on the canvas state
+    canvas = (clip_sigmoid(1. + out_gate) * canvas) + out_char
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     im_states_gen = res_dict['im_states_gen']
@@ -589,7 +596,7 @@ print('DONE.')
 # stuff for performing updates
 lrt = sharedX(0.001)
 b1t = sharedX(0.9)
-updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-4, clipnorm=10.0)
+updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-5, clipnorm=100.0)
 
 # build training cost and update functions
 t = time()
