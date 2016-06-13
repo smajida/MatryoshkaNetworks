@@ -43,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_full_res_conv_top_gated'
+desc = 'test_1d_rnn_conv_top_gated_8_steps_flat_kld'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +67,7 @@ td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
-recon_steps = 6
+recon_steps = 8
 use_fc_top = False
 
 
@@ -624,21 +624,28 @@ print "{0:.2f} seconds to compile theano functions".format(time() - t)
 # make file for recording test progress
 log_name = "{}/RESULTS.txt".format(result_dir)
 out_file = open(log_name, 'wb')
-log_name = "{}/RECONS.txt".format(result_dir)
+log_name = "{}/RECONS_VAR.txt".format(result_dir)
 recon_out_file = open(log_name, 'wb')
+log_name = "{}/RECONS_FIX.txt".format(result_dir)
+recon_fixed_out_file = open(log_name, 'wb')
 
 
 print("EXPERIMENT: {}".format(desc.upper()))
 
+# setup variables for text-based progress monitoring
+recon_count = 10
+recon_repeats = 3
+recon_input_fixed = make_model_input(char_seq, recon_count)
+# ...
 n_check = 0
 n_updates = 0
 t = time()
 kld_weights = np.linspace(0.01, 1.0, 250)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
-    if ((epoch - 1) < len(kld_weights)):
-        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
-    # lam_kld.set_value(floatX([1.0]))
+    # if ((epoch - 1) < len(kld_weights)):
+    #    lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -708,14 +715,15 @@ for epoch in range(1, (niter + niter_decay + 1)):
     out_file.write(joint_str + "\n")
     out_file.flush()
     if (epoch <= 10) or ((epoch % 10) == 0):
-        recon_count = 10
-        recon_repeats = 3
         recon_input = make_model_input(char_seq, recon_count)
         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
         seq_cond_gen_model.set_sample_switch('gen')
         step_recons = recon_func(*recon_input)
+        step_recons_fixed = recon_func(*recon_input_fixed)
         seq_cond_gen_model.set_sample_switch('inf')
-        # do visualization here:
+        #
+        # visualization for the variable set of examples
+        #
         recons = np.vstack(step_recons)
         grayscale_grid_vis(recons, (recon_steps + 1, recon_count * recon_repeats),
                            "{}/recons_{}.png".format(result_dir, epoch))
@@ -731,8 +739,21 @@ for epoch in range(1, (niter + niter_decay + 1)):
         joint_str = '\n'.join(rec_strs)
         recon_out_file.write(joint_str + '\n')
         recon_out_file.flush()
-        print('recons.shape: {}'.format(recons.shape))
-        print('final_recons.shape: {}'.format(final_recons.shape))
+        #
+        # visualization for the fixed set of examples
+        #
+        final_recons = step_recons_fixed[-1].transpose(0, 2, 1, 3)
+        # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
+        final_recons = np.squeeze(final_recons, axis=(3,))
+        final_recons = np.argmax(final_recons, axis=2)
+        # final_recons.shape: (recon_count, ns)
+        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        for j in range(final_recons.shape[0]):
+            rec_str = [idx2char[idx] for idx in final_recons[j]]
+            rec_strs.append(''.join(rec_str))
+        joint_str = '\n'.join(rec_strs)
+        recon_fixed_out_file.write(joint_str + '\n')
+        recon_fixed_out_file.flush()
 
 
 
