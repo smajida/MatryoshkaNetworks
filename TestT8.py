@@ -43,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_conv_top_gated_8_steps_flat_kld'
+desc = 'test_1d_rnn_conv_top_gated_6_steps_anneal_kld'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +67,7 @@ td_act_func = 'tanh'   # activation function for top-down modules
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 td_act_func = 'tanh'   # activation function for information merging modules
 use_td_cond = True
-recon_steps = 8
+recon_steps = 6
 use_fc_top = False
 
 
@@ -554,12 +554,8 @@ vae_layer_names = [mod_name for mod_name, mod_kld in kld_tuples]
 vae_obs_klds = sum([mod_kld for mod_name, mod_kld in kld_tuples])
 vae_kld_cost = T.mean(vae_obs_klds)
 
-# compute per-layer KL-divergence part of cost
-alt_layer_klds = [mod_kld**2.0 for mod_name, mod_kld in kld_tuples]
-alt_kld_cost = T.mean(sum(alt_layer_klds))
-
 # compute the KLd cost to use for optimization
-opt_kld_cost = (lam_kld[0] * vae_kld_cost) + ((1.0 - lam_kld[0]) * alt_kld_cost)
+opt_kld_cost = lam_kld[0] * vae_kld_cost
 
 # combined cost for generator stuff
 vae_cost = vae_nll_cost + vae_kld_cost
@@ -640,12 +636,12 @@ recon_input_fixed = make_model_input(char_seq, recon_count)
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.01, 1.0, 250)
+kld_weights = np.linspace(0.05, 1.0, 50)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
-    # if ((epoch - 1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch - 1) < len(kld_weights)):
+       lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
