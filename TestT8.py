@@ -43,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_conv_simple_6_steps'
+desc = 'test_1d_rnn_conv_simple_6_steps_no_rand'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -66,6 +66,7 @@ niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
 recon_steps = 6
+use_rand = False
 
 
 def train_transform(X):
@@ -105,6 +106,7 @@ td_module_1 = \
     TDModuleWrapperRNN(
         td_module=td_module_1a,
         mlp_modules=[td_module_1b],
+        use_rand=use_rand,
         mod_name='td_mod_1')
 
 td_module_2a = \
@@ -130,6 +132,7 @@ td_module_2 = \
     TDModuleWrapperRNN(
         td_module=td_module_2a,
         mlp_modules=[td_module_2b],
+        use_rand=use_rand,
         mod_name='td_mod_2')
 
 td_module_3a = \
@@ -155,6 +158,7 @@ td_module_3 = \
     TDModuleWrapperRNN(
         td_module=td_module_3a,
         mlp_modules=[td_module_3b],
+        use_rand=use_rand,
         mod_name='td_mod_3')
 
 td_modules = [td_module_1, td_module_2, td_module_3]

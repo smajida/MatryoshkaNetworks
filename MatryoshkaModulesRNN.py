@@ -1450,7 +1450,7 @@ class TDModuleWrapperRNN(object):
         mlp_modules: a list of the modules to apply to the output of td_module.
     '''
     def __init__(self, td_module, mlp_modules=None, use_shortcut=False,
-                 mod_name='no_name'):
+                 use_rand=True, mod_name='no_name'):
         assert not (mod_name == 'no_name')
         self.td_module = td_module
         self.params = [p for p in td_module.params]
@@ -1463,6 +1463,7 @@ class TDModuleWrapperRNN(object):
             # don't use any extra post-processing modules
             self.mlp_modules = None
         self.use_shortcut = use_shortcut
+        self.use_rand = use_rand
         self.mod_name = mod_name
         return
 

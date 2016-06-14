@@ -269,6 +269,15 @@ class DeepSeqCondGenRNN(object):
             cond_z = (self.sample_switch[0] * cond_z_inf) + \
                 ((1. - self.sample_switch[0]) * cond_z_gen)
 
+            use_rand = True
+            if hasattr(td_module, 'use_rand'):
+                use_rand = td_module.use_rand
+
+            if not use_rand:
+                cond_z = 0. * cond_z
+                cond_mean_inf = 0. * cond_mean_inf
+                cond_mean_gen = 0. * cond_mean_gen
+
             # update the current TD module using the conditional z samples
             td_output, td_state_new = \
                 td_module.apply(state=td_state, input=td_input, rand_vals=cond_z)
