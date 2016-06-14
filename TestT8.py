@@ -570,6 +570,9 @@ print("EXPERIMENT: {}".format(desc.upper()))
 recon_count = 10
 recon_repeats = 3
 recon_input_fixed = make_model_input(char_seq, recon_count)
+recon_input_fixed = [np.repeat(ary, recon_repeats, axis=0)
+                     for ary in recon_input_fixed]
+
 # ...
 n_check = 0
 n_updates = 0
