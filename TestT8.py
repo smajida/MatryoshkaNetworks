@@ -420,8 +420,8 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 # feed all masked inputs through the inference network
 td_states = None
-im_states_gen = None
-im_states_inf = None
+bu_states = None
+im_states = None
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
@@ -439,8 +439,8 @@ for i in range(recon_steps):
             input_gen=Xa_gen_i,
             input_inf=Xa_inf_i,
             td_states=td_states,
-            im_states_gen=im_states_gen,
-            im_states_inf=im_states_inf)
+            bu_states=bu_states,
+            im_states=im_states)
     output_2d = res_dict['output']
     out_char = output_2d[:, :nc, :, :]
     out_gate = output_2d[:, nc:, :, :]
@@ -448,8 +448,8 @@ for i in range(recon_steps):
     canvas = (clip_sigmoid(1. + out_gate) * canvas) + out_char
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
-    im_states_gen = res_dict['im_states_gen']
-    im_states_inf = res_dict['im_states_inf']
+    bu_states = res_dict['bu_states']
+    im_states = res_dict['im_states']
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
 # reconstruction uses canvas after final refinement step
