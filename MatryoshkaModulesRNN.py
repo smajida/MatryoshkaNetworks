@@ -195,7 +195,7 @@ class BasicConvGRUModuleRNN(object):
 
     Parameters:
         state_chans: dimension of recurrent state in this module
-        in_chans: dimension of input to this module
+        input_chans: dimension of input to this module
         spatial_shape: 2d spatial shape of this convolution
         filt_shape: 2d shape of the convolutional filters
         is_1d: whether this module operates on 1d input
@@ -203,7 +203,7 @@ class BasicConvGRUModuleRNN(object):
         mod_name: string name for this module
     '''
     def __init__(self,
-                 state_chans, in_chans,
+                 state_chans, input_chans,
                  spatial_shape, filt_shape,
                  is_1d=False,
                  act_func='tanh', mod_name='no_name'):
@@ -212,7 +212,7 @@ class BasicConvGRUModuleRNN(object):
         assert not (mod_name == 'no_name'), \
             'module name is required.'
         self.state_chans = state_chans
-        self.in_chans = in_chans
+        self.input_chans = input_chans
         self.spatial_shape = spatial_shape
         self.filt_dim = filt_shape[0]
         self.is_1d = is_1d
@@ -237,16 +237,16 @@ class BasicConvGRUModuleRNN(object):
         self.params = []
         weight_ifn = inits.Orthogonal()
         bias_ifn = inits.Constant(c=0.)
-        full_in_chans = self.state_chans + self.in_chans
+        full_input_chans = self.state_chans + self.input_chans
         fd1 = self.filt_dim
         fd2 = 1 if self.is_1d else fd1
         # initialize gating parameters
-        self.w1 = weight_ifn((2 * self.state_chans, full_in_chans, fd1, fd2),
+        self.w1 = weight_ifn((2 * self.state_chans, full_input_chans, fd1, fd2),
                              "{}_w1".format(self.mod_name))
         self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
         self.params.extend([self.w1, self.b1])
         # initialize state update parameters
-        self.w2 = weight_ifn((self.state_chans, full_in_chans, fd1, fd2),
+        self.w2 = weight_ifn((self.state_chans, full_input_chans, fd1, fd2),
                              "{}_w2".format(self.mod_name))
         self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
         self.params.extend([self.w2, self.b2])
@@ -1445,15 +1445,15 @@ class TDModuleWrapperRNN(object):
     sequence of extra "post-processing" modules.
 
     Params:
-        gen_module: the first module in this TD module to apply. Inputs are
+        td_module: the first module in this TD module to apply. Inputs are
                     a previous state, a top-down input, and a latent input.
-        mlp_modules: a list of the modules to apply to the output of gen_module.
+        mlp_modules: a list of the modules to apply to the output of td_module.
     '''
-    def __init__(self, gen_module, mlp_modules=None, use_shortcut=False,
+    def __init__(self, td_module, mlp_modules=None, use_shortcut=False,
                  mod_name='no_name'):
         assert not (mod_name == 'no_name')
-        self.gen_module = gen_module
-        self.params = [p for p in gen_module.params]
+        self.td_module = td_module
+        self.params = [p for p in td_module.params]
         if mlp_modules is not None:
             # use some extra post-processing modules
             self.mlp_modules = [m for m in mlp_modules]
@@ -1470,7 +1470,7 @@ class TDModuleWrapperRNN(object):
         '''
         Dump params for later reloading by self.load_params.
         '''
-        mod_param_dicts = [self.gen_module.dump_params()]
+        mod_param_dicts = [self.td_module.dump_params()]
         if self.mlp_modules is not None:
             mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
         return mod_param_dicts
@@ -1479,7 +1479,7 @@ class TDModuleWrapperRNN(object):
         '''
         Load params from the output of self.dump_params.
         '''
-        self.gen_module.load_params(param_dict=param_dict[0])
+        self.td_module.load_params(param_dict=param_dict[0])
         if self.mlp_modules is not None:
             for pdict, mod in zip(param_dict[1:], self.mlp_modules):
                 mod.load_params(param_dict=pdict)
@@ -1487,17 +1487,17 @@ class TDModuleWrapperRNN(object):
 
     def get_s0_for_batch(self, batch_size):
         '''
-        Get an initial state for self.gen_module.
+        Get an initial state for self.td_module.
         '''
-        s0 = self.gen_module.get_s0_for_batch(batch_size)
+        s0 = self.td_module.get_s0_for_batch(batch_size)
         return s0
 
     def apply(self, state, input, rand_vals):
         '''
-        Process the recurrent gen_module, then apply self.mlp_modules.
+        Process the recurrent td_module, then apply self.mlp_modules.
         -- this returns the updated recurrent state and an additional output
         '''
-        state_new = self.gen_module.apply(state, input, rand_vals)
+        state_new = self.td_module.apply(state, input, rand_vals)
         if self.mlp_modules is not None:
             # feedforward through the MLP modules to get a new output
             acts = None
@@ -1520,14 +1520,14 @@ class TDModuleWrapperNEW(object):
     -- This is for stateless modules.
 
     Params:
-        gen_module: the first module in this TD module to apply. Inputs are
+        td_module: the first module in this TD module to apply. Inputs are
                     a top-down input and a latent input.
-        mlp_modules: a list of the modules to apply to the output of gen_module.
+        mlp_modules: a list of the modules to apply to the output of td_module.
     '''
-    def __init__(self, gen_module, mlp_modules=None, mod_name='no_name'):
+    def __init__(self, td_module, mlp_modules=None, mod_name='no_name'):
         assert not (mod_name == 'no_name')
-        self.gen_module = gen_module
-        self.params = [p for p in gen_module.params]
+        self.td_module = td_module
+        self.params = [p for p in td_module.params]
         if mlp_modules is not None:
             # use some extra post-processing modules
             self.mlp_modules = [m for m in mlp_modules]
@@ -1543,7 +1543,7 @@ class TDModuleWrapperNEW(object):
         '''
         Dump params for later reloading by self.load_params.
         '''
-        mod_param_dicts = [self.gen_module.dump_params()]
+        mod_param_dicts = [self.td_module.dump_params()]
         if self.mlp_modules is not None:
             mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
         return mod_param_dicts
@@ -1552,7 +1552,7 @@ class TDModuleWrapperNEW(object):
         '''
         Load params from the output of self.dump_params.
         '''
-        self.gen_module.load_params(param_dict=param_dict[0])
+        self.td_module.load_params(param_dict=param_dict[0])
         if self.mlp_modules is not None:
             for pdict, mod in zip(param_dict[1:], self.mlp_modules):
                 mod.load_params(param_dict=pdict)
@@ -1560,9 +1560,9 @@ class TDModuleWrapperNEW(object):
 
     def apply(self, input, rand_vals):
         '''
-        Process the gen_module, then apply self.mlp_modules.
+        Process the td_module, then apply self.mlp_modules.
         '''
-        h1 = self.gen_module.apply(input, rand_vals)
+        h1 = self.td_module.apply(input, rand_vals)
         if self.mlp_modules is not None:
             # feedforward through the MLP modules to get a new output
             acts = None
@@ -1578,6 +1578,79 @@ class TDModuleWrapperNEW(object):
         return output
 
 
+class BUModuleWrapperRNN(object):
+    '''
+    Wrapper around a recurrent BU module and an optional feedforward
+    sequence of extra "post-processing" modules.
+
+    Params:
+        bu_module: the first module in this BU module to apply. Inputs are
+                    a previous state, a top-down input, and a latent input.
+        mlp_modules: a list of the modules to apply to the output of bu_module.
+    '''
+    def __init__(self, bu_module, mlp_modules=None, use_shortcut=False,
+                 mod_name='no_name'):
+        assert not (mod_name == 'no_name')
+        self.bu_module = bu_module
+        self.params = [p for p in bu_module.params]
+        if mlp_modules is not None:
+            # use some extra post-processing modules
+            self.mlp_modules = [m for m in mlp_modules]
+            for mlp_mod in self.mlp_modules:
+                self.params.extend(mlp_mod.params)
+        else:
+            # don't use any extra post-processing modules
+            self.mlp_modules = None
+        self.use_shortcut = use_shortcut
+        self.mod_name = mod_name
+        return
+
+    def dump_params(self):
+        '''
+        Dump params for later reloading by self.load_params.
+        '''
+        mod_param_dicts = [self.bu_module.dump_params()]
+        if self.mlp_modules is not None:
+            mod_param_dicts.extend([m.dump_params() for m in self.mlp_modules])
+        return mod_param_dicts
+
+    def load_params(self, param_dict=None):
+        '''
+        Load params from the output of self.dump_params.
+        '''
+        self.bu_module.load_params(param_dict=param_dict[0])
+        if self.mlp_modules is not None:
+            for pdict, mod in zip(param_dict[1:], self.mlp_modules):
+                mod.load_params(param_dict=pdict)
+        return
+
+    def get_s0_for_batch(self, batch_size):
+        '''
+        Get an initial state for self.bu_module.
+        '''
+        s0 = self.bu_module.get_s0_for_batch(batch_size)
+        return s0
+
+    def apply(self, state, input):
+        '''
+        Process the recurrent bu_module, then apply self.mlp_modules.
+        -- this returns the updated recurrent state and an additional output
+        '''
+        if self.mlp_modules is not None:
+            # feedforward through the MLP modules to get a new output
+            acts = None
+            for mod in self.mlp_modules:
+                if acts is None:
+                    acts = [mod.apply(input)]
+                else:
+                    acts.append(mod.apply(acts[-1]))
+        else:
+            # use the updated recurrent state as output
+            acts = [input]
+        output = self.bu_module.apply(state, acts[-1])
+        return output, output
+
+
 class IMModuleWrapperNEW(object):
     '''
     Wrapper around a conditional IM module and an optional feedforward
@@ -1587,7 +1660,7 @@ class IMModuleWrapperNEW(object):
     Params:
         inf_module: the final module in this IM module to apply. This takes a
                     bottom-up input, from the mlp_modules or direct from user.
-        mlp_modules: a list of modules to apply to get an input for gen_module.
+        mlp_modules: a list of modules to apply to get an input for inf_module.
     '''
     def __init__(self, inf_module, mlp_modules=None, mod_name='no_name'):
         assert not (mod_name == 'no_name')

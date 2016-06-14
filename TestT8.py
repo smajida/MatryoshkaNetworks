@@ -28,9 +28,9 @@ from load import load_text8
 # Phil's business
 #
 from MatryoshkaModulesRNN import \
-    GenFCGRUModuleRNN, FCReshapeModule, TDModuleWrapperRNN, \
+    TDModuleWrapperRNN, BUModuleWrapperRNN, \
     GenConvGRUModuleRNN, BasicConvModuleNEW, \
-    InfFCGRUModuleRNN, InfConvGRUModuleRNN
+    InfConvGRUModuleRNN, BasicConvGRUModuleRNN
 from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
@@ -43,7 +43,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_conv_top_gated_6_steps_shortcut'
+desc = 'test_1d_rnn_conv_simple_6_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -66,8 +66,6 @@ niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
 recon_steps = 6
-use_fc_top = False
-use_shortcut = False
 
 
 def train_transform(X):
@@ -81,15 +79,13 @@ bce = T.nnet.binary_crossentropy
 
 #########################################
 # Setup the top-down processing modules #
-# -- these do generation                #
+# -- these are for generator            #
 #########################################
-
-td_in_mult = 2 if use_shortcut else 1
 
 td_module_1a = \
     GenConvGRUModuleRNN(
         state_chans=(ngf * 4),
-        input_chans=(ngf * 4 * td_in_mult),
+        input_chans=(2 * ngf * 4),
         rand_chans=nz1,
         spatial_shape=((ns // 4), 1),
         filt_shape=(3, 1),
@@ -107,15 +103,14 @@ td_module_1b = \
         mod_name='td_mod_1b')
 td_module_1 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_1a,
+        td_module=td_module_1a,
         mlp_modules=[td_module_1b],
-        use_shortcut=use_shortcut,
         mod_name='td_mod_1')
 
 td_module_2a = \
     GenConvGRUModuleRNN(
         state_chans=(ngf * 4),
-        input_chans=(ngf * 4 * td_in_mult),
+        input_chans=(2 * ngf * 4),
         rand_chans=nz1,
         spatial_shape=((ns // 2), 1),
         filt_shape=(3, 1),
@@ -133,15 +128,14 @@ td_module_2b = \
         mod_name='td_mod_2b')
 td_module_2 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_2a,
+        td_module=td_module_2a,
         mlp_modules=[td_module_2b],
-        use_shortcut=use_shortcut,
         mod_name='td_mod_2')
 
 td_module_3a = \
     GenConvGRUModuleRNN(
         state_chans=(ngf * 2),
-        input_chans=(ngf * 2 * td_in_mult),
+        input_chans=(2 * ngf * 2),
         rand_chans=nz1,
         spatial_shape=((ns // 1), 1),
         filt_shape=(3, 1),
@@ -159,56 +153,97 @@ td_module_3b = \
         mod_name='td_mod_3b')
 td_module_3 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_3a,
+        td_module=td_module_3a,
         mlp_modules=[td_module_3b],
-        use_shortcut=use_shortcut,
         mod_name='td_mod_3')
 
 td_modules = [td_module_1, td_module_2, td_module_3]
 
-##########################################
-# Setup the bottom-up processing modules #
-# -- these do generation inference       #
-##########################################
+###########################################
+# Setup some bottom-up processing modules #
+# -- these are for the generator          #
+###########################################
 
-bu_module_1 = \
+bu_module_1a = \
+    BasicConvGRUModuleRNN(
+        state_chans=(ngf * 4),
+        input_chans=(ngf * 4),
+        spatial_shape=((ns // 4), 1),
+        filt_shape=(3, 1),
+        is_1d=True,
+        act_func='tanh',
+        mod_name='bu_mod_1a')
+bu_module_1b = \
     BasicConvModuleNEW(
         in_chans=(ngf * 4),
         out_chans=(ngf * 4),
         filt_shape=(5, 1),
         stride='double',
         is_1d=True,
-        act_func=bu_act_func,
+        act_func='ident',
+        mod_name='bu_mod_1b')
+bu_module_1 = \
+    BUModuleWrapperRNN(
+        bu_module=bu_module_1a,
+        mlp_modules=[bu_module_1b],
         mod_name='bu_mod_1')
 
-bu_module_2 = \
+bu_module_2a = \
+    BasicConvGRUModuleRNN(
+        state_chans=(ngf * 4),
+        input_chans=(ngf * 4),
+        spatial_shape=((ns // 2), 1),
+        filt_shape=(3, 1),
+        is_1d=True,
+        act_func='tanh',
+        mod_name='bu_mod_2a')
+bu_module_2b = \
     BasicConvModuleNEW(
         in_chans=(ngf * 2),
         out_chans=(ngf * 4),
         filt_shape=(5, 1),
         stride='double',
         is_1d=True,
-        act_func=bu_act_func,
+        act_func='ident',
+        mod_name='bu_mod_2b')
+bu_module_2 = \
+    BUModuleWrapperRNN(
+        bu_module=bu_module_2a,
+        mlp_modules=[bu_module_2b],
         mod_name='bu_mod_2')
 
-bu_module_3 = \
+bu_module_3a = \
+    BasicConvGRUModuleRNN(
+        state_chans=(ngf * 2),
+        input_chans=(ngf * 2),
+        spatial_shape=((ns // 1), 1),
+        filt_shape=(3, 1),
+        is_1d=True,
+        act_func='tanh',
+        mod_name='bu_mod_3a')
+bu_module_3b = \
     BasicConvModuleNEW(
-        in_chans=(2 * nc),
+        in_chans=(nc * 2),
         out_chans=(ngf * 2),
-        filt_shape=(5, 1),
+        filt_shape=(3, 1),
         stride='single',
         is_1d=True,
-        act_func=bu_act_func,
+        act_func='ident',
+        mod_name='bu_mod_3b')
+bu_module_3 = \
+    BUModuleWrapperRNN(
+        bu_module=bu_module_3a,
+        mlp_modules=[bu_module_3b],
         mod_name='bu_mod_3')
 
 # modules must be listed in "evaluation order"
-bu_modules_gen = [bu_module_3, bu_module_2, bu_module_1]
+bu_modules = [bu_module_3, bu_module_2, bu_module_1]
 
 
-##########################################
-# Setup the bottom-up processing modules #
-# -- these do generation inference       #
-##########################################
+###########################################
+# Setup some bottom-up processing modules #
+# -- these are for the inferencer         #
+###########################################
 
 bu_module_1 = \
     BasicConvModuleNEW(
@@ -251,7 +286,7 @@ im_module_1 = \
     InfConvGRUModuleRNN(
         state_chans=(ngf * 4),
         td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
+        td_input_chans=(2 * ngf * 4),
         bu_chans=(ngf * 4),
         rand_chans=nz1,
         spatial_shape=((ns // 4), 1),
@@ -264,7 +299,7 @@ im_module_2 = \
     InfConvGRUModuleRNN(
         state_chans=(ngf * 4),
         td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
+        td_input_chans=(2 * ngf * 4),
         bu_chans=(ngf * 4),
         rand_chans=nz1,
         spatial_shape=((ns // 2), 1),
@@ -277,7 +312,7 @@ im_module_3 = \
     InfConvGRUModuleRNN(
         state_chans=(ngf * 2),
         td_state_chans=(ngf * 2),
-        td_input_chans=(ngf * 2),
+        td_input_chans=(2 * ngf * 2),
         bu_chans=(ngf * 2),
         rand_chans=nz1,
         spatial_shape=((ns // 1), 1),
@@ -286,52 +321,8 @@ im_module_3 = \
         use_td_cond=use_td_cond,
         mod_name='im_mod_3')
 
-im_modules_gen = [im_module_1, im_module_2, im_module_3]
+im_modules = [im_module_1, im_module_2, im_module_3]
 
-#########################################
-# Setup the information merging modules #
-#########################################
-
-im_module_1 = \
-    InfConvGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(ngf * 4),
-        rand_chans=nz1,
-        spatial_shape=((ns // 4), 1),
-        is_1d=True,
-        act_func='tanh',
-        use_td_cond=use_td_cond,
-        mod_name='im_mod_1')
-
-im_module_2 = \
-    InfConvGRUModuleRNN(
-        state_chans=(ngf * 4),
-        td_state_chans=(ngf * 4),
-        td_input_chans=(ngf * 4),
-        bu_chans=(ngf * 4),
-        rand_chans=nz1,
-        spatial_shape=((ns // 2), 1),
-        is_1d=True,
-        act_func='tanh',
-        use_td_cond=use_td_cond,
-        mod_name='im_mod_2')
-
-im_module_3 = \
-    InfConvGRUModuleRNN(
-        state_chans=(ngf * 2),
-        td_state_chans=(ngf * 2),
-        td_input_chans=(ngf * 2),
-        bu_chans=(ngf * 2),
-        rand_chans=nz1,
-        spatial_shape=((ns // 1), 1),
-        is_1d=True,
-        act_func='tanh',
-        use_td_cond=use_td_cond,
-        mod_name='im_mod_3')
-
-im_modules_inf = [im_module_1, im_module_2, im_module_3]
 
 #
 # Setup a description for where to get conditional distributions from.
@@ -350,10 +341,9 @@ merge_info = {
 seq_cond_gen_model = \
     DeepSeqCondGenRNN(
         td_modules=td_modules,
-        bu_modules_gen=bu_modules_gen,
-        im_modules_gen=im_modules_gen,
+        bu_modules=bu_modules,
+        im_modules=im_modules,
         bu_modules_inf=bu_modules_inf,
-        im_modules_inf=im_modules_inf,
         merge_info=merge_info)
 
 # inf_gen_model.load_params(inf_gen_param_file)

@@ -125,7 +125,7 @@ td_module_1b = \
         mod_name='td_mod_1b')
 td_module_1 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_1a,
+        td_module=td_module_1a,
         mlp_modules=[td_module_1b],
         mod_name='td_mod_1')
 
@@ -151,7 +151,7 @@ td_module_2b = \
         mod_name='td_mod_2b')
 td_module_2 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_2a,
+        td_module=td_module_2a,
         mlp_modules=[td_module_2b],
         mod_name='td_mod_2')
 
@@ -177,7 +177,7 @@ td_module_3b = \
         mod_name='td_mod_3b')
 td_module_3 = \
     TDModuleWrapperRNN(
-        gen_module=td_module_3a,
+        td_module=td_module_3a,
         mlp_modules=[td_module_3b],
         mod_name='td_mod_3')
 
