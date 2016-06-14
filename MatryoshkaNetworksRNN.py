@@ -236,6 +236,10 @@ class DeepSeqCondGenRNN(object):
             im_state_gen = im_states_gen[im_mod_name]    # from IM step t - 1
             im_state_inf = im_states_inf[im_mod_name]    # from IM step t - 1
 
+            use_shortcut = False
+            if hasattr(td_module, 'use_shortcut'):
+                use_shortcut = td_module.use_shortcut
+
             # get IM modules to apply at this step
             im_module_gen = self.im_modules_gen_dict[im_mod_name]
             im_module_inf = self.im_modules_inf_dict[im_mod_name]
@@ -263,6 +267,10 @@ class DeepSeqCondGenRNN(object):
             cond_z = (self.sample_switch[0] * cond_z_inf) + \
                 ((1. - self.sample_switch[0]) * cond_z_gen)
 
+            if use_shortcut:
+                # pass generator IM state directly into TD module
+                td_input = T.concatenate([td_input, im_state_gen_new], axis=1)
+
             # update the current TD module
             td_output, td_state_new = \
                 td_module.apply(state=td_state, input=td_input, rand_vals=cond_z)
@@ -284,6 +292,7 @@ class DeepSeqCondGenRNN(object):
                                        T.flatten(cond_mean_inf, 2),
                                        log_vars=T.flatten(cond_logvar_inf, 2),
                                        do_sum=True)
+
             # record values produced while processing this TD module
             # -- these values are all keyed by the TD module name
             td_outs.append(td_output)
