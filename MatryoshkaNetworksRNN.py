@@ -241,6 +241,7 @@ class DeepSeqCondGenRNN(object):
             else:
                 # use previous TD module output at other TD modules
                 td_input = td_outs[-1]  # from step t
+            im_module = self.im_modules_dict[im_mod_name]
             td_state = td_states[td_mod_name]            # from TD step t - 1
             im_state = im_states[im_mod_name]            # from IM step t - 1
             bu_input_gen = bu_outputs_gen[bu_mod_name]   # from BU step t
@@ -251,10 +252,10 @@ class DeepSeqCondGenRNN(object):
 
             # get conditional Gaussian parameters from inference net
             cond_mean_inf, cond_logvar_inf, im_state_new = \
-                im_module_inf.apply_im(state=im_state,
-                                       td_state=td_state,
-                                       td_input=td_input,
-                                       bu_input=bu_input_inf)
+                im_module.apply_im(state=im_state,
+                                   td_state=td_state,
+                                   td_input=td_input,
+                                   bu_input=bu_input_inf)
             cond_mean_inf = self.dist_scale[0] * cond_mean_inf
             cond_logvar_inf = self.dist_scale[0] * cond_logvar_inf
             cond_mean_gen = 0. * cond_mean_inf
