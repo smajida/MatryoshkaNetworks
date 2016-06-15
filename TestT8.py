@@ -604,7 +604,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
             v_result = g_eval_func(*vmb_input)
             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
             v_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 120):
         # cut learning rate in half
         lr = lrt.get_value(borrow=False)
         lr = lr / 2.0

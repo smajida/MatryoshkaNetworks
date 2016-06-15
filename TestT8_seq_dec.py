@@ -469,10 +469,13 @@ for i in range(recon_steps):
     im_states = res_dict['im_states']
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
-# shuffle dims to get scan inputs
+# shuffle dims to get scan inputs.
 # -- want shape: (nbatch, seq_len, chans)
-seq_canvas = canvas.dimshuffle(0, 2, 1, 3).squeeze()
-seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3).squeeze()
+# -- have shape: (nbatch, chans, seq_len, 1)
+seq_canvas = canvas.dimshuffle(0, 2, 1, 3)
+seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3)
+seq_canvas = T.flatten(seq_canvas, 3)
+seq_Xg_inf = T.flatten(seq_Xg_inf, 3)
 
 # run through the contextual decoder
 final_preds, scan_updates = \
@@ -627,7 +630,7 @@ print('DONE.')
 #             v_result = g_eval_func(*vmb_input)
 #             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
 #             v_batch_count += 1
-#     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+#     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 120):
 #         # cut learning rate in half
 #         lr = lrt.get_value(borrow=False)
 #         lr = lr / 2.0
