@@ -1910,7 +1910,7 @@ class ContextualGRU(object):
                         outputs_info=init_vals,
                         sequences=[seq_input, seq_context])
         # shuffle output back to shape: (nbatch, seq_len, self.output_chans)
-        output = scan_results.dimshuffle(1, 0, 2)
+        output = scan_results[1].dimshuffle(1, 0, 2)
         return output, scan_updates
 
 
