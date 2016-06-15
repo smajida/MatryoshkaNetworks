@@ -599,7 +599,7 @@ recon_input_fixed = [np.repeat(ary, recon_repeats, axis=0)
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.1, 1.0, 50)
+kld_weights = np.linspace(0.5, 1.0, 50)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
     if ((epoch - 1) < len(kld_weights)):
@@ -614,7 +614,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     g_batch_count = 0.
     v_batch_count = 0.
     X_dummy = np.zeros((500 * nbatch, 50))
-    for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True, ncols=60):
+    for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True, ncols=80):
         # transform training batch validation batch to model input format
         imb_input = make_model_input(char_seq, nbatch)
         vmb_input = make_model_input(char_seq, nbatch)
