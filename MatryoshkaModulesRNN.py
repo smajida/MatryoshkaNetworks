@@ -19,6 +19,19 @@ tanh = activations.Tanh()
 elu = activations.ELU()
 
 
+def clip_softmax(x, axis=2):
+    x = T.clip(x, -10., 10.)
+    x = x - T.max(x, axis=axis, keepdims=True)
+    x = T.exp(x)
+    x = x / T.sum(x, axis=axis, keepdims=True)
+    return x
+
+
+def clip_sigmoid(x):
+    output = sigmoid(T.clip(x, -10.0, 10.0))
+    return output
+
+
 class UDSampler2x(object):
     '''
     Module for 2x upsampling or downsampling.
@@ -1725,6 +1738,180 @@ class IMModuleWrapperNEW(object):
             td_input = mlp_out
         cond_mean, cond_logvar = self.inf_module.apply_im(mlp_out, td_input)
         return cond_mean, cond_logvar
+
+
+class ContextualGRU(object):
+    '''
+    Recurrent decoder with input from the "primary" sequence and from a
+    "context" sequence.
+
+    Parameters:
+        state_chans: dimension of recurrent state
+        input_chans: dimension of input sequence
+        output_chans: dimension for the output from this module
+        context_chans: dimension of additional "context" input
+        act_func: activation function to apply (should be tanh)
+        mod_name: string name for this module
+    '''
+    def __init__(self,
+                 state_chans, input_chans, output_chans, context_chans,
+                 act_func='relu', mod_name='no_name'):
+        assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
+            "invalid act_func {}.".format(act_func)
+        assert not (mod_name == 'no_name'), \
+            'module name is required.'
+        self.state_chans = state_chans
+        self.input_chans = input_chans
+        self.output_chans = output_chans
+        self.context_chans = context_chans
+        if act_func == 'ident':
+            self.act_func = lambda x: x
+        elif act_func == 'tanh':
+            self.act_func = lambda x: tanh(x)
+        elif act_func == 'elu':
+            self.act_func = lambda x: elu(x)
+        elif act_func == 'relu':
+            self.act_func = lambda x: relu(x)
+        else:
+            self.act_func = lambda x: lrelu(x)
+        self.mod_name = mod_name
+        self._init_params()
+        return
+
+    def _init_params(self):
+        '''
+        Initialize parameters for the layers in this module.
+        '''
+        self.params = []
+        weight_ifn = inits.Orthogonal()
+        bias_ifn = inits.Constant(c=0.)
+        full_input_chans = self.state_chans + self.input_chans + self.context_chans
+        # initialize gating parameters
+        self.w1 = weight_ifn((full_input_chans, 2 * self.state_chans),
+                             "{}_w1".format(self.mod_name))
+        self.b1 = bias_ifn((2 * self.state_chans), "{}_b1".format(self.mod_name))
+        self.params.extend([self.w1, self.b1])
+        # initialize state update parameters
+        self.w2 = weight_ifn((full_input_chans, self.state_chans),
+                             "{}_w2".format(self.mod_name))
+        self.b2 = bias_ifn((self.state_chans), "{}_b2".format(self.mod_name))
+        self.params.extend([self.w2, self.b2])
+        # initialize output funcction parameters
+        self.w3 = weight_ifn((self.state_chans, self.output_chans),
+                             "{}_w3".format(self.mod_name))
+        self.b3 = bias_ifn((self.output_chans), "{}_b3".format(self.mod_name))
+        self.params.extend([self.w3, self.b3])
+        # initialize trainable initial state
+        self.s0 = bias_ifn((self.state_chans), "{}_s0".format(self.mod_name))
+        self.params.extend([self.s0])
+        return
+
+    def share_params(self, source_module):
+        '''
+        Set parameters in this module to be shared with source_module.
+        -- This just sets our parameter info to point to the shared variables
+           used by source_module.
+        '''
+        self.params = []
+        # share gating parameters
+        self.w1 = source_module.w1
+        self.b1 = source_module.b1
+        self.params.extend([self.w1, self.b1])
+        # share state update parameters
+        self.w2 = source_module.w2
+        self.b2 = source_module.b2
+        self.params.extend([self.w2, self.b2])
+        # share output function parameters
+        self.w3 = source_module.w3
+        self.b3 = source_module.b3
+        self.params.extend([self.w3, self.b3])
+        # share initial state
+        self.s0 = source_module.s0
+        self.params.extend([self.s0])
+        return
+
+    def load_params(self, param_dict):
+        '''
+        Load module params directly from a dict of numpy arrays.
+        '''
+        self.w1.set_value(floatX(param_dict['w1']))
+        self.b1.set_value(floatX(param_dict['b1']))
+        self.w2.set_value(floatX(param_dict['w2']))
+        self.b2.set_value(floatX(param_dict['b2']))
+        self.w3.set_value(floatX(param_dict['w3']))
+        self.b3.set_value(floatX(param_dict['b3']))
+        self.s0.set_value(floatX(param_dict['s0']))
+        return
+
+    def dump_params(self):
+        '''
+        Dump module params directly to a dict of numpy arrays.
+        '''
+        param_dict = {}
+        param_dict['w1'] = self.w1.get_value(borrow=False)
+        param_dict['b1'] = self.b1.get_value(borrow=False)
+        param_dict['w2'] = self.w2.get_value(borrow=False)
+        param_dict['b2'] = self.b2.get_value(borrow=False)
+        param_dict['w3'] = self.w3.get_value(borrow=False)
+        param_dict['b3'] = self.b3.get_value(borrow=False)
+        param_dict['s0'] = self.s0.get_value(borrow=False)
+        return param_dict
+
+    def get_s0_for_batch(self, batch_size):
+        '''
+        Get initial state for this module, for minibatch of given size.
+        '''
+        # broadcast self.s0 into the right shape for this batch
+        s0_init = self.s0.dimshuffle('x', 0)
+        s0_zero = T.alloc(0., batch_size, self.state_chans)
+        s0_batch = s0_init + s0_zero
+        return s0_batch
+
+    def apply(self, input, context):
+        '''
+        Apply this GRU to an input sequence and a context sequence.
+
+        -- input and context should be shapes:
+             (nbatch, seq_len, self.input_chans)
+             (nbatch, seq_len, self.context_chans)
+        '''
+
+        def _step_func(x_in, x_ct, s_i):
+            # compute output for the current state
+            o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
+            # o_i = clip_softmax(o_i, axis=1)
+
+            # compute update gate and remember gate
+            gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
+            h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
+            h = hard_sigmoid(h + 1.)
+            u = h[:, :self.state_chans]
+            r = h[:, self.state_chans:]
+
+            # compute new state proposal
+            state_input = T.concatenate([x_in, x_ct, (r * s_i)], axis=1)
+            s_new = T.dot(state_input, self.w2) + self.b2.dimshuffle('x', 0)
+            s_new = self.act_func(s_new)
+
+            # combine old state and proposed new state based on u
+            s_ip1 = (u * s_i) + ((1. - u) * s_new)
+            return s_ip1, o_i
+
+        # shuffle inputs to have sequence dimension first
+        seq_input = input.dimshuffle(1, 0, 2)
+        seq_context = context.dimshuffle(1, 0, 2)
+        # get initial state for GRU
+        s0_full = self.get_s0_for_batch(batch_size=input.shape[0])
+
+        # apply scan over the input sequences, to generate an output sequence
+        init_vals = [s0_full, None]
+        scan_results, scan_updates = \
+            theano.scan(_step_func,
+                        outputs_info=init_vals,
+                        sequences=[seq_input, seq_context])
+        # shuffle output back to shape: (nbatch, seq_len, self.output_chans)
+        output = scan_results.dimshuffle(1, 0, 2)
+        return output, scan_updates
 
 
 ##############

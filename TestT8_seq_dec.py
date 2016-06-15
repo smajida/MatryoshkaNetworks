@@ -30,7 +30,8 @@ from load import load_text8
 from MatryoshkaModulesRNN import \
     TDModuleWrapperRNN, BUModuleWrapperRNN, \
     GenConvGRUModuleRNN, BasicConvModuleNEW, \
-    InfConvGRUModuleRNN, BasicConvGRUModuleRNN
+    InfConvGRUModuleRNN, BasicConvGRUModuleRNN, \
+    ContextualGRU
 from MatryoshkaNetworksRNN import DeepSeqCondGenRNN
 
 sys.setrecursionlimit(100000)
@@ -43,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_conv_simple_6_steps_no_rand'
+desc = 'test_1d_rnn_seq_dec_6_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -65,8 +66,8 @@ niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
-recon_steps = 6
-use_rand = False
+recon_steps = 2
+use_rand = True
 
 
 def train_transform(X):
@@ -350,7 +351,18 @@ seq_cond_gen_model = \
         bu_modules_inf=bu_modules_inf,
         merge_info=merge_info)
 
-# inf_gen_model.load_params(inf_gen_param_file)
+########################################
+# Build the sequential decoding layer. #
+########################################
+
+seq_decoder = \
+    ContextualGRU(
+        state_chans=(ngf * 2),
+        input_chans=nc,
+        output_chans=nc,
+        context_chans=nc,
+        act_func='tanh',
+        mod_name='seq_dec')
 
 ####################################
 # Setup the optimization objective #
@@ -429,6 +441,7 @@ im_states = None
 canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
 kld_dicts = []
 step_recons = []
+# generate the context information for the sequential decoder
 for i in range(recon_steps):
     # mix observed input and current working state to make input
     # for the next step of refinement
@@ -456,11 +469,21 @@ for i in range(recon_steps):
     im_states = res_dict['im_states']
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
-# reconstruction uses canvas after final refinement step
-final_preds = clip_softmax(canvas, axis=1)
+# shuffle dims to get scan inputs
+# -- want shape: (nbatch, seq_len, chans)
+seq_canvas = canvas.dimshuffle(0, 2, 1, 3).squeeze()
+seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3).squeeze()
+
+# run through the contextual decoder
+final_preds, scan_updates = \
+    seq_decoder.apply(seq_Xg_inf, seq_canvas)
+# final_preds comes from scan with shape: (nbatch, seq_len, nc)
+# -- need to shape it back to (nbatch, nc, seq_len, 1)
+final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
+final_preds = clip_softmax(final_preds, axis=1)
+# -- predictions come back in final_preds
 Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
 step_recons.append(Xg_recon)
-
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_categorical(
@@ -521,170 +544,170 @@ print('np.min(to_final_preds): {}'.format(np.min(to_final_preds)))
 print('np.max(to_final_preds): {}'.format(np.max(to_final_preds)))
 print('DONE.')
 
-# stuff for performing updates
-lrt = sharedX(0.001)
-b1t = sharedX(0.9)
-updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-5, clipnorm=100.0)
+# # stuff for performing updates
+# lrt = sharedX(0.001)
+# b1t = sharedX(0.9)
+# updater = updates.Adam(lr=lrt, b1=b1t, b2=0.99, e=1e-5, clipnorm=100.0)
 
-# build training cost and update functions
-t = time()
-print("Computing gradients...")
-all_updates, all_grads = updater(all_params, full_cost, return_grads=True)
+# # build training cost and update functions
+# t = time()
+# print("Computing gradients...")
+# all_updates, all_grads = updater(all_params, full_cost, return_grads=True)
 
-print("Compiling sampling and reconstruction functions...")
-recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], step_recons)
-model_input = make_model_input(char_seq, 50)
-test_recons = recon_func(*model_input)
+# print("Compiling sampling and reconstruction functions...")
+# recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], step_recons)
+# model_input = make_model_input(char_seq, 50)
+# test_recons = recon_func(*model_input)
 
-print("Compiling training functions...")
-# collect costs for generator parameters
-g_basic_costs = [full_cost, full_cost, vae_cost, vae_nll_cost,
-                 vae_kld_cost, vae_obs_costs, vae_layer_klds]
-g_bc_idx = range(0, len(g_basic_costs))
-g_bc_names = ['full_cost', 'full_cost', 'vae_cost', 'vae_nll_cost',
-              'vae_kld_cost', 'vae_obs_costs', 'vae_layer_klds']
-g_cost_outputs = g_basic_costs
-# compile function for computing generator costs and updates
-g_train_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs, updates=all_updates)
-g_eval_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs)
-print "{0:.2f} seconds to compile theano functions".format(time() - t)
+# print("Compiling training functions...")
+# # collect costs for generator parameters
+# g_basic_costs = [full_cost, full_cost, vae_cost, vae_nll_cost,
+#                  vae_kld_cost, vae_obs_costs, vae_layer_klds]
+# g_bc_idx = range(0, len(g_basic_costs))
+# g_bc_names = ['full_cost', 'full_cost', 'vae_cost', 'vae_nll_cost',
+#               'vae_kld_cost', 'vae_obs_costs', 'vae_layer_klds']
+# g_cost_outputs = g_basic_costs
+# # compile function for computing generator costs and updates
+# g_train_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs, updates=all_updates)
+# g_eval_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], g_cost_outputs)
+# print "{0:.2f} seconds to compile theano functions".format(time() - t)
 
-# make file for recording test progress
-log_name = "{}/RESULTS.txt".format(result_dir)
-out_file = open(log_name, 'wb')
-log_name = "{}/RECONS_VAR.txt".format(result_dir)
-recon_out_file = open(log_name, 'wb')
-log_name = "{}/RECONS_FIX.txt".format(result_dir)
-recon_fixed_out_file = open(log_name, 'wb')
+# # make file for recording test progress
+# log_name = "{}/RESULTS.txt".format(result_dir)
+# out_file = open(log_name, 'wb')
+# log_name = "{}/RECONS_VAR.txt".format(result_dir)
+# recon_out_file = open(log_name, 'wb')
+# log_name = "{}/RECONS_FIX.txt".format(result_dir)
+# recon_fixed_out_file = open(log_name, 'wb')
 
 
-print("EXPERIMENT: {}".format(desc.upper()))
+# print("EXPERIMENT: {}".format(desc.upper()))
 
-# setup variables for text-based progress monitoring
-recon_count = 10
-recon_repeats = 3
-recon_input_fixed = make_model_input(char_seq, recon_count)
-recon_input_fixed = [np.repeat(ary, recon_repeats, axis=0)
-                     for ary in recon_input_fixed]
+# # setup variables for text-based progress monitoring
+# recon_count = 10
+# recon_repeats = 3
+# recon_input_fixed = make_model_input(char_seq, recon_count)
+# recon_input_fixed = [np.repeat(ary, recon_repeats, axis=0)
+#                      for ary in recon_input_fixed]
 
-# ...
-n_check = 0
-n_updates = 0
-t = time()
-kld_weights = np.linspace(0.05, 1.0, 50)
-for epoch in range(1, (niter + niter_decay + 1)):
-    # mess with the KLd cost
-    # if ((epoch - 1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
-    lam_kld.set_value(floatX([1.0]))
-    # initialize cost arrays
-    g_epoch_costs = [0. for i in range(5)]
-    v_epoch_costs = [0. for i in range(5)]
-    epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
-    vae_nlls = []
-    vae_klds = []
-    g_batch_count = 0.
-    v_batch_count = 0.
-    X_dummy = np.zeros((500 * nbatch, 50))
-    for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True):
-        # transform training batch validation batch to model input format
-        imb_input = make_model_input(char_seq, nbatch)
-        vmb_input = make_model_input(char_seq, nbatch)
-        # train vae on training batch
-        g_result = g_train_func(*imb_input)
-        g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
-        vae_nlls.append(1. * g_result[3])
-        vae_klds.append(1. * g_result[4])
-        batch_obs_costs = g_result[5]
-        batch_layer_klds = g_result[6]
-        epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
-        g_batch_count += 1
-        # evaluate vae on validation batch
-        if v_batch_count < 25:
-            v_result = g_eval_func(*vmb_input)
-            v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
-            v_batch_count += 1
-    if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
-        # cut learning rate in half
-        lr = lrt.get_value(borrow=False)
-        lr = lr / 2.0
-        lrt.set_value(floatX(lr))
-        b1 = b1t.get_value(borrow=False)
-        b1 = b1 + ((0.95 - b1) / 2.0)
-        b1t.set_value(floatX(b1))
-    if epoch > niter:
-        # linearly decay learning rate
-        lr = lrt.get_value(borrow=False)
-        remaining_epochs = (niter + niter_decay + 1) - epoch
-        lrt.set_value(floatX(lr - (lr / remaining_epochs)))
-    ###################
-    # SAVE PARAMETERS #
-    ###################
-    seq_cond_gen_model.dump_params(inf_gen_param_file)
-    ##################################
-    # QUANTITATIVE DIAGNOSTICS STUFF #
-    ##################################
-    g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
-    v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
-    epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
-    str1 = "Epoch {}: ({})".format(epoch, desc.upper())
-    g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
-                 for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
-    str2 = " ".join(g_bc_strs)
-    nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
-    str3 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
-    kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
-    str4 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
-        kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
-    kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
-    str5 = "    module kld -- {}".format(" ".join(kld_strs))
-    str6 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
-        v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
-    joint_str = "\n".join([str1, str2, str3, str4, str5, str6])
-    print(joint_str)
-    out_file.write(joint_str + "\n")
-    out_file.flush()
-    if (epoch <= 10) or ((epoch % 10) == 0):
-        recon_input = make_model_input(char_seq, recon_count)
-        recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
-        seq_cond_gen_model.set_sample_switch('gen')
-        step_recons = recon_func(*recon_input)
-        step_recons_fixed = recon_func(*recon_input_fixed)
-        seq_cond_gen_model.set_sample_switch('inf')
-        #
-        # visualization for the variable set of examples
-        #
-        recons = np.vstack(step_recons)
-        grayscale_grid_vis(recons, (recon_steps + 1, recon_count * recon_repeats),
-                           "{}/recons_{}.png".format(result_dir, epoch))
-        final_recons = step_recons[-1].transpose(0, 2, 1, 3)
-        # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-        final_recons = np.squeeze(final_recons, axis=(3,))
-        final_recons = np.argmax(final_recons, axis=2)
-        # final_recons.shape: (recon_count, ns)
-        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-        for j in range(final_recons.shape[0]):
-            rec_str = [idx2char[idx] for idx in final_recons[j]]
-            rec_strs.append(''.join(rec_str))
-        joint_str = '\n'.join(rec_strs)
-        recon_out_file.write(joint_str + '\n')
-        recon_out_file.flush()
-        #
-        # visualization for the fixed set of examples
-        #
-        final_recons = step_recons_fixed[-1].transpose(0, 2, 1, 3)
-        # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-        final_recons = np.squeeze(final_recons, axis=(3,))
-        final_recons = np.argmax(final_recons, axis=2)
-        # final_recons.shape: (recon_count, ns)
-        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-        for j in range(final_recons.shape[0]):
-            rec_str = [idx2char[idx] for idx in final_recons[j]]
-            rec_strs.append(''.join(rec_str))
-        joint_str = '\n'.join(rec_strs)
-        recon_fixed_out_file.write(joint_str + '\n')
-        recon_fixed_out_file.flush()
+# # ...
+# n_check = 0
+# n_updates = 0
+# t = time()
+# kld_weights = np.linspace(0.05, 1.0, 50)
+# for epoch in range(1, (niter + niter_decay + 1)):
+#     # mess with the KLd cost
+#     # if ((epoch - 1) < len(kld_weights)):
+#     #    lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+#     lam_kld.set_value(floatX([1.0]))
+#     # initialize cost arrays
+#     g_epoch_costs = [0. for i in range(5)]
+#     v_epoch_costs = [0. for i in range(5)]
+#     epoch_layer_klds = [0. for i in range(len(vae_layer_names))]
+#     vae_nlls = []
+#     vae_klds = []
+#     g_batch_count = 0.
+#     v_batch_count = 0.
+#     X_dummy = np.zeros((500 * nbatch, 50))
+#     for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True):
+#         # transform training batch validation batch to model input format
+#         imb_input = make_model_input(char_seq, nbatch)
+#         vmb_input = make_model_input(char_seq, nbatch)
+#         # train vae on training batch
+#         g_result = g_train_func(*imb_input)
+#         g_epoch_costs = [(v1 + v2) for v1, v2 in zip(g_result[:5], g_epoch_costs)]
+#         vae_nlls.append(1. * g_result[3])
+#         vae_klds.append(1. * g_result[4])
+#         batch_obs_costs = g_result[5]
+#         batch_layer_klds = g_result[6]
+#         epoch_layer_klds = [(v1 + v2) for v1, v2 in zip(batch_layer_klds, epoch_layer_klds)]
+#         g_batch_count += 1
+#         # evaluate vae on validation batch
+#         if v_batch_count < 25:
+#             v_result = g_eval_func(*vmb_input)
+#             v_epoch_costs = [(v1 + v2) for v1, v2 in zip(v_result[:5], v_epoch_costs)]
+#             v_batch_count += 1
+#     if (epoch == 5) or (epoch == 15) or (epoch == 30) or (epoch == 60) or (epoch == 100):
+#         # cut learning rate in half
+#         lr = lrt.get_value(borrow=False)
+#         lr = lr / 2.0
+#         lrt.set_value(floatX(lr))
+#         b1 = b1t.get_value(borrow=False)
+#         b1 = b1 + ((0.95 - b1) / 2.0)
+#         b1t.set_value(floatX(b1))
+#     if epoch > niter:
+#         # linearly decay learning rate
+#         lr = lrt.get_value(borrow=False)
+#         remaining_epochs = (niter + niter_decay + 1) - epoch
+#         lrt.set_value(floatX(lr - (lr / remaining_epochs)))
+#     ###################
+#     # SAVE PARAMETERS #
+#     ###################
+#     seq_cond_gen_model.dump_params(inf_gen_param_file)
+#     ##################################
+#     # QUANTITATIVE DIAGNOSTICS STUFF #
+#     ##################################
+#     g_epoch_costs = [(c / g_batch_count) for c in g_epoch_costs]
+#     v_epoch_costs = [(c / v_batch_count) for c in v_epoch_costs]
+#     epoch_layer_klds = [(c / g_batch_count) for c in epoch_layer_klds]
+#     str1 = "Epoch {}: ({})".format(epoch, desc.upper())
+#     g_bc_strs = ["{0:s}: {1:.2f},".format(c_name, g_epoch_costs[c_idx])
+#                  for (c_idx, c_name) in zip(g_bc_idx[:5], g_bc_names[:5])]
+#     str2 = " ".join(g_bc_strs)
+#     nll_qtiles = np.percentile(vae_nlls, [50., 80., 90., 95.])
+#     str3 = "    [q50, q80, q90, q95, max](vae-nll): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+#         nll_qtiles[0], nll_qtiles[1], nll_qtiles[2], nll_qtiles[3], np.max(vae_nlls))
+#     kld_qtiles = np.percentile(vae_klds, [50., 80., 90., 95.])
+#     str4 = "    [q50, q80, q90, q95, max](vae-kld): {0:.2f}, {1:.2f}, {2:.2f}, {3:.2f}, {4:.2f}".format(
+#         kld_qtiles[0], kld_qtiles[1], kld_qtiles[2], kld_qtiles[3], np.max(vae_klds))
+#     kld_strs = ["{0:s}: {1:.2f},".format(ln, lk) for ln, lk in zip(vae_layer_names, epoch_layer_klds)]
+#     str5 = "    module kld -- {}".format(" ".join(kld_strs))
+#     str6 = "    validation -- nll: {0:.2f}, kld: {1:.2f}, vfe/iwae: {2:.2f}".format(
+#         v_epoch_costs[3], v_epoch_costs[4], v_epoch_costs[2])
+#     joint_str = "\n".join([str1, str2, str3, str4, str5, str6])
+#     print(joint_str)
+#     out_file.write(joint_str + "\n")
+#     out_file.flush()
+#     if (epoch <= 10) or ((epoch % 10) == 0):
+#         recon_input = make_model_input(char_seq, recon_count)
+#         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
+#         seq_cond_gen_model.set_sample_switch('gen')
+#         step_recons = recon_func(*recon_input)
+#         step_recons_fixed = recon_func(*recon_input_fixed)
+#         seq_cond_gen_model.set_sample_switch('inf')
+#         #
+#         # visualization for the variable set of examples
+#         #
+#         recons = np.vstack(step_recons)
+#         grayscale_grid_vis(recons, (recon_steps + 1, recon_count * recon_repeats),
+#                            "{}/recons_{}.png".format(result_dir, epoch))
+#         final_recons = step_recons[-1].transpose(0, 2, 1, 3)
+#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
+#         final_recons = np.squeeze(final_recons, axis=(3,))
+#         final_recons = np.argmax(final_recons, axis=2)
+#         # final_recons.shape: (recon_count, ns)
+#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+#         for j in range(final_recons.shape[0]):
+#             rec_str = [idx2char[idx] for idx in final_recons[j]]
+#             rec_strs.append(''.join(rec_str))
+#         joint_str = '\n'.join(rec_strs)
+#         recon_out_file.write(joint_str + '\n')
+#         recon_out_file.flush()
+#         #
+#         # visualization for the fixed set of examples
+#         #
+#         final_recons = step_recons_fixed[-1].transpose(0, 2, 1, 3)
+#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
+#         final_recons = np.squeeze(final_recons, axis=(3,))
+#         final_recons = np.argmax(final_recons, axis=2)
+#         # final_recons.shape: (recon_count, ns)
+#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+#         for j in range(final_recons.shape[0]):
+#             rec_str = [idx2char[idx] for idx in final_recons[j]]
+#             rec_strs.append(''.join(rec_str))
+#         joint_str = '\n'.join(rec_strs)
+#         recon_fixed_out_file.write(joint_str + '\n')
+#         recon_fixed_out_file.flush()
 
 
 
