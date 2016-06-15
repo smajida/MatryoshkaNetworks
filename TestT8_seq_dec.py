@@ -66,7 +66,7 @@ niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
-recon_steps = 2
+recon_steps = 6
 use_rand = True
 
 
@@ -599,12 +599,12 @@ recon_input_fixed = [np.repeat(ary, recon_repeats, axis=0)
 n_check = 0
 n_updates = 0
 t = time()
-kld_weights = np.linspace(0.05, 1.0, 50)
+kld_weights = np.linspace(0.1, 1.0, 50)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
-    # if ((epoch - 1) < len(kld_weights)):
-    #    lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
-    lam_kld.set_value(floatX([1.0]))
+    if ((epoch - 1) < len(kld_weights)):
+       lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+    # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
     v_epoch_costs = [0. for i in range(5)]
@@ -614,7 +614,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
     g_batch_count = 0.
     v_batch_count = 0.
     X_dummy = np.zeros((500 * nbatch, 50))
-    for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True):
+    for imb in tqdm(iter_data(X_dummy, size=nbatch), total=500, ascii=True, ncols=60):
         # transform training batch validation batch to model input format
         imb_input = make_model_input(char_seq, nbatch)
         vmb_input = make_model_input(char_seq, nbatch)
