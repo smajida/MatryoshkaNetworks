@@ -1755,7 +1755,7 @@ class ContextualGRU(object):
     '''
     def __init__(self,
                  state_chans, input_chans, output_chans, context_chans,
-                 act_func='relu', mod_name='no_name'):
+                 use_shortcut=False, act_func='relu', mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         assert not (mod_name == 'no_name'), \
@@ -1764,6 +1764,7 @@ class ContextualGRU(object):
         self.input_chans = input_chans
         self.output_chans = output_chans
         self.context_chans = context_chans
+        self.use_shortcut = use_shortcut
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -1879,8 +1880,8 @@ class ContextualGRU(object):
         def _step_func(x_in, x_ct, s_i):
             # compute output for the current state
             o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
-            o_i = o_i + x_ct
-            # o_i = clip_softmax(o_i, axis=1)
+            if self.use_shortcut:
+                o_i = o_i + x_ct
 
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)

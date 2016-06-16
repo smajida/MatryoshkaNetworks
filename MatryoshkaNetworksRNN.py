@@ -277,6 +277,8 @@ class DeepSeqCondGenRNN(object):
                 cond_z = 0. * cond_z
                 cond_mean_inf = 0. * cond_mean_inf
                 cond_mean_gen = 0. * cond_mean_gen
+                cond_logvar_inf = 0. * cond_logvar_inf
+                cond_logvar_gen = 0. * cond_logvar_gen
 
             # update the current TD module using the conditional z samples
             td_output, td_state_new = \
