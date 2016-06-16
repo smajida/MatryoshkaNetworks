@@ -62,6 +62,7 @@ nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
 ngf = 80            # base # of channels for defining layers
+ngc = 128           # dimension of "context" to feed into sequential decoder
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
@@ -150,7 +151,7 @@ td_module_3a = \
 td_module_3b = \
     BasicConvModuleNEW(
         in_chans=(ngf * 2),
-        out_chans=(nc * 2),
+        out_chans=(ngc * 2),
         filt_shape=(3, 1),
         stride='single',
         is_1d=True,
@@ -229,7 +230,7 @@ bu_module_3a = \
         mod_name='bu_mod_3a')
 bu_module_3b = \
     BasicConvModuleNEW(
-        in_chans=(nc * 2),
+        in_chans=(2 * nc + ngc),
         out_chans=(ngf * 2),
         filt_shape=(3, 1),
         stride='single',
@@ -273,7 +274,7 @@ bu_module_2 = \
 
 bu_module_3 = \
     BasicConvModuleNEW(
-        in_chans=(2 * (2 * nc)),
+        in_chans=(3 * nc + ngc),
         out_chans=(ngf * 2),
         filt_shape=(5, 1),
         stride='single',
@@ -361,7 +362,7 @@ seq_decoder = \
         state_chans=(ngf * 2),
         input_chans=nc,
         output_chans=nc,
-        context_chans=nc,
+        context_chans=ngc,
         use_shortcut=seq_dec_shortcut,
         act_func='tanh',
         mod_name='seq_dec')
@@ -370,10 +371,11 @@ seq_decoder = \
 # Setup the optimization objective #
 ####################################
 lam_kld = sharedX(floatX([1.0]))
-c0 = sharedX(floatX(np.zeros((1, nc, ns, 1))))
-gen_params = seq_cond_gen_model.gen_params + seq_decoder.params + [c0]
+c0 = sharedX(floatX(np.zeros((ngc,))))  # initial context
+x0 = sharedX(floatX(np.zeros((nc,))))   # gap filler
+gen_params = seq_cond_gen_model.gen_params + seq_decoder.params + [c0, x0]
 inf_params = seq_cond_gen_model.inf_params
-all_params = seq_cond_gen_model.all_params + seq_decoder.params + [c0]
+all_params = seq_cond_gen_model.all_params + seq_decoder.params + [c0, x0]
 
 
 ######################################################
@@ -440,18 +442,25 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 td_states = None
 bu_states = None
 im_states = None
-canvas = T.repeat(c0, Xg_gen.shape[0], axis=0)
+nbatch = Xg_gen.shape[0]
+seq_len = Xg_gen.shape[2]
+context = c0.dimshuffle('x', 0, 'x', 'x')
+context = T.repeat(context, nbatch, axis=0)
+context = T.repeat(context, seq_len, axis=2)
+filler = x0.dimshuffle('x', 0, 'x', 'x')
+filler = T.repeat(filler, nbatch, axis=0)
+filler = clip_softmax(T.repeat(filler, seq_len, axis=2), axis=1)
+Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 kld_dicts = []
-step_recons = []
+step_context = []
 # generate the context information for the sequential decoder
 for i in range(recon_steps):
     # mix observed input and current working state to make input
     # for the next step of refinement
-    Xg_i = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * clip_softmax(canvas, axis=1))
-    step_recons.append(Xg_i)
+    step_context.append(context)
     # concatenate all inputs to generator and inferencer
-    Xa_gen_i = T.concatenate([Xg_i, Xm_gen], axis=1)
-    Xa_inf_i = T.concatenate([Xg_i, Xm_gen, Xg_inf, Xm_inf], axis=1)
+    Xa_gen_i = T.concatenate([Xg_in, Xm_gen, context], axis=1)
+    Xa_inf_i = T.concatenate([Xg_in, Xm_gen, Xg_inf, context], axis=1)
     # run a guided refinement step
     res_dict = \
         seq_cond_gen_model.apply_im_cond(
@@ -461,34 +470,35 @@ for i in range(recon_steps):
             bu_states=bu_states,
             im_states=im_states)
     output_2d = res_dict['output']
-    out_char = output_2d[:, :nc, :, :]
-    out_gate = output_2d[:, nc:, :, :]
-    # update canvas state, with gating on the canvas state
-    canvas = (clip_sigmoid(1. + out_gate) * canvas) + out_char
+    out_cont = output_2d[:, :ngc, :, :]
+    out_gate = output_2d[:, ngc:, :, :]
+    # perform a gated update of the decoder context
+    context = (clip_sigmoid(1. + out_gate) * context) + out_cont
     # grab updated states for next refinement step
     td_states = res_dict['td_states']
     bu_states = res_dict['bu_states']
     im_states = res_dict['im_states']
     # record klds from this step
     kld_dicts.append(res_dict['kld_dict'])
+# record final context
+step_context.append(context)
 # shuffle dims to get scan inputs.
 # -- want shape: (nbatch, seq_len, chans)
 # -- have shape: (nbatch, chans, seq_len, 1)
-seq_canvas = canvas.dimshuffle(0, 2, 1, 3)
+seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3)
-seq_canvas = T.flatten(seq_canvas, 3)
+seq_context = T.flatten(seq_context, 3)
 seq_Xg_inf = T.flatten(seq_Xg_inf, 3)
 
 # run through the contextual decoder
 final_preds, scan_updates = \
-    seq_decoder.apply(seq_Xg_inf, seq_canvas)
+    seq_decoder.apply(seq_Xg_inf, seq_context)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
 final_preds = clip_softmax(final_preds, axis=1)
 # -- predictions come back in final_preds
 Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
-step_recons.append(Xg_recon)
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_categorical(
@@ -503,8 +513,6 @@ vae_nll_cost = T.mean(vae_obs_nlls)
 # convert KL dict to aggregate KLds over inference steps
 kl_by_td_mod = {tdm_name: sum([kld_dict[tdm_name] for kld_dict in kld_dicts])
                 for tdm_name in kld_dicts[0].keys()}  # aggregate over refinement steps
-# kl_by_td_mod = {tdm_name: T.sum(kl_by_td_mod[tdm_name], axis=1)
-#                 for tdm_name in kld_dicts[0].keys()}  # aggregate over latent dimensions
 # compute per-layer KL-divergence part of cost
 kld_tuples = [(mod_name, mod_kld) for mod_name, mod_kld in kl_by_td_mod.items()]
 vae_layer_klds = T.as_tensor_variable([T.mean(mod_kld) for mod_name, mod_kld in kld_tuples])
@@ -605,7 +613,7 @@ kld_weights = np.linspace(0.2, 1.0, 50)
 for epoch in range(1, (niter + niter_decay + 1)):
     # mess with the KLd cost
     if ((epoch - 1) < len(kld_weights)):
-       lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
+        lam_kld.set_value(floatX([kld_weights[epoch - 1]]))
     # lam_kld.set_value(floatX([1.0]))
     # initialize cost arrays
     g_epoch_costs = [0. for i in range(5)]
