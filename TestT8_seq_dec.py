@@ -359,7 +359,7 @@ seq_cond_gen_model = \
 
 seq_decoder = \
     ContextualGRU(
-        state_chans=(ngf * 2),
+        state_chans=(ngc * 4),
         input_chans=nc,
         output_chans=nc,
         context_chans=ngc,
