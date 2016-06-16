@@ -1879,6 +1879,7 @@ class ContextualGRU(object):
         def _step_func(x_in, x_ct, s_i):
             # compute output for the current state
             o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
+            o_i = o_i + x_ct
             # o_i = clip_softmax(o_i, axis=1)
 
             # compute update gate and remember gate
