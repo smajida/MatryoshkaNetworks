@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_1d_rnn_seq_dec_6_steps'
+desc = 'test_1d_rnn_seq_dec_6_steps_no_rand'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -67,7 +67,7 @@ niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
 recon_steps = 6
-use_rand = True
+use_rand = False
 
 
 def train_transform(X):
