@@ -442,13 +442,13 @@ vae_reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 td_states = None
 bu_states = None
 im_states = None
-nbatch = Xg_gen.shape[0]
+n_batch = Xg_gen.shape[0]
 seq_len = Xg_gen.shape[2]
 context = c0.dimshuffle('x', 0, 'x', 'x')
-context = T.repeat(context, nbatch, axis=0)
+context = T.repeat(context, n_batch, axis=0)
 context = T.repeat(context, seq_len, axis=2)
 filler = x0.dimshuffle('x', 0, 'x', 'x')
-filler = T.repeat(filler, nbatch, axis=0)
+filler = T.repeat(filler, n_batch, axis=0)
 filler = clip_softmax(T.repeat(filler, seq_len, axis=2), axis=1)
 Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 kld_dicts = []

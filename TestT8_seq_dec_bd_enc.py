@@ -178,13 +178,13 @@ Xa_gen = T.concatenate([Xg_gen, Xm_gen], axis=1)
 Xa_inf = T.concatenate([Xg_gen, Xm_gen, Xg_inf, Xm_inf], axis=1)
 
 # feed all masked inputs through the inference network
-nbatch = Xg_gen.shape[0]
+n_batch = Xg_gen.shape[0]
 seq_len = Xg_gen.shape[2]
 context = c0.dimshuffle('x', 0, 'x', 'x')
-context = T.repeat(context, nbatch, axis=0)
+context = T.repeat(context, n_batch, axis=0)
 context = T.repeat(context, seq_len, axis=2)
 filler = x0.dimshuffle('x', 0, 'x', 'x')
-filler = T.repeat(filler, nbatch, axis=0)
+filler = T.repeat(filler, n_batch, axis=0)
 filler = clip_softmax(T.repeat(filler, seq_len, axis=2), axis=1)
 
 
