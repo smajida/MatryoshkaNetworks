@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc'
+desc = 'test_seq_dec_bd_enc_1_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,6 +61,7 @@ ng = 8              # length of occluded gaps
 ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
+zz_steps = 1
 
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
@@ -195,11 +196,15 @@ reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 seq_Xg_in = Xg_in.dimshuffle(0, 2, 1, 3)
 seq_Xg_in = T.flatten(seq_Xg_in, 3)
+seq_X_full = Xg_inf.dimshuffle(0, 2, 1, 3)
+seq_X_full = T.flatten(seq_X_full, 3)
 seq_Xm_in = Xm_gen.dimshuffle(0, 2, 1, 3)
 seq_Xm_in = T.flatten(seq_Xm_in, 3)
 seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
+# seq_input is for encoder, and seq_input_full is for decoder
 seq_input = T.concatenate([seq_Xg_in, seq_Xm_in], axis=2)
+seq_input_full = T.concatenate([seq_X_full, seq_Xm_in], axis=2)
 
 # run iterative zig-zag refinement
 scan_updates = []
@@ -223,7 +228,7 @@ for i in range(zz_steps):
 
 # run through the contextual decoder
 final_preds, su = \
-    seq_decoder.apply(seq_input, seq_context)
+    seq_decoder.apply(seq_input_full, 0. * seq_context)
 scan_updates.append(su)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
