@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_only'
+desc = 'test_seq_dec_only_512d'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,7 +61,7 @@ ng = 8              # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
-ngf = 80            # base # of channels for defining layers
+ngf = 512           # dimension of GRU state
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 
@@ -82,7 +82,7 @@ bce = T.nnet.binary_crossentropy
 
 seq_decoder = \
     ContextualGRU(
-        state_chans=(ngf * 2),
+        state_chans=ngf,
         input_chans=nc,
         output_chans=nc,
         context_chans=nc,
@@ -149,10 +149,12 @@ reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3)
 seq_Xg_inf = T.flatten(seq_Xg_inf, 3)
+seq_Xm_inf = Xm_inf.dimshuffle(0, 2, 1, 3)
+seq_Xm_inf = T.flatten(seq_Xm_inf, 3)
 
 # run through the contextual decoder
 final_preds, scan_updates = \
-    seq_decoder.apply(seq_Xg_inf, seq_Xg_inf)
+    seq_decoder.apply(2. * seq_Xg_inf, 1. * seq_Xg_inf)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
