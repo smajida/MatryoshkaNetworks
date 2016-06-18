@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_no_lats_6_steps'
+desc = 'test_seq_dec_no_lats_5_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,13 +61,14 @@ ng = 8              # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
-ngf = 80            # base # of channels for defining layers
+ngf = 80            # base state dimension for encoder
+ngd = 512           # state dimension for sequential decoder
 ngc = 128           # dimension of "context" to feed into sequential decoder
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
-recon_steps = 2
+recon_steps = 5
 use_rand = True
 
 
@@ -358,7 +359,7 @@ seq_cond_gen_model = \
 
 seq_decoder = \
     ContextualGRU(
-        state_chans=(ngc * 4),
+        state_chans=ngd,
         input_chans=nc,
         output_chans=nc,
         context_chans=ngc,

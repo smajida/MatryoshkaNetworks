@@ -1477,6 +1477,7 @@ class TDModuleWrapperRNN(object):
             self.mlp_modules = None
         self.use_shortcut = use_shortcut
         self.use_rand = use_rand
+        self.rand_chans = td_module.rand_chans
         self.mod_name = mod_name
         return
 
