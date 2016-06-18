@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc_5_steps_alt_gate'
+desc = 'test_seq_dec_bd_enc_1_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -61,7 +61,7 @@ ng = 8              # length of occluded gaps
 ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
-zz_steps = 5
+zz_steps = 1
 
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
@@ -187,13 +187,12 @@ context = T.repeat(context, seq_len, axis=2)
 filler = x0.dimshuffle('x', 0, 'x', 'x')
 filler = T.repeat(filler, n_batch, axis=0)
 filler = clip_softmax(T.repeat(filler, seq_len, axis=2), axis=1)
-
+Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 
 # parameter regularization part of cost
 reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
 # make primary input sequences
-Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 seq_Xg_in = Xg_in.dimshuffle(0, 2, 1, 3)
 seq_Xg_in = T.flatten(seq_Xg_in, 3)
 seq_X_full = Xg_inf.dimshuffle(0, 2, 1, 3)
@@ -204,11 +203,7 @@ seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
 # seq_input is for encoder, and seq_input_full is for decoder
 seq_input = T.concatenate([seq_Xg_in, seq_Xm_in], axis=2)
-seq_input_full = T.concatenate([2. * seq_X_full, seq_X_full], axis=2)
-
-def reverse_seq(seq_ary):
-    seq_rev = seq_ary[:, ::-1, :]
-    return seq_rev
+seq_input_full = T.concatenate([seq_X_full, seq_Xm_in], axis=2)
 
 # run iterative zig-zag refinement
 scan_updates = []
@@ -220,20 +215,19 @@ for i in range(zz_steps):
     out_ctxt = enc_out_f[:, :, :ngc]
     out_gate = clip_sigmoid(enc_out_f[:, :, ngc:] + 1.)
     # update context
-    seq_context = (out_gate * seq_context) + ((1. - out_gate) * out_ctxt)
+    seq_context = (out_gate * seq_context) + out_ctxt
     # compute backward model's context refinement
     enc_out_b, su = \
-        seq_enc_b.apply(reverse_seq(seq_input), reverse_seq(seq_context))
+        seq_enc_b.apply(seq_input, seq_context)
     scan_updates.append(su)
-    enc_out = reverse_seq(enc_out_b)
     out_ctxt = enc_out_b[:, :, :ngc]
     out_gate = clip_sigmoid(enc_out_b[:, :, ngc:] + 1.)
     # update context
-    seq_context = (out_gate * seq_context) + ((1. - out_gate) * out_ctxt)
+    seq_context = (out_gate * seq_context) + out_ctxt
 
 # run through the contextual decoder
 final_preds, su = \
-    seq_decoder.apply(seq_input_full, seq_context)
+    seq_decoder.apply(seq_input_full, 0. * seq_context)
 scan_updates.append(su)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
