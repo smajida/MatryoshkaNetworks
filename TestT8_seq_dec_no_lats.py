@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_no_lats_8_steps'
+desc = 'test_seq_dec_no_lats_2_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -68,7 +68,7 @@ niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
-recon_steps = 8
+recon_steps = 2
 use_rand = True
 
 
@@ -511,26 +511,55 @@ full_cost = nll_cost + reg_cost
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 
-print('Compiling test function...')
-test_outputs = [full_cost, Xg_inf, Xm_inf, final_preds]
-test_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], test_outputs)
+print('Compiling encoder and sampling functions...')
+# function for applying the encoder and getting nicely-shaped context/input
+encoder_outputs = [seq_context, seq_Xg_inf, full_cost]
+encoder_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], encoder_outputs)
+
+# function for applying the first step of decoder (includes state initialization)
+dec_state = T.matrix()
+dec_input = T.matrix()
+dec_context = T.matrix()
+state_1, out_0 = \
+    seq_decoder.apply_step(state=None, input=dec_input, context=dec_context)
+step_func_0 = theano.function([dec_input, dec_context], [state_1, out_0])
+state_tp1, out_t = \
+    seq_decoder.apply_step(state=dec_state, input=dec_input, context=dec_context)
+step_func_1 = theano.function([dec_state, dec_input, dec_context], [state_tp1, out_t])
+
+# test compiled functions
 model_input = make_model_input(char_seq, 50)
 for i, in_ary in enumerate(model_input):
     print('model_input[i].shape: {}'.format(in_ary.shape))
-
-test_out = test_func(*model_input)
-to_full_cost = test_out[0]
-to_Xg_inf = test_out[1]
-to_Xm_inf = test_out[2]
-to_final_preds = test_out[3]
-print('full_cost: {}'.format(to_full_cost))
-print('np.min(to_Xg_inf): {}'.format(np.min(to_Xg_inf)))
-print('np.max(to_Xg_inf): {}'.format(np.max(to_Xg_inf)))
-print('np.min(to_Xm_inf): {}'.format(np.min(to_Xm_inf)))
-print('np.max(to_Xm_inf): {}'.format(np.max(to_Xm_inf)))
-print('np.min(to_final_preds): {}'.format(np.min(to_final_preds)))
-print('np.max(to_final_preds): {}'.format(np.max(to_final_preds)))
+enc_out = encoder_func(*model_input)
+eo_context = enc_out[0]
+eo_input = enc_out[1]
+print('eo_context.shape: {}'.format(eo_context.shape))
+print('eo_input.shape: {}'.format(eo_input.shape))
 print('DONE.')
+
+# # function for deterministic/stochastic decoding (using argmax/sampling)
+# def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
+#     enc_out = encoder_func(xg_gen, xm_gen, xg_inf, xm_inf)
+#     enc_context, enc_input = enc_out[0], enc_out[1]
+#     # enc_context.shape: (nbatch, seq_len, context_dim)
+#     # enc_input.shape: (nbatch, seq_len, input_dim)
+
+#     seq_len = enc_context.shape[1]
+#     # run decoder over sequence step-by-step
+#     s_states = [None]
+#     s_outs = []
+#     for s in range(seq_len):
+#         s_input = enc_input[:, s, :]
+#         s_context = enc_context[:, s, :]
+#         if s == 0:
+#             s_out = step_func_0(s_input, s_context)
+#         else:
+#             s_out = step_func_1(s_states[-1], s_input, s_context)
+#         s_outs.append(s_out)
+#         s_states.append(s_out[0])
+
+#     return char_seq_samples
 
 # stuff for performing updates
 lrt = sharedX(0.001)

@@ -269,10 +269,10 @@ class DeepSeqCondGenRNN(object):
             cond_z = (self.sample_switch[0] * cond_z_inf) + \
                 ((1. - self.sample_switch[0]) * cond_z_gen)
 
+            # apply a switch for whether or not to use latent variables
             use_rand = True
             if hasattr(td_module, 'use_rand'):
                 use_rand = td_module.use_rand
-
             if not use_rand:
                 cond_z = 0. * cond_z
                 cond_mean_inf = 0. * cond_mean_inf

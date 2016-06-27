@@ -1916,6 +1916,48 @@ class ContextualGRU(object):
         output = scan_results[1].dimshuffle(1, 0, 2)
         return output, scan_updates
 
+    def apply_step(self, state=None, input=None, context=None):
+        '''
+        Apply a one-step GRU update given some state, input, and context info.
+
+        -- state, input, and context should be shapes:
+             (nbatch, self.state_chans)
+             (nbatch, self.input_chans)
+             (nbatch, self.context_chans)
+        '''
+        assert (input is not None), 'input required'
+        assert (context is not None), 'context required'
+
+        def _step_func(x_in, x_ct, s_i):
+            # compute output for the current state
+            o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
+            if self.use_shortcut:
+                o_i = o_i + x_ct
+
+            # compute update gate and remember gate
+            gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
+            h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
+            h = hard_sigmoid(h + 1.)
+            u = h[:, :self.state_chans]
+            r = h[:, self.state_chans:]
+
+            # compute new state proposal
+            state_input = T.concatenate([x_in, x_ct, (r * s_i)], axis=1)
+            s_new = T.dot(state_input, self.w2) + self.b2.dimshuffle('x', 0)
+            s_new = self.act_func(s_new)
+
+            # combine old state and proposed new state based on u
+            s_ip1 = (u * s_i) + ((1. - u) * s_new)
+            return s_ip1, o_i
+
+        if state is None:
+            # use default state if none was provided
+            state = self.get_s0_for_batch(batch_size=input.shape[0])
+
+        # apply step function to get step output and updated state
+        state_new, output = _step_func(input, context, state)
+        return state_new, output
+
 
 ##############
 # EYE BUFFER #
