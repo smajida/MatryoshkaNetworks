@@ -1756,7 +1756,7 @@ class ContextualGRU(object):
     '''
     def __init__(self,
                  state_chans, input_chans, output_chans, context_chans,
-                 use_shortcut=False, act_func='relu', mod_name='no_name'):
+                 act_func='relu', mod_name='no_name'):
         assert (act_func in ['ident', 'tanh', 'relu', 'lrelu', 'elu']), \
             "invalid act_func {}.".format(act_func)
         assert not (mod_name == 'no_name'), \
@@ -1765,7 +1765,6 @@ class ContextualGRU(object):
         self.input_chans = input_chans
         self.output_chans = output_chans
         self.context_chans = context_chans
-        self.use_shortcut = use_shortcut
         if act_func == 'ident':
             self.act_func = lambda x: x
         elif act_func == 'tanh':
@@ -1879,11 +1878,6 @@ class ContextualGRU(object):
         '''
 
         def _step_func(x_in, x_ct, s_i):
-            # compute output for the current state
-            o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
-            if self.use_shortcut:
-                o_i = o_i + x_ct
-
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
             h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
@@ -1898,7 +1892,10 @@ class ContextualGRU(object):
 
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
-            return s_ip1, o_i
+
+            # compute output from the updated state
+            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            return s_ip1, o_ip1
 
         # shuffle inputs to have sequence dimension first
         seq_input = input.dimshuffle(1, 0, 2)
@@ -1929,11 +1926,6 @@ class ContextualGRU(object):
         assert (context is not None), 'context required'
 
         def _step_func(x_in, x_ct, s_i):
-            # compute output for the current state
-            o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
-            if self.use_shortcut:
-                o_i = o_i + x_ct
-
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
             h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
@@ -1948,7 +1940,10 @@ class ContextualGRU(object):
 
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
-            return s_ip1, o_i
+
+            # compute output from the updated state
+            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            return s_ip1, o_ip1
 
         if state is None:
             # use default state if none was provided

@@ -70,6 +70,7 @@ bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
 recon_steps = 2
 use_rand = True
+padding = 4
 
 
 def train_transform(X):
@@ -363,7 +364,6 @@ seq_decoder = \
         input_chans=nc,
         output_chans=nc,
         context_chans=ngc,
-        use_shortcut=False,
         act_func='tanh',
         mod_name='seq_dec')
 
@@ -389,7 +389,7 @@ def make_model_input(source_seq, batch_size):
     # sample masked versions of each sequence in the minibatch
     xg_gen, xg_inf, xm_gen = \
         get_masked_seqs(x_in, drop_prob=0.0, occ_len=ng,
-                        occ_count=1, data_mean=None)
+                        occ_count=1, data_mean=None, padding=padding)
     # for each x, x.shape = (nbatch, ns, nc)
 
     # reshape and process data for use as model input

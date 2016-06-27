@@ -63,6 +63,7 @@ nz1 = 8             # # of dim for Z1
 ngf = 80            # base # of channels for defining layers
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
+padding = 4         # padding to keep gaps away from sequence edges
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
 recon_steps = 6
@@ -373,7 +374,7 @@ def make_model_input(source_seq, batch_size):
     # sample masked versions of each sequence in the minibatch
     xg_gen, xg_inf, xm_gen = \
         get_masked_seqs(x_in, drop_prob=0.0, occ_len=ng,
-                        occ_count=1, data_mean=None)
+                        occ_count=1, data_mean=None, padding=padding)
     # for each x, x.shape = (nbatch, ns, nc)
 
     # reshape and process data for use as model input

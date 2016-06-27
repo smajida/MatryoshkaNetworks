@@ -61,6 +61,7 @@ ng = 8              # length of occluded gaps
 ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
+padding = 4         # padding to keep gap away from sequence edges
 zz_steps = 1
 
 niter = 500         # # of iter at starting learning rate
@@ -87,7 +88,6 @@ seq_enc_f = \
         input_chans=(nc * 2),
         output_chans=(ngc * 2),
         context_chans=ngc,
-        use_shortcut=False,
         act_func='tanh',
         mod_name='seq_enc_f')
 
@@ -97,7 +97,6 @@ seq_enc_b = \
         input_chans=(nc * 2),
         output_chans=(ngc * 2),
         context_chans=ngc,
-        use_shortcut=False,
         act_func='tanh',
         mod_name='seq_enc_b')
 
@@ -111,10 +110,9 @@ enc_params = seq_enc_f.params + seq_enc_b.params
 seq_decoder = \
     ContextualGRU(
         state_chans=ngf,
-        input_chans=(nc * 2),
+        input_chans=nc,
         output_chans=nc,
-        context_chans=ngc,
-        use_shortcut=False,
+        context_chans=(ngc + (nc * 2)),
         act_func='tanh',
         mod_name='seq_dec')
 # ...
@@ -138,7 +136,7 @@ def make_model_input(source_seq, batch_size):
     # sample masked versions of each sequence in the minibatch
     xg_gen, xg_inf, xm_gen = \
         get_masked_seqs(x_in, drop_prob=0.0, occ_len=ng,
-                        occ_count=1, data_mean=None)
+                        occ_count=1, data_mean=None, padding=padding)
     # for each x, x.shape = (nbatch, ns, nc)
 
     # reshape and process data for use as model input
@@ -192,7 +190,7 @@ Xg_in = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * filler)
 # parameter regularization part of cost
 reg_cost = 1e-5 * sum([T.sum(p**2.0) for p in all_params])
 
-# make primary input sequences
+# make primary input sequences -- (nbatch, seq_len, feat_dim)
 seq_Xg_in = Xg_in.dimshuffle(0, 2, 1, 3)
 seq_Xg_in = T.flatten(seq_Xg_in, 3)
 seq_X_full = Xg_inf.dimshuffle(0, 2, 1, 3)
@@ -201,9 +199,12 @@ seq_Xm_in = Xm_gen.dimshuffle(0, 2, 1, 3)
 seq_Xm_in = T.flatten(seq_Xm_in, 3)
 seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
-# seq_input is for encoder, and seq_input_full is for decoder
+# seq_input is for encoder
 seq_input = T.concatenate([3. * seq_Xg_in, seq_Xm_in], axis=2)
-seq_input_full = T.concatenate([3. * seq_X_full, seq_Xm_in], axis=2)
+# seq_dec_input and seq_dec_context are for decoder
+dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
+seq_dec_input = T.concatenate([dummy_vals, 3. * seq_X_full[:, :-1, :]], axis=1)
+seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
 # run iterative zig-zag refinement
 scan_updates = []
@@ -225,9 +226,10 @@ for i in range(zz_steps):
     # update context
     seq_context = (out_gate * seq_context) + out_ctxt
 
+
 # run through the contextual decoder
 final_preds, su = \
-    seq_decoder.apply(seq_input_full, seq_context)
+    seq_decoder.apply(seq_dec_input, seq_dec_context)
 scan_updates.append(su)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
@@ -235,6 +237,7 @@ final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
 final_preds = clip_softmax(final_preds, axis=1)
 # -- predictions come back in final_preds
 Xg_recon = ((1. - Xm_gen) * Xg_gen) + (Xm_gen * final_preds)
+
 
 # compute masked reconstruction error from final step.
 log_p_x = T.sum(log_prob_categorical(

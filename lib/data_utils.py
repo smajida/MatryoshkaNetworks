@@ -127,21 +127,22 @@ def sample_masks(X, drop_prob=0.3):
     return mask.astype(theano.config.floatX)
 
 
-def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1):
+def sample_patch_masks(obs_count, im_shape, patch_shape, patch_count=1,
+                       padding=0):
     """
     Sample a random patch mask for each image in X.
     """
     rows = patch_shape[0]
     cols = patch_shape[1]
-    min_row = 0
-    max_row = im_shape[0] - rows
+    min_row = padding
+    max_row = im_shape[0] - rows - padding
     if (max_row <= min_row):
         off_row = np.zeros((obs_count, patch_count), dtype=np.int64)
     else:
         off_row = npr.randint(min_row, high=max_row,
                               size=(obs_count, patch_count))
-    min_col = 0
-    max_col = im_shape[1] - cols
+    min_col = padding
+    max_col = im_shape[1] - cols - padding
     if (max_col <= min_col):
         off_col = np.zeros((obs_count, patch_count), dtype=np.int64)
     else:
@@ -417,7 +418,8 @@ def get_masked_seqs(xi,
                     drop_prob=0.0,
                     occ_len=None,
                     occ_count=1,
-                    data_mean=None):
+                    data_mean=None,
+                    padding=4):
     '''
     Construct randomly masked data from xi.
 
@@ -444,7 +446,8 @@ def get_masked_seqs(xi,
             sample_patch_masks(obs_count,
                                (seq_shape[0], seq_shape[1]),
                                (occ_len, seq_shape[1]),
-                               patch_count=occ_count)
+                               patch_count=occ_count,
+                               padding=padding)
         xm_patch = xm_patch.reshape((obs_count, seq_shape[0], seq_shape[1]))
     # make default values to swap in for masked values
     if data_mean is None:
