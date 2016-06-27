@@ -458,7 +458,7 @@ for i in range(recon_steps):
     # for the next step of refinement
     step_context.append(context)
     # concatenate all inputs to generator and inferencer
-    Xa_gen_i = T.concatenate([Xg_in, Xm_gen, context], axis=1)
+    Xa_gen_i = T.concatenate([(3. * Xg_in), Xm_gen, context], axis=1)
     # run a guided refinement step
     res_dict = \
         seq_cond_gen_model.apply_bu_cond(
@@ -485,7 +485,7 @@ seq_Xg_inf = T.flatten(seq_Xg_inf, 3)
 
 # run through the contextual decoder
 final_preds, scan_updates = \
-    seq_decoder.apply(seq_Xg_inf, seq_context)
+    seq_decoder.apply((3. * seq_Xg_inf), seq_context)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
