@@ -201,10 +201,6 @@ seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
 # seq_input is for encoder
 seq_input = T.concatenate([3. * seq_Xg_in, seq_Xm_in], axis=2)
-# seq_dec_input and seq_dec_context are for decoder
-dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
-seq_dec_input = T.concatenate([dummy_vals, 3. * seq_X_full[:, :-1, :]], axis=1)
-seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
 # run iterative zig-zag refinement
 scan_updates = []
@@ -226,6 +222,11 @@ for i in range(zz_steps):
     # update context
     seq_context = (out_gate * seq_context) + out_ctxt
 
+
+# seq_dec_input and seq_dec_context are for decoder
+dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
+seq_dec_input = T.concatenate([dummy_vals, 3. * seq_X_full[:, :-1, :]], axis=1)
+seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
 # run through the contextual decoder
 final_preds, su = \
