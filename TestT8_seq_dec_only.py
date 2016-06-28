@@ -219,6 +219,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     # make a shifted version of char sequence to use as decoder input
     d_vals = np.zeros((xg_inf_seq.shape[0], 1, xg_inf_seq.shape[2]))
     dec_input = np.concatenate([d_vals, 3. * xg_inf_seq[:, :-1, :]], axis=1)
+    dec_input = floatX(dec_input)
 
     # run decoder over sequence step-by-step
     s_states = [None]                 # recurrent states
@@ -228,9 +229,9 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
         s_input = 3. * s_outputs[-1]
         s_context = 0. * s_outputs[-1]
         if s == 0:
-            s_out = step_func_0(s_input, s_context)
+            s_out = step_func_0(floatX(s_input), floatX(s_context))
         else:
-            s_out = step_func_1(s_state, s_input, s_context)
+            s_out = step_func_1(floatX(s_state), floatX(s_input), floatX(s_context))
         # record the updated state
         s_states.append(s_out[0])
         # deal with sampling style for model prediction
