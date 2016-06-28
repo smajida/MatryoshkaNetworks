@@ -360,10 +360,10 @@ seq_cond_gen_model = \
 
 seq_decoder = \
     ContextualGRU(
-        state_chans=ngd,
+        state_chans=ngf,
         input_chans=nc,
         output_chans=nc,
-        context_chans=ngc,
+        context_chans=(ngc + (nc * 2)),
         act_func='tanh',
         mod_name='seq_dec')
 
@@ -408,6 +408,14 @@ def clip_softmax(x, axis=2):
     x = x - T.max(x, axis=axis, keepdims=True)
     x = T.exp(x)
     x = x / T.sum(x, axis=axis, keepdims=True)
+    return x
+
+
+def clip_softmax_np(x, axis=1):
+    x = np.clip(x, -10., 10.)
+    x = x - np.max(x, axis=axis, keepdims=True)
+    x = np.exp(x)
+    x = x / np.sum(x, axis=axis, keepdims=True)
     return x
 
 
@@ -475,17 +483,30 @@ for i in range(recon_steps):
     bu_states = res_dict['bu_states']
 # record final context
 step_context.append(context)
+
 # shuffle dims to get scan inputs.
 # -- want shape: (nbatch, seq_len, chans)
 # -- have shape: (nbatch, chans, seq_len, 1)
-seq_context = context.dimshuffle(0, 2, 1, 3)
-seq_Xg_inf = Xg_inf.dimshuffle(0, 2, 1, 3)
+# make primary input sequences -- (nbatch, seq_len, feat_dim)
+seq_Xg_in = Xg_in.dimshuffle(0, 2, 1, 3)
+seq_Xg_in = T.flatten(seq_Xg_in, 3)
+seq_X_full = Xg_inf.dimshuffle(0, 2, 1, 3)
+seq_X_full = T.flatten(seq_X_full, 3)
+seq_Xm_in = Xm_gen.dimshuffle(0, 2, 1, 3)
+seq_Xm_in = T.flatten(seq_Xm_in, 3)
+seq_context = step_context[-1].dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
-seq_Xg_inf = T.flatten(seq_Xg_inf, 3)
+# seq_input is for encoder
+seq_input = T.concatenate([3. * seq_Xg_in, seq_Xm_in], axis=2)
+
+# seq_dec_input and seq_dec_context are for decoder
+dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
+seq_dec_input = T.concatenate([dummy_vals, 3. * seq_X_full[:, :-1, :]], axis=1)
+seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
 # run through the contextual decoder
 final_preds, scan_updates = \
-    seq_decoder.apply((3. * seq_Xg_inf), seq_context)
+    seq_decoder.apply(seq_dec_input, seq_dec_context)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
@@ -513,7 +534,7 @@ full_cost = nll_cost + reg_cost
 
 print('Compiling encoder and sampling functions...')
 # function for applying the encoder and getting nicely-shaped context/input
-encoder_outputs = [seq_context, seq_Xg_inf, full_cost]
+encoder_outputs = [seq_dec_context, seq_dec_input, full_cost]
 encoder_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], encoder_outputs)
 
 # function for applying the first step of decoder (includes state initialization)
@@ -526,6 +547,65 @@ step_func_0 = theano.function([dec_input, dec_context], [state_1, out_0])
 state_tp1, out_t = \
     seq_decoder.apply_step(state=dec_state, input=dec_input, context=dec_context)
 step_func_1 = theano.function([dec_state, dec_input, dec_context], [state_tp1, out_t])
+# NOTE: context for the decoder shuold be as provided by the encoder function
+# -- this includes the context constructed by the encoder and the masked
+#    view of the occluded source sequence.
+
+
+# function for deterministic/stochastic decoding (using argmax/sampling)
+def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
+    enc_out = encoder_func(xg_gen, xm_gen, xg_inf, xm_inf)
+    enc_context, enc_input = enc_out[0], enc_out[1]
+    # enc_context.shape: (nbatch, seq_len, context_dim)
+    # enc_input.shape: (nbatch, seq_len, input_dim)
+
+    xg_inf_seq = np.transpose(xg_inf, axes=(0, 2, 1, 3))
+    xg_inf_seq = xg_inf_seq[:, :, :, 0]
+    xm_inf_seq = np.transpose(xm_inf, axes=(0, 2, 1, 3))
+    xm_inf_seq = np.mean(xm_inf_seq[:, :, :, 0], axis=2)
+    # xg_inf_seq.shape: (nbatch, seq_len, char_count)
+    # -- this is the ground truth character sequence
+    # xm_inf_seq.shape: (nbatch, seq_len)
+    # -- this is binary mask on locations to impute
+
+    # run decoder over sequence step-by-step
+    s_states = [None]                 # recurrent states
+    s_outputs = [enc_input[:, 0, :]]  # recurrent predictions
+    for s in range(enc_context.shape[1]):
+        s_state = s_states[-1]
+        s_input = s_outputs[-1]
+        s_context = enc_context[:, s, :]
+        if s == 0:
+            s_out = step_func_0(s_input, s_context)
+        else:
+            s_out = step_func_1(s_state, s_input, s_context)
+        # record the updated state
+        s_states.append(s_out[0])
+        # deal with sampling style for model prediction
+        s_pred_true = xg_inf_seq[:, s, :]  # ground truth output for this step
+        s_pred_prob = clip_softmax_np(s_out[1], axis=1)
+        s_pred_model = np.zeros_like(s_pred_prob)
+        s_roulette = np.cumsum(s_pred_prob, axis=1)
+        for o in range(s_pred_model.shape[0]):
+            if use_argmax:
+                c_idx = np.argmax(s_pred_prob[o, :])
+                s_pred_model[o, c_idx] = 1.
+            else:
+                r_val = npr.rand()
+                for c in range(s_pred_model.shape[1]):
+                    if r_val <= s_roulette[o, c]:
+                        s_pred_model[o, c] = 1.
+                        break
+        # swap in ground truth predictions for visible parts of sequence
+        for o in range(s_pred_model.shape[0]):
+            if xm_inf_seq[o, s] < 0.5:
+                s_pred_model[o, :] = s_pred_true[o, :]
+        # record the predictions for this step
+        s_outputs.append(s_pred_model)
+    # stack up sequences of predicted characters
+    s_outputs = np.stack(s_outputs[1:], axis=1)
+    # s_outputs.shape: (nbatch, seq_len, char_count)
+    return s_outputs
 
 # test compiled functions
 model_input = make_model_input(char_seq, 50)
@@ -538,28 +618,12 @@ print('eo_context.shape: {}'.format(eo_context.shape))
 print('eo_input.shape: {}'.format(eo_input.shape))
 print('DONE.')
 
-# # function for deterministic/stochastic decoding (using argmax/sampling)
-# def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
-#     enc_out = encoder_func(xg_gen, xm_gen, xg_inf, xm_inf)
-#     enc_context, enc_input = enc_out[0], enc_out[1]
-#     # enc_context.shape: (nbatch, seq_len, context_dim)
-#     # enc_input.shape: (nbatch, seq_len, input_dim)
-
-#     seq_len = enc_context.shape[1]
-#     # run decoder over sequence step-by-step
-#     s_states = [None]
-#     s_outs = []
-#     for s in range(seq_len):
-#         s_input = enc_input[:, s, :]
-#         s_context = enc_context[:, s, :]
-#         if s == 0:
-#             s_out = step_func_0(s_input, s_context)
-#         else:
-#             s_out = step_func_1(s_states[-1], s_input, s_context)
-#         s_outs.append(s_out)
-#         s_states.append(s_out[0])
-
-#     return char_seq_samples
+# test decoder sampler
+print('Testing decoder sampler...')
+xg_gen, xm_gen, xg_inf, xm_inf = model_input
+char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
+print('DONE.')
 
 # stuff for performing updates
 lrt = sharedX(0.001)
@@ -658,46 +722,40 @@ for epoch in range(1, (niter + niter_decay + 1)):
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
-#     if (epoch <= 10) or ((epoch % 10) == 0):
-#         recon_input = make_model_input(char_seq, recon_count)
-#         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
-#         seq_cond_gen_model.set_sample_switch('gen')
-#         step_recons = recon_func(*recon_input)
-#         step_recons_fixed = recon_func(*recon_input_fixed)
-#         seq_cond_gen_model.set_sample_switch('inf')
-#         #
-#         # visualization for the variable set of examples
-#         #
-#         recons = np.vstack(step_recons)
-#         grayscale_grid_vis(recons, (recon_steps + 1, recon_count * recon_repeats),
-#                            "{}/recons_{}.png".format(result_dir, epoch))
-#         final_recons = step_recons[-1].transpose(0, 2, 1, 3)
-#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-#         final_recons = np.squeeze(final_recons, axis=(3,))
-#         final_recons = np.argmax(final_recons, axis=2)
-#         # final_recons.shape: (recon_count, ns)
-#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-#         for j in range(final_recons.shape[0]):
-#             rec_str = [idx2char[idx] for idx in final_recons[j]]
-#             rec_strs.append(''.join(rec_str))
-#         joint_str = '\n'.join(rec_strs)
-#         recon_out_file.write(joint_str + '\n')
-#         recon_out_file.flush()
-#         #
-#         # visualization for the fixed set of examples
-#         #
-#         final_recons = step_recons_fixed[-1].transpose(0, 2, 1, 3)
-#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-#         final_recons = np.squeeze(final_recons, axis=(3,))
-#         final_recons = np.argmax(final_recons, axis=2)
-#         # final_recons.shape: (recon_count, ns)
-#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-#         for j in range(final_recons.shape[0]):
-#             rec_str = [idx2char[idx] for idx in final_recons[j]]
-#             rec_strs.append(''.join(rec_str))
-#         joint_str = '\n'.join(rec_strs)
-#         recon_fixed_out_file.write(joint_str + '\n')
-#         recon_fixed_out_file.flush()
+    if (epoch <= 10) or ((epoch % 10) == 0):
+        # make input for testing decoder predictions
+        recon_input = make_model_input(char_seq, recon_count)
+        recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
+        # run on random set of inputs
+        xg_gen, xm_gen, xg_inf, xm_inf = recon_input
+        step_recons = \
+            sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+        # run on fixed set of inputs
+        xg_gen, xm_gen, xg_inf, xm_inf = recon_input_fixed
+        step_recons_fixed = \
+            sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+        #
+        # visualization for the variable set of examples
+        #
+        final_recons = np.argmax(step_recons, axis=2)
+        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        for j in range(final_recons.shape[0]):
+            rec_str = [idx2char[idx] for idx in final_recons[j]]
+            rec_strs.append(''.join(rec_str))
+        joint_str = '\n'.join(rec_strs)
+        recon_out_file.write(joint_str + '\n')
+        recon_out_file.flush()
+        #
+        # visualization for the fixed set of examples
+        #
+        final_recons = np.argmax(step_recons_fixed, axis=2)
+        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        for j in range(final_recons.shape[0]):
+            rec_str = [idx2char[idx] for idx in final_recons[j]]
+            rec_strs.append(''.join(rec_str))
+        joint_str = '\n'.join(rec_strs)
+        recon_fixed_out_file.write(joint_str + '\n')
+        recon_fixed_out_file.flush()
 
 
 
