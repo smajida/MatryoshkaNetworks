@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_no_lats_2_steps'
+desc = 'test_seq_dec_no_lats_5_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -56,8 +56,8 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 64             # length of input sequences
-ng = 8              # length of occluded gaps
+ns = 96             # length of input sequences
+ng = 12             # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
@@ -68,7 +68,7 @@ niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 bu_act_func = 'lrelu'  # activation function for bottom-up modules
 use_td_cond = True
-recon_steps = 2
+recon_steps = 5
 use_rand = True
 padding = 4
 
