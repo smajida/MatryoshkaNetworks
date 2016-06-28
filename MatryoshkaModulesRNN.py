@@ -1869,20 +1869,13 @@ class ContextualGRU(object):
         s0_batch = s0_init + s0_zero
         return s0_batch
 
-    def apply(self, input, context):
+    def _get_step_func(self):
         '''
-        Apply this GRU to an input sequence and a context sequence.
-
-        -- input and context should be shapes:
-             (nbatch, seq_len, self.input_chans)
-             (nbatch, seq_len, self.context_chans)
+        Ridiculousness.
         '''
-
         def _step_func(x_in, x_ct, s_i):
-            # compute output for the current state
+            # # compute output from the updated state
             o_i = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
-            if self.use_shortcut:
-                o_i = o_i + x_ct
 
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
@@ -1898,7 +1891,21 @@ class ContextualGRU(object):
 
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
+
+            # compute output from the updated state
+            # o_i = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
             return s_ip1, o_i
+        return _step_func
+
+    def apply(self, input, context):
+        '''
+        Apply this GRU to an input sequence and a context sequence.
+
+        -- input and context should be shapes:
+             (nbatch, seq_len, self.input_chans)
+             (nbatch, seq_len, self.context_chans)
+        '''
+        _step_func = self._get_step_func()
 
         # shuffle inputs to have sequence dimension first
         seq_input = input.dimshuffle(1, 0, 2)
@@ -1915,6 +1922,28 @@ class ContextualGRU(object):
         # shuffle output back to shape: (nbatch, seq_len, self.output_chans)
         output = scan_results[1].dimshuffle(1, 0, 2)
         return output, scan_updates
+
+    def apply_step(self, state=None, input=None, context=None):
+        '''
+        Apply a one-step GRU update given some state, input, and context info.
+
+        -- state, input, and context should be shapes:
+             (nbatch, self.state_chans)
+             (nbatch, self.input_chans)
+             (nbatch, self.context_chans)
+        '''
+        assert (input is not None), 'input required'
+        assert (context is not None), 'context required'
+
+        _step_func = self._get_step_func()
+
+        if state is None:
+            # use default state if none was provided
+            state = self.get_s0_for_batch(batch_size=input.shape[0])
+
+        # apply step function to get step output and updated state
+        state_new, output = _step_func(input, context, state)
+        return state_new, output
 
 
 ##############
