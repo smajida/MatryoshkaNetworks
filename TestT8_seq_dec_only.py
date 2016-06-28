@@ -261,6 +261,9 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
 
 # test decoder sampler
 print('Testing decoder sampler...')
+model_input = make_model_input(char_seq, 50)
+for i, in_ary in enumerate(model_input):
+    print('model_input[i].shape: {}'.format(in_ary.shape))
 xg_gen, xm_gen, xg_inf, xm_inf = model_input
 char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
 char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
