@@ -162,8 +162,9 @@ seq_Xm_inf = Xm_inf.dimshuffle(0, 2, 1, 3)
 seq_Xm_inf = T.flatten(seq_Xm_inf, 3)
 
 # make a shifted version of char sequence to use as decoder input
-dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
-seq_dec_input = T.concatenate([dummy_vals, 3. * seq_Xg_inf[:, :-1, :]], axis=1)
+# dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
+# seq_dec_input = T.concatenate([dummy_vals, 3. * seq_Xg_inf[:, :-1, :]], axis=1)
+seq_dec_input = seq_Xg_inf
 
 # run through the contextual decoder
 final_preds, scan_updates = \

@@ -1878,6 +1878,9 @@ class ContextualGRU(object):
         '''
 
         def _step_func(x_in, x_ct, s_i):
+            # compute output from the updated state
+            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
             h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
@@ -1893,8 +1896,8 @@ class ContextualGRU(object):
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
 
-            # compute output from the updated state
-            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            # # compute output from the updated state
+            # o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
             return s_ip1, o_ip1
 
         # shuffle inputs to have sequence dimension first
@@ -1926,6 +1929,9 @@ class ContextualGRU(object):
         assert (context is not None), 'context required'
 
         def _step_func(x_in, x_ct, s_i):
+            # compute output from the updated state
+            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
             h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
@@ -1941,8 +1947,8 @@ class ContextualGRU(object):
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
 
-            # compute output from the updated state
-            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            # # compute output from the updated state
+            # o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
             return s_ip1, o_ip1
 
         if state is None:
