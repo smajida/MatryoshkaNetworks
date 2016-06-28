@@ -220,7 +220,7 @@ for i in range(zz_steps):
     out_ctxt = enc_out_f[:, :, :ngc]
     out_gate = clip_sigmoid(enc_out_f[:, :, ngc:] + 1.)
     # update context
-    seq_context = (out_gate * seq_context) + out_ctxt
+    seq_context = (out_gate * seq_context) + ((1. - out_gate) * out_ctxt)
     # compute backward model's context refinement
     enc_out_b, su = \
         seq_enc_b.apply(seq_input, seq_context)
@@ -228,8 +228,7 @@ for i in range(zz_steps):
     out_ctxt = enc_out_b[:, :, :ngc]
     out_gate = clip_sigmoid(enc_out_b[:, :, ngc:] + 1.)
     # update context
-    seq_context = (out_gate * seq_context) + out_ctxt
-
+    seq_context = (out_gate * seq_context) + ((1. - out_gate) * out_ctxt)
 
 # seq_dec_input and seq_dec_context are for decoder
 dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))

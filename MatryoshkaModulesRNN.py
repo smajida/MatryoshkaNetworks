@@ -1868,18 +1868,13 @@ class ContextualGRU(object):
         s0_batch = s0_init + s0_zero
         return s0_batch
 
-    def apply(self, input, context):
+    def _get_step_func(self):
         '''
-        Apply this GRU to an input sequence and a context sequence.
-
-        -- input and context should be shapes:
-             (nbatch, seq_len, self.input_chans)
-             (nbatch, seq_len, self.context_chans)
+        Ridiculousness.
         '''
-
         def _step_func(x_in, x_ct, s_i):
-            # compute output from the updated state
-            o_ip1 = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
+            # # compute output from the updated state
+            # o_ip1 = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
 
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
@@ -1896,9 +1891,20 @@ class ContextualGRU(object):
             # combine old state and proposed new state based on u
             s_ip1 = (u * s_i) + ((1. - u) * s_new)
 
-            # # compute output from the updated state
-            # o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            # compute output from the updated state
+            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
             return s_ip1, o_ip1
+        return _step_func
+
+    def apply(self, input, context):
+        '''
+        Apply this GRU to an input sequence and a context sequence.
+
+        -- input and context should be shapes:
+             (nbatch, seq_len, self.input_chans)
+             (nbatch, seq_len, self.context_chans)
+        '''
+        _step_func = self._get_step_func()
 
         # shuffle inputs to have sequence dimension first
         seq_input = input.dimshuffle(1, 0, 2)
@@ -1928,28 +1934,7 @@ class ContextualGRU(object):
         assert (input is not None), 'input required'
         assert (context is not None), 'context required'
 
-        def _step_func(x_in, x_ct, s_i):
-            # compute output from the updated state
-            o_ip1 = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
-
-            # compute update gate and remember gate
-            gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
-            h = T.dot(gate_input, self.w1) + self.b1.dimshuffle('x', 0)
-            h = hard_sigmoid(h + 1.)
-            u = h[:, :self.state_chans]
-            r = h[:, self.state_chans:]
-
-            # compute new state proposal
-            state_input = T.concatenate([x_in, x_ct, (r * s_i)], axis=1)
-            s_new = T.dot(state_input, self.w2) + self.b2.dimshuffle('x', 0)
-            s_new = self.act_func(s_new)
-
-            # combine old state and proposed new state based on u
-            s_ip1 = (u * s_i) + ((1. - u) * s_new)
-
-            # # compute output from the updated state
-            # o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
-            return s_ip1, o_ip1
+        _step_func = self._get_step_func()
 
         if state is None:
             # use default state if none was provided

@@ -56,8 +56,8 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 100            # length of input sequences
-ng = 10             # length of occluded gaps
+ns = 96             # length of input sequences
+ng = 12             # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
