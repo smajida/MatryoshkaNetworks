@@ -302,12 +302,6 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     # xm_inf_seq.shape: (nbatch, seq_len)
     # -- this is binary mask on locations to impute
 
-    # print some info for debugging purposes
-    print('enc_context.shape: {}'.format(enc_context.shape))
-    print('enc_input.shape: {}'.format(enc_input.shape))
-    print('xg_inf_seq.shape: {}'.format(xg_inf_seq.shape))
-    print('xm_inf_seq.shape: {}'.format(xm_inf_seq.shape))
-
     # run decoder over sequence step-by-step
     s_states = [None]                 # recurrent states
     s_outputs = [enc_input[:, 0, :]]  # recurrent predictions
