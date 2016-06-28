@@ -1879,7 +1879,7 @@ class ContextualGRU(object):
 
         def _step_func(x_in, x_ct, s_i):
             # compute output from the updated state
-            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            o_ip1 = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
 
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
@@ -1930,7 +1930,7 @@ class ContextualGRU(object):
 
         def _step_func(x_in, x_ct, s_i):
             # compute output from the updated state
-            o_ip1 = T.dot(s_ip1, self.w3) + self.b3.dimshuffle('x', 0)
+            o_ip1 = T.dot(s_i, self.w3) + self.b3.dimshuffle('x', 0)
 
             # compute update gate and remember gate
             gate_input = T.concatenate([x_in, x_ct, s_i], axis=1)
