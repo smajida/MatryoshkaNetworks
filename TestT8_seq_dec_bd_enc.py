@@ -344,6 +344,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
         s_outputs.append(s_pred_model)
     # stack up sequences of predicted characters
     s_outputs = np.stack(s_outputs[1:], axis=1)
+    # s_outputs.shape: (nbatch, seq_len, char_count)
     return s_outputs
 
 # test compiled functions
@@ -376,11 +377,6 @@ all_updates, all_grads = updater(all_params, full_cost, return_grads=True)
 for scups in scan_updates:
     for k, v in scups.items():
         all_updates[k] = v
-
-# print("Compiling sampling and reconstruction functions...")
-# recon_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], step_recons)
-# model_input = make_model_input(char_seq, 50)
-# test_recons = recon_func(*model_input)
 
 print("Compiling training functions...")
 # collect costs for generator parameters
@@ -462,46 +458,40 @@ for epoch in range(1, (niter + niter_decay + 1)):
     print(joint_str)
     out_file.write(joint_str + "\n")
     out_file.flush()
-#     if (epoch <= 10) or ((epoch % 10) == 0):
-#         recon_input = make_model_input(char_seq, recon_count)
-#         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
-#         seq_cond_gen_model.set_sample_switch('gen')
-#         step_recons = recon_func(*recon_input)
-#         step_recons_fixed = recon_func(*recon_input_fixed)
-#         seq_cond_gen_model.set_sample_switch('inf')
-#         #
-#         # visualization for the variable set of examples
-#         #
-#         recons = np.vstack(step_recons)
-#         grayscale_grid_vis(recons, (recon_steps + 1, recon_count * recon_repeats),
-#                            "{}/recons_{}.png".format(result_dir, epoch))
-#         final_recons = step_recons[-1].transpose(0, 2, 1, 3)
-#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-#         final_recons = np.squeeze(final_recons, axis=(3,))
-#         final_recons = np.argmax(final_recons, axis=2)
-#         # final_recons.shape: (recon_count, ns)
-#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-#         for j in range(final_recons.shape[0]):
-#             rec_str = [idx2char[idx] for idx in final_recons[j]]
-#             rec_strs.append(''.join(rec_str))
-#         joint_str = '\n'.join(rec_strs)
-#         recon_out_file.write(joint_str + '\n')
-#         recon_out_file.flush()
-#         #
-#         # visualization for the fixed set of examples
-#         #
-#         final_recons = step_recons_fixed[-1].transpose(0, 2, 1, 3)
-#         # final_recons.shape: (recon_count * recon_repeats, ns, nc, 1)
-#         final_recons = np.squeeze(final_recons, axis=(3,))
-#         final_recons = np.argmax(final_recons, axis=2)
-#         # final_recons.shape: (recon_count, ns)
-#         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-#         for j in range(final_recons.shape[0]):
-#             rec_str = [idx2char[idx] for idx in final_recons[j]]
-#             rec_strs.append(''.join(rec_str))
-#         joint_str = '\n'.join(rec_strs)
-#         recon_fixed_out_file.write(joint_str + '\n')
-#         recon_fixed_out_file.flush()
+    if (epoch <= 10) or ((epoch % 10) == 0):
+        # make input for testing decoder predictions
+        recon_input = make_model_input(char_seq, recon_count)
+        recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
+        # run on random set of inputs
+        xg_gen, xm_gen, xg_inf, xm_inf = recon_input
+        step_recons = \
+            sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+        # run on fixed set of inputs
+        xg_gen, xm_gen, xg_inf, xm_inf = recon_input_fixed
+        step_recons_fixed = \
+            sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+        #
+        # visualization for the variable set of examples
+        #
+        final_recons = np.argmax(step_recons, axis=2)
+        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        for j in range(final_recons.shape[0]):
+            rec_str = [idx2char[idx] for idx in final_recons[j]]
+            rec_strs.append(''.join(rec_str))
+        joint_str = '\n'.join(rec_strs)
+        recon_out_file.write(joint_str + '\n')
+        recon_out_file.flush()
+        #
+        # visualization for the fixed set of examples
+        #
+        final_recons = np.argmax(step_recons_fixed, axis=2)
+        rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        for j in range(final_recons.shape[0]):
+            rec_str = [idx2char[idx] for idx in final_recons[j]]
+            rec_strs.append(''.join(rec_str))
+        joint_str = '\n'.join(rec_strs)
+        recon_fixed_out_file.write(joint_str + '\n')
+        recon_fixed_out_file.flush()
 
 
 
