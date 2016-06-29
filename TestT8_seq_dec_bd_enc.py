@@ -171,6 +171,10 @@ def clip_sigmoid(x):
     return output
 
 
+def reverse_seq(seq_ary):
+    seq_rev = seq_ary[:, ::-1, :]
+    return seq_rev
+
 ######################################################
 # BUILD THE MODEL TRAINING COST AND UPDATE FUNCTIONS #
 ######################################################
@@ -223,8 +227,9 @@ for i in range(zz_steps):
     seq_context = (out_gate * seq_context) + ((1. - out_gate) * out_ctxt)
     # compute backward model's context refinement
     enc_out_b, su = \
-        seq_enc_b.apply(seq_input, seq_context)
+        seq_enc_b.apply(reverse_seq(seq_input), reverse_seq(seq_context))
     scan_updates.append(su)
+    enc_out_b = reverse_seq(enc_out_b)
     out_ctxt = enc_out_b[:, :, :ngc]
     out_gate = clip_sigmoid(enc_out_b[:, :, ngc:] + 1.)
     # update context
