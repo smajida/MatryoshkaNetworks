@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc_5_steps'
+desc = 'test_seq_dec_bd_enc_1_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -56,13 +56,13 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 96             # length of input sequences
-ng = 12             # length of occluded gaps
+ns = 64             # length of input sequences
+ng = 8             # length of occluded gaps
 ngf = 512           # dimension of enc/dec GRUs
-ngc = 128           # dimension of constructed context
+ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
-padding = 4         # padding to keep gap away from sequence edges
-zz_steps = 5
+padding = 0         # padding to keep gap away from sequence edges
+zz_steps = 1
 
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
