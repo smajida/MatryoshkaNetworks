@@ -56,15 +56,15 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 64             # length of input sequences
-ng = 8              # length of occluded gaps
+ns = 100            # length of input sequences
+ng = 10             # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
 ngf = 512           # dimension of GRU state
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
-padding = 0         # padding to keep gaps away from sequence edges
+padding = 5         # padding to keep gaps away from sequence edges
 
 
 def train_transform(X):

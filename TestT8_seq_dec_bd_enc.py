@@ -56,12 +56,12 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 64             # length of input sequences
-ng = 8             # length of occluded gaps
+ns = 100             # length of input sequences
+ng = 10             # length of occluded gaps
 ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
-padding = 0         # padding to keep gap away from sequence edges
+padding = 5         # padding to keep gap away from sequence edges
 zz_steps = 1
 
 niter = 500         # # of iter at starting learning rate
