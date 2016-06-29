@@ -56,15 +56,15 @@ char_seq, idx2char, char2idx = load_text8(data_path)
 
 set_seed(123)       # seed for shared rngs
 nc = len(idx2char)  # # of possible chars
-ns = 96             # length of input sequences
-ng = 12             # length of occluded gaps
+ns = 64             # length of input sequences
+ng = 8              # length of occluded gaps
 nbatch = 50         # # of examples in batch
 nz0 = 64            # # of dim for Z0
 nz1 = 8             # # of dim for Z1
 ngf = 512           # dimension of GRU state
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
-padding = 4         # padding to keep gaps away from sequence edges
+padding = 0         # padding to keep gaps away from sequence edges
 
 
 def train_transform(X):
@@ -162,13 +162,13 @@ seq_Xm_inf = Xm_inf.dimshuffle(0, 2, 1, 3)
 seq_Xm_inf = T.flatten(seq_Xm_inf, 3)
 
 # make a shifted version of char sequence to use as decoder input
-# dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
-# seq_dec_input = T.concatenate([dummy_vals, 3. * seq_Xg_inf[:, :-1, :]], axis=1)
-seq_dec_input = seq_Xg_inf
+dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
+seq_dec_input = T.concatenate([dummy_vals, 3. * seq_Xg_inf[:, :-1, :]], axis=1)
+# seq_dec_input = seq_Xg_inf
 
 # run through the contextual decoder
 final_preds, scan_updates = \
-    seq_decoder.apply(seq_dec_input, 0. * seq_dec_input)
+    seq_decoder.apply(seq_dec_input, seq_Xm_inf)
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
