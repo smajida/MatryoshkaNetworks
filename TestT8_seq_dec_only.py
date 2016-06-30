@@ -65,6 +65,7 @@ ngf = 512           # dimension of GRU state
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
 padding = 5         # padding to keep gaps away from sequence edges
+in_scale = 3.       # rescaling factor for one-hot inputs
 
 
 def train_transform(X):
@@ -163,7 +164,7 @@ seq_Xm_inf = T.flatten(seq_Xm_inf, 3)
 
 # make a shifted version of char sequence to use as decoder input
 dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
-seq_dec_input = T.concatenate([dummy_vals, 3. * seq_Xg_inf[:, :-1, :]], axis=1)
+seq_dec_input = T.concatenate([dummy_vals, in_scale * seq_Xg_inf[:, :-1, :]], axis=1)
 # seq_dec_input = seq_Xg_inf
 
 # run through the contextual decoder
@@ -219,7 +220,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     # -- this is binary mask on locations to impute
     # make a shifted version of char sequence to use as decoder input
     d_vals = np.zeros((xg_inf_seq.shape[0], 1, xg_inf_seq.shape[2]))
-    dec_input = np.concatenate([d_vals, 3. * xg_inf_seq[:, :-1, :]], axis=1)
+    dec_input = np.concatenate([d_vals, in_scale * xg_inf_seq[:, :-1, :]], axis=1)
     dec_input = floatX(dec_input)
 
     # run decoder over sequence step-by-step
@@ -227,8 +228,8 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     s_outputs = [dec_input[:, 0, :]]  # recurrent predictions
     for s in range(dec_input.shape[1]):
         s_state = s_states[-1]
-        s_input = 3. * s_outputs[-1]
-        s_context = 0. * s_outputs[-1]
+        s_input = in_scale * s_outputs[-1]
+        s_context = xm_inf_seq[:, s, :]
         if s == 0:
             s_out = step_func_0(floatX(s_input), floatX(s_context))
         else:

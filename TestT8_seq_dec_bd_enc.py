@@ -63,6 +63,7 @@ ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
 padding = 5         # padding to keep gap away from sequence edges
 zz_steps = 5
+in_scale = 3.       # rescaling factor for one-hot inputs
 
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
@@ -212,7 +213,7 @@ seq_Xm_in = T.flatten(seq_Xm_in, 3)
 seq_context = context.dimshuffle(0, 2, 1, 3)
 seq_context = T.flatten(seq_context, 3)
 # seq_input is for encoder
-seq_input = T.concatenate([3. * seq_Xg_in, seq_Xm_in], axis=2)
+seq_input = T.concatenate([in_scale * seq_Xg_in, seq_Xm_in], axis=2)
 
 # run iterative zig-zag refinement
 scan_updates = []
@@ -237,7 +238,7 @@ for i in range(zz_steps):
 
 # seq_dec_input and seq_dec_context are for decoder
 dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
-seq_dec_input = T.concatenate([dummy_vals, 3. * seq_X_full[:, :-1, :]], axis=1)
+seq_dec_input = T.concatenate([dummy_vals, in_scale * seq_X_full[:, :-1, :]], axis=1)
 seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
 # run through the contextual decoder
@@ -346,7 +347,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
         # aggregate loss over imputed characters
         pred_loss = pred_loss + np.sum(s_pred_loss * s_pred_mask)
         # record the predictions for this step
-        s_outputs.append(3. * s_pred_model)
+        s_outputs.append(in_scale * s_pred_model)
     # convert to average loss per observation
     pred_loss = pred_loss / xg_inf_seq.shape[0]
     # stack up sequences of predicted characters
