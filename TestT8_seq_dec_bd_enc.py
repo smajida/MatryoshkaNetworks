@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc_1_steps'
+desc = 'test_seq_dec_bd_enc_1_steps_deep'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -108,16 +108,27 @@ enc_params = seq_enc_f.params + seq_enc_b.params
 # Build the sequential decoding layer. #
 ########################################
 
-seq_decoder = \
+# first layer in deep GRU decoder
+seq_decoder_1 = \
     ContextualGRU(
         state_chans=ngf,
         input_chans=nc,
-        output_chans=nc,
+        output_chans=ngf,
         context_chans=(ngc + (nc * 2)),
         act_func='tanh',
         mod_name='seq_dec')
+
+# second layer in deep GRU decoder
+seq_decoder_2 = \
+    ContextualGRU(
+        state_chans=ngf,
+        input_chans=ngf,
+        output_chans=nc,
+        context_chans=ngc,
+        act_func='tanh',
+        mod_name='seq_dec')
 # ...
-dec_params = seq_decoder.params
+dec_params = seq_decoder_1.params + seq_decoder_2.params
 
 ###################################
 # Make additional trainable stuff #
@@ -241,10 +252,13 @@ dummy_vals = T.zeros((seq_X_full.shape[0], 1, seq_X_full.shape[2]))
 seq_dec_input = T.concatenate([dummy_vals, in_scale * seq_X_full[:, :-1, :]], axis=1)
 seq_dec_context = T.concatenate([seq_input, seq_context], axis=2)
 
-# run through the contextual decoder
-final_preds, su = \
-    seq_decoder.apply(seq_dec_input, seq_dec_context)
-scan_updates.append(su)
+# run through the deep, contextual GRU decoder
+dec_out_1, su_1 = \
+    seq_decoder_1.apply(seq_dec_input, seq_dec_context)
+final_preds, su_2 = \
+    seq_decoder_2.apply(dec_out_1, seq_context)
+
+scan_updates.extend([su_1, su_2])
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
@@ -273,30 +287,49 @@ full_cost = nll_cost + reg_cost
 
 print('Compiling encoder and sampling functions...')
 # function for applying the encoder and getting nicely-shaped context/input
-encoder_outputs = [seq_dec_context, seq_dec_input, full_cost]
+encoder_outputs = [seq_context, seq_dec_context, seq_dec_input, full_cost]
 encoder_func = theano.function([Xg_gen, Xm_gen, Xg_inf, Xm_inf], encoder_outputs)
 
 # function for applying the first step of decoder (includes state initialization)
-dec_state = T.matrix()
-dec_input = T.matrix()
-dec_context = T.matrix()
-state_1, out_0 = \
-    seq_decoder.apply_step(state=None, input=dec_input, context=dec_context)
-step_func_0 = theano.function([dec_input, dec_context], [state_1, out_0])
-state_tp1, out_t = \
-    seq_decoder.apply_step(state=dec_state, input=dec_input, context=dec_context)
-step_func_1 = theano.function([dec_state, dec_input, dec_context], [state_tp1, out_t])
-# NOTE: context for the decoder shuold be as provided by the encoder function
-# -- this includes the context constructed by the encoder and the masked
-#    view of the occluded source sequence.
+dec_state_1 = T.matrix()
+dec_input_1 = T.matrix()
+dec_context_1 = T.matrix()
+dec_state_2 = T.matrix()
+dec_context_2 = T.matrix()
+step_init_inputs = [dec_input_1, dec_context_1, dec_context_2]
+step_next_inputs = [dec_state_1, dec_input_1, dec_context_1, dec_state_2, dec_context_2]
+
+# run the initial step through the deep GRU -- this provides initial states
+# and the output for the first step
+state_1_init, out_1_init = \
+    seq_decoder_1.apply_step(state=None, input=dec_input_1, context=dec_context_1)
+state_2_init, out_2_init = \
+    seq_decoder_2.apply_step(state=None, input=out_1_init, context=dec_context_2)
+# output states of both GRU layers, and the output of top layer
+step_init_outputs = [state_1_init, state_2_init, out_2_init]
+# compile the initial decoder step function
+step_func_init = theano.function(step_init_inputs, step_init_outputs)
+
+# run subsequent steps through the deep GRU -- this provides updated states
+# and the output for each step
+state_1_next, out_1_next = \
+    seq_decoder_1.apply_step(state=dec_state_1, input=dec_input_1, context=dec_context_1)
+state_2_next, out_2_next = \
+    seq_decoder_2.apply_step(state=dec_state_2, input=out_1_next, context=dec_context_2)
+# output states of both GRU layers, and the output of top layer
+step_next_outputs = [state_1_next, state_2_next, out_2_next]
+# compile the initial decoder step function
+step_func_next = theano.function(step_next_inputs, step_next_outputs)
+# NOTE: context for the decoder should be as provided by the encoder function
 
 
 # function for deterministic/stochastic decoding (using argmax/sampling)
 def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     enc_out = encoder_func(xg_gen, xm_gen, xg_inf, xm_inf)
-    enc_context, enc_input = enc_out[0], enc_out[1]
-    # enc_context.shape: (nbatch, seq_len, context_dim)
-    # enc_input.shape: (nbatch, seq_len, input_dim)
+    _seq_context, _seq_dec_context, _seq_dec_input = enc_out[0], enc_out[1], enc_out[2]
+    # _seq_context.shape: (nbatch, seq_len, context_dim)
+    # _seq_dec_context.shape: (nbatch, seq_len, context_dim)
+    # _seq_dec_input.shape: (nbatch, seq_len, input_dim)
 
     xg_inf_seq = np.transpose(xg_inf, axes=(0, 2, 1, 3))
     xg_inf_seq = xg_inf_seq[:, :, :, 0]
@@ -307,18 +340,18 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     # xm_inf_seq.shape: (nbatch, seq_len)
     # -- this is binary mask on locations to impute
 
-    # run decoder over sequence step-by-step
-    s_states = [None]                 # recurrent states
-    s_outputs = [enc_input[:, 0, :]]  # recurrent predictions
-    pred_loss = 0.                    # cumulative prediction loss (NLL)
-    for s in range(enc_context.shape[1]):
-        s_state = s_states[-1]
+    # run deep GRU decoder over sequence step-by-step
+    s_states = [(None, None)]              # recurrent states
+    s_outputs = [_seq_dec_input[:, 0, :]]  # recurrent predictions
+    pred_loss = 0.                         # cumulative prediction loss (NLL)
+    for s in range(_seq_dec_context.shape[1]):
+        s_state_1, s_state_2 = s_states[-1]
         s_input = s_outputs[-1]
-        s_context = enc_context[:, s, :]
+        s_context = _seq_dec_context[:, s, :]
         if s == 0:
-            s_out = step_func_0(s_input, s_context)
+            s_out = step_func_init(s_input, s_context)
         else:
-            s_out = step_func_1(s_state, s_input, s_context)
+            s_out = step_func_next(s_state, s_input, s_context)
         # record the updated state
         s_states.append(s_out[0])
         # deal with sampling style for model prediction
