@@ -309,6 +309,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     # run decoder over sequence step-by-step
     s_states = [None]                 # recurrent states
     s_outputs = [enc_input[:, 0, :]]  # recurrent predictions
+    pred_loss = 0.                    # cumulative prediction loss (NLL)
     for s in range(enc_context.shape[1]):
         s_state = s_states[-1]
         s_input = s_outputs[-1]
@@ -322,6 +323,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
         # deal with sampling style for model prediction
         s_pred_true = xg_inf_seq[:, s, :]  # ground truth output for this step
         s_pred_prob = clip_softmax_np(s_out[1], axis=1)
+        s_pred_loss = -1. * np.sum(s_pred_true * np.log(s_pred_prob), axis=1)
         s_pred_model = np.zeros_like(s_pred_prob)
         s_roulette = np.cumsum(s_pred_prob, axis=1)
         for o in range(s_pred_model.shape[0]):
@@ -335,15 +337,22 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
                         s_pred_model[o, c] = 1.
                         break
         # swap in ground truth predictions for visible parts of sequence
+        s_pred_mask = np.zeros((s_pred_model.shape[0],))
         for o in range(s_pred_model.shape[0]):
             if xm_inf_seq[o, s] < 0.5:
                 s_pred_model[o, :] = s_pred_true[o, :]
+            else:
+                s_pred_mask[o] = 1.
+        # aggregate loss over imputed characters
+        pred_loss = pred_loss + np.sum(s_pred_loss * s_pred_mask)
         # record the predictions for this step
         s_outputs.append(s_pred_model)
+    # convert to average loss per observation
+    pred_loss = pred_loss / xg_inf_seq.shape[0]
     # stack up sequences of predicted characters
     s_outputs = np.stack(s_outputs[1:], axis=1)
     # s_outputs.shape: (nbatch, seq_len, char_count)
-    return s_outputs
+    return s_outputs, pred_loss
 
 # test compiled functions
 model_input = make_model_input(char_seq, 50)
@@ -359,8 +368,8 @@ print('DONE.')
 # test decoder sampler
 print('Testing decoder sampler...')
 xg_gen, xm_gen, xg_inf, xm_inf = model_input
-char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
-char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
+char_preds, pred_loss = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+char_preds, pred_loss = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
 print('DONE.')
 
 # stuff for performing updates
@@ -462,17 +471,18 @@ for epoch in range(1, (niter + niter_decay + 1)):
         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
         # run on random set of inputs
         xg_gen, xm_gen, xg_inf, xm_inf = recon_input
-        step_recons = \
+        step_recons, pred_loss = \
             sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
         # run on fixed set of inputs
         xg_gen, xm_gen, xg_inf, xm_inf = recon_input_fixed
-        step_recons_fixed = \
+        step_recons_fixed, pred_loss_fixed = \
             sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
         #
         # visualization for the variable set of examples
         #
         final_recons = np.argmax(step_recons, axis=2)
         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        res_strs.append('pred_loss: {0:.4f}'.format(pred_loss))
         for j in range(final_recons.shape[0]):
             rec_str = [idx2char[idx] for idx in final_recons[j]]
             rec_strs.append(''.join(rec_str))
@@ -484,6 +494,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         #
         final_recons = np.argmax(step_recons_fixed, axis=2)
         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
+        res_strs.append('pred_loss_fixed: {0:.4f}'.format(pred_loss_fixed))
         for j in range(final_recons.shape[0]):
             rec_str = [idx2char[idx] for idx in final_recons[j]]
             rec_strs.append(''.join(rec_str))
