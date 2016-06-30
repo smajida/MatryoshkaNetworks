@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc_5_steps'
+desc = 'test_seq_dec_bd_enc_1_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,7 +62,7 @@ ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
 padding = 5         # padding to keep gap away from sequence edges
-zz_steps = 5
+zz_steps = 1
 in_scale = 3.       # rescaling factor for one-hot inputs
 
 niter = 500         # # of iter at starting learning rate
