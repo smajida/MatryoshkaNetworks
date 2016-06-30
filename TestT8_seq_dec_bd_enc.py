@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_bd_enc_1_steps'
+desc = 'test_seq_dec_bd_enc_5_steps'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -62,7 +62,7 @@ ngf = 512           # dimension of enc/dec GRUs
 ngc = 256           # dimension of constructed context
 nbatch = 50         # # of examples in batch
 padding = 5         # padding to keep gap away from sequence edges
-zz_steps = 1
+zz_steps = 5
 
 niter = 500         # # of iter at starting learning rate
 niter_decay = 500   # # of iter to linearly decay learning rate to zero
@@ -346,7 +346,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
         # aggregate loss over imputed characters
         pred_loss = pred_loss + np.sum(s_pred_loss * s_pred_mask)
         # record the predictions for this step
-        s_outputs.append(s_pred_model)
+        s_outputs.append(3. * s_pred_model)
     # convert to average loss per observation
     pred_loss = pred_loss / xg_inf_seq.shape[0]
     # stack up sequences of predicted characters
@@ -482,7 +482,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         #
         final_recons = np.argmax(step_recons, axis=2)
         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-        res_strs.append('pred_loss: {0:.4f}'.format(pred_loss))
+        rec_strs.append('pred_loss: {0:.4f}'.format(pred_loss))
         for j in range(final_recons.shape[0]):
             rec_str = [idx2char[idx] for idx in final_recons[j]]
             rec_strs.append(''.join(rec_str))
@@ -494,7 +494,7 @@ for epoch in range(1, (niter + niter_decay + 1)):
         #
         final_recons = np.argmax(step_recons_fixed, axis=2)
         rec_strs = ['********** EPOCH {} **********'.format(epoch)]
-        res_strs.append('pred_loss_fixed: {0:.4f}'.format(pred_loss_fixed))
+        rec_strs.append('pred_loss_fixed: {0:.4f}'.format(pred_loss_fixed))
         for j in range(final_recons.shape[0]):
             rec_str = [idx2char[idx] for idx in final_recons[j]]
             rec_strs.append(''.join(rec_str))
