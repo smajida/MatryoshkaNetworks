@@ -213,7 +213,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
     xg_inf_seq = np.transpose(xg_inf, axes=(0, 2, 1, 3))
     xg_inf_seq = xg_inf_seq[:, :, :, 0]
     xm_inf_seq = np.transpose(xm_inf, axes=(0, 2, 1, 3))
-    xm_inf_seq = np.mean(xm_inf_seq[:, :, :, 0], axis=2)
+    xm_inf_seq = xm_inf_seq[:, :, :, 0]
     # xg_inf_seq.shape: (nbatch, seq_len, char_count)
     # -- this is the ground truth character sequence
     # xm_inf_seq.shape: (nbatch, seq_len)
@@ -253,7 +253,7 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
                         break
         # swap in ground truth predictions for visible parts of sequence
         for o in range(s_pred_model.shape[0]):
-            if xm_inf_seq[o, s] < 0.5:
+            if np.mean(xm_inf_seq[o, s, :]) < 0.5:
                 s_pred_model[o, :] = s_pred_true[o, :]
         # record the predictions for this step
         s_outputs.append(s_pred_model)
