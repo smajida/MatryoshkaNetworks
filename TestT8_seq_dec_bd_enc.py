@@ -342,21 +342,23 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
 
     # run deep GRU decoder over sequence step-by-step
     s_states = [(None, None)]              # recurrent states
-    s_outputs = [_seq_dec_input[:, 0, :]]  # recurrent predictions
+    s_outputs = [_seq_dec_input[:, 0, :]]  # recurrent predictions/outputs
     pred_loss = 0.                         # cumulative prediction loss (NLL)
     for s in range(_seq_dec_context.shape[1]):
         s_state_1, s_state_2 = s_states[-1]
-        s_input = s_outputs[-1]
-        s_context = _seq_dec_context[:, s, :]
+        s_input_1 = s_outputs[-1]
+        s_context_1 = _seq_dec_context[:, s, :]
+        s_context_2 = _seq_context[:, s, :]
         if s == 0:
-            s_out = step_func_init(s_input, s_context)
+            s_out = step_func_init(s_input_1, s_context_1, s_context_2)
         else:
-            s_out = step_func_next(s_state, s_input, s_context)
+            s_out = step_func_next(s_state_1, s_input_1, s_context_1,
+                                   s_state_2, s_context_2)
         # record the updated state
-        s_states.append(s_out[0])
+        s_states.append((s_out[0], s_out[1]))
         # deal with sampling style for model prediction
         s_pred_true = xg_inf_seq[:, s, :]  # ground truth output for this step
-        s_pred_prob = clip_softmax_np(s_out[1], axis=1)
+        s_pred_prob = clip_softmax_np(s_out[2], axis=1)
         s_pred_loss = -1. * np.sum(s_pred_true * np.log(s_pred_prob), axis=1)
         s_pred_model = np.zeros_like(s_pred_prob)
         s_roulette = np.cumsum(s_pred_prob, axis=1)
