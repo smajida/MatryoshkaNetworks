@@ -44,7 +44,7 @@ sys.setrecursionlimit(100000)
 EXP_DIR = './text8'
 
 # setup paths for dumping diagnostic info
-desc = 'test_seq_dec_only_512d'
+desc = 'test_seq_dec_only_512d_deep'
 result_dir = '{}/results/{}'.format(EXP_DIR, desc)
 inf_gen_param_file = '{}/inf_gen_params.pkl'.format(result_dir)
 if not os.path.exists(result_dir):
@@ -82,16 +82,26 @@ bce = T.nnet.binary_crossentropy
 # Build the sequential decoding layer. #
 ########################################
 
-seq_decoder = \
+# first layer of deep GRU
+seq_decoder_1 = \
     ContextualGRU(
         state_chans=ngf,
         input_chans=nc,
-        output_chans=nc,
+        output_chans=(ngf // 2),
         context_chans=nc,
         act_func='tanh',
-        mod_name='seq_dec')
+        mod_name='seq_dec_1')
+# second layer of deep GRU
+seq_decoder_2 = \
+    ContextualGRU(
+        state_chans=ngf,
+        input_chans=(ngf // 2),
+        output_chans=nc,
+        context_chans=(2 * nc),
+        act_func='tanh',
+        mod_name='seq_dec_2')
 # ...
-all_params = seq_decoder.params
+all_params = seq_decoder_1.params + seq_decoder_2.params
 
 
 ######################################################
@@ -165,11 +175,18 @@ seq_Xm_inf = T.flatten(seq_Xm_inf, 3)
 # make a shifted version of char sequence to use as decoder input
 dummy_vals = T.zeros((seq_Xg_inf.shape[0], 1, seq_Xg_inf.shape[2]))
 seq_dec_input = T.concatenate([dummy_vals, in_scale * seq_Xg_inf[:, :-1, :]], axis=1)
+seq_dec_context = seq_Xm_inf
 # seq_dec_input = seq_Xg_inf
 
 # run through the contextual decoder
-final_preds, scan_updates = \
-    seq_decoder.apply(seq_dec_input, seq_Xm_inf)
+output_1, sup_1 = \
+    seq_decoder_1.apply(seq_dec_input, seq_dec_context)
+final_preds, sup_2 = \
+    seq_decoder_2.apply(output_1, T.concatenate([seq_dec_input, seq_dec_context], axis=2))
+scan_updates = {}
+for scups in [sup_1, sup_2]:
+    for k, v in scups.items():
+        scan_updates[k] = v
 # final_preds comes from scan with shape: (nbatch, seq_len, nc)
 # -- need to shape it back to (nbatch, nc, seq_len, 1)
 final_preds = final_preds.dimshuffle(0, 2, 1, 'x')
@@ -195,50 +212,82 @@ full_cost = nll_cost + reg_cost
 # COMBINE VAE AND GAN OBJECTIVES TO GET FULL TRAINING OBJECTIVE #
 #################################################################
 
-print('Compiling encoder and sampling functions...')
+print('Compiling decoder sampling function...')
 # function for applying the first step of decoder (includes state initialization)
-dec_state = T.matrix()
-dec_input = T.matrix()
-dec_context = T.matrix()
-state_1, out_0 = \
-    seq_decoder.apply_step(state=None, input=dec_input, context=dec_context)
-step_func_0 = theano.function([dec_input, dec_context], [state_1, out_0])
-state_tp1, out_t = \
-    seq_decoder.apply_step(state=dec_state, input=dec_input, context=dec_context)
-step_func_1 = theano.function([dec_state, dec_input, dec_context], [state_tp1, out_t])
+dec_state_1 = T.matrix()
+dec_input_1 = T.matrix()
+dec_context_1 = T.matrix()
+dec_state_2 = T.matrix()
+dec_context_2 = T.matrix()
+step_init_inputs = [dec_input_1, dec_context_1, dec_context_2]
+step_next_inputs = [dec_state_1, dec_input_1, dec_context_1, dec_state_2, dec_context_2]
+
+# run the initial step through the deep GRU -- this provides initial states
+# and the output for the first step
+state_1_init, out_1_init = \
+    seq_decoder_1.apply_step(state=None, input=dec_input_1, context=dec_context_1)
+state_2_init, out_2_init = \
+    seq_decoder_2.apply_step(state=None, input=out_1_init, context=dec_context_2)
+# output states of both GRU layers, and the output of top layer
+step_init_outputs = [state_1_init, state_2_init, out_2_init]
+# compile the initial decoder step function
+step_func_init = theano.function(step_init_inputs, step_init_outputs)
+
+# run subsequent steps through the deep GRU -- this provides updated states
+# and the output for each step
+state_1_next, out_1_next = \
+    seq_decoder_1.apply_step(state=dec_state_1, input=dec_input_1, context=dec_context_1)
+state_2_next, out_2_next = \
+    seq_decoder_2.apply_step(state=dec_state_2, input=out_1_next, context=dec_context_2)
+# output states of both GRU layers, and the output of top layer
+step_next_outputs = [state_1_next, state_2_next, out_2_next]
+# compile the initial decoder step function
+step_func_next = theano.function(step_next_inputs, step_next_outputs)
+# NOTE: context for the decoder should be as provided by the encoder function
 
 
 # function for deterministic/stochastic decoding (using argmax/sampling)
 def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
+    xg_gen_seq = np.transpose(xg_gen, axes=(0, 2, 1, 3))
+    xg_gen_seq = xg_gen_seq[:, :, :, 0]
+    xm_gen_seq = np.transpose(xm_gen, axes=(0, 2, 1, 3))
+    xm_gen_seq = np.mean(xm_gen_seq[:, :, :, 0], axis=2)
     xg_inf_seq = np.transpose(xg_inf, axes=(0, 2, 1, 3))
     xg_inf_seq = xg_inf_seq[:, :, :, 0]
     xm_inf_seq = np.transpose(xm_inf, axes=(0, 2, 1, 3))
-    xm_inf_seq = xm_inf_seq[:, :, :, 0]
+    xm_inf_seq = np.mean(xm_inf_seq[:, :, :, 0], axis=2)
     # xg_inf_seq.shape: (nbatch, seq_len, char_count)
     # -- this is the ground truth character sequence
     # xm_inf_seq.shape: (nbatch, seq_len)
     # -- this is binary mask on locations to impute
-    # make a shifted version of char sequence to use as decoder input
-    d_vals = np.zeros((xg_inf_seq.shape[0], 1, xg_inf_seq.shape[2]))
-    dec_input = np.concatenate([d_vals, in_scale * xg_inf_seq[:, :-1, :]], axis=1)
-    dec_input = floatX(dec_input)
 
-    # run decoder over sequence step-by-step
-    s_states = [None]                 # recurrent states
-    s_outputs = [dec_input[:, 0, :]]  # recurrent predictions
-    for s in range(dec_input.shape[1]):
-        s_state = s_states[-1]
-        s_input = in_scale * s_outputs[-1]
-        s_context = xm_inf_seq[:, s, :]
+    # build input arrays to match those used in training
+    _seq_dec_input = in_scale * np.roll(xg_inf_seq, 1, axis=1)
+    _seq_dec_input[:, 0, :] = 0. * _seq_dec_input[:, 0, :]
+    _seq_dec_context = xm_inf_seq
+
+    # run deep GRU decoder over sequence step-by-step
+    s_states = [(None, None)]              # recurrent states
+    s_outputs = [_seq_dec_input[:, 0, :]]  # recurrent predictions/outputs
+    pred_loss = 0.                         # cumulative prediction loss (NLL)
+    for s in range(xg_inf_seq.shape[1]):
+        s_state_1, s_state_2 = s_states[-1]
+        s_input_1 = s_outputs[-1]
+        s_context_1 = _seq_dec_context[:, s, :]
+        # context for second decoder layer is concatenated inputs
+        # to the first decoder layer
+        s_context_2 = np.concatenate([s_input_1, s_context_1], axis=1)
         if s == 0:
-            s_out = step_func_0(floatX(s_input), floatX(s_context))
+            s_out = step_func_init(s_input_1, s_context_1, s_context_2)
         else:
-            s_out = step_func_1(floatX(s_state), floatX(s_input), floatX(s_context))
+            s_out = step_func_next(s_state_1, s_input_1, s_context_1,
+                                   s_state_2, s_context_2)
         # record the updated state
-        s_states.append(s_out[0])
+        s_states.append((s_out[0], s_out[1]))
         # deal with sampling style for model prediction
         s_pred_true = xg_inf_seq[:, s, :]  # ground truth output for this step
-        s_pred_prob = clip_softmax_np(s_out[1], axis=1)
+        s_pred_prob = clip_softmax_np(s_out[2], axis=1)
+        s_pred_loss = -1. * np.sum(s_pred_true * np.log(s_pred_prob), axis=1)
         s_pred_model = np.zeros_like(s_pred_prob)
         s_roulette = np.cumsum(s_pred_prob, axis=1)
         for o in range(s_pred_model.shape[0]):
@@ -252,24 +301,29 @@ def sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False):
                         s_pred_model[o, c] = 1.
                         break
         # swap in ground truth predictions for visible parts of sequence
+        s_pred_mask = np.zeros((s_pred_model.shape[0],))
         for o in range(s_pred_model.shape[0]):
-            if np.mean(xm_inf_seq[o, s, :]) < 0.5:
+            if xm_inf_seq[o, s] < 0.5:
                 s_pred_model[o, :] = s_pred_true[o, :]
+            else:
+                s_pred_mask[o] = 1.
+        # aggregate loss over imputed characters
+        pred_loss = pred_loss + np.sum(s_pred_loss * s_pred_mask)
         # record the predictions for this step
-        s_outputs.append(s_pred_model)
+        s_outputs.append(in_scale * s_pred_model)
+    # convert to average loss per observation
+    pred_loss = pred_loss / xg_inf_seq.shape[0]
     # stack up sequences of predicted characters
     s_outputs = np.stack(s_outputs[1:], axis=1)
     # s_outputs.shape: (nbatch, seq_len, char_count)
-    return s_outputs
+    return s_outputs, pred_loss
 
 # test decoder sampler
 print('Testing decoder sampler...')
 model_input = make_model_input(char_seq, 50)
-for i, in_ary in enumerate(model_input):
-    print('model_input[i].shape: {}'.format(in_ary.shape))
 xg_gen, xm_gen, xg_inf, xm_inf = model_input
-char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
-char_preds = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
+char_preds, pred_loss = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
+char_preds, pred_loss = sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=True)
 print('DONE.')
 
 # stuff for performing updates
@@ -375,11 +429,11 @@ for epoch in range(1, (niter + niter_decay + 1)):
         recon_input = [np.repeat(ary, recon_repeats, axis=0) for ary in recon_input]
         # run on random set of inputs
         xg_gen, xm_gen, xg_inf, xm_inf = recon_input
-        step_recons = \
+        step_recons, _ = \
             sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
         # run on fixed set of inputs
         xg_gen, xm_gen, xg_inf, xm_inf = recon_input_fixed
-        step_recons_fixed = \
+        step_recons_fixed, _ = \
             sample_decoder(xg_gen, xm_gen, xg_inf, xm_inf, use_argmax=False)
         #
         # visualization for the variable set of examples
